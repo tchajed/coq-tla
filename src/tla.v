@@ -31,6 +31,16 @@ Module classical_logic.
     tauto.
   Qed.
 
+  Lemma prop_not_or (P Q: Prop) : ~(P ∨ Q) ↔ (~P) ∧ (~Q).
+  Proof.
+    tauto.
+  Qed.
+
+  Lemma prop_not_and (P Q: Prop) : ~(P ∧ Q) ↔ (~P) ∨ (~Q).
+  Proof.
+    tauto.
+  Qed.
+
 End classical_logic.
 
 Import classical_logic.
@@ -156,6 +166,57 @@ Theorem eventually_idem p :
 Proof.
   rewrite !eventually_to_always ?not_not.
   rewrite always_idem //.
+Qed.
+
+Theorem always_intro p :
+  (⊢ p) ↔ ⊢ □ p.
+Proof.
+  rewrite /valid /always.
+  split; intros H e; eauto.
+  specialize (H e 0).
+  rewrite drop_0 // in H.
+Qed.
+
+Theorem always_and p1 p2 :
+  □(p1 ∧ p2) == (□p1 ∧ □ p2).
+Proof.
+  apply predicate_ext => e; rewrite /always /tla_and.
+  intuition eauto.
+  - destruct (H k); auto.
+  - destruct (H k); auto.
+Qed.
+
+Lemma not_or p1 p2 :
+  !(p1 ∨ p2) == (!p1 ∧ !p2).
+Proof.
+  apply predicate_ext => e; rewrite /tla_or /tla_and /tla_not /=.
+  tauto.
+Qed.
+
+Lemma not_and p1 p2 :
+  !(p1 ∧ p2) == (!p1 ∨ !p2).
+Proof.
+  apply predicate_ext => e; rewrite /tla_or /tla_and /tla_not /=.
+  tauto.
+Qed.
+
+Theorem eventually_or p1 p2 :
+  ◇(p1 ∨ p2) == (◇p1 ∨ ◇ p2).
+Proof.
+  rewrite !eventually_to_always.
+  rewrite not_or always_and.
+  rewrite -not_eventually -not_eventually !not_not.
+  rewrite -not_or not_not.
+  rewrite //.
+Qed.
+
+Theorem always_expand p :
+  ⊢ □ p → (p ∧ □ p).
+Proof.
+  rewrite /valid => e; rewrite /always /tla_implies /tla_and.
+  intros H.
+  split; [ | auto ].
+  specialize (H 0); rewrite drop_0 // in H.
 Qed.
 
 End TLA.
