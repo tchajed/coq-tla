@@ -5,3 +5,4 @@
 *.vok
 *.vos
 /.coqdeps.d
+.lia.cache

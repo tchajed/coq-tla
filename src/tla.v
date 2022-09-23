@@ -149,6 +149,48 @@ Proof.
   rewrite eventually_to_always not_not //.
 Qed.
 
+Lemma not_or p1 p2 :
+  !(p1 ∨ p2) == (!p1 ∧ !p2).
+Proof.
+  apply predicate_ext => e; rewrite /tla_or /tla_and /tla_not /=.
+  tauto.
+Qed.
+
+Lemma not_and p1 p2 :
+  !(p1 ∧ p2) == (!p1 ∨ !p2).
+Proof.
+  apply predicate_ext => e; rewrite /tla_or /tla_and /tla_not /=.
+  tauto.
+Qed.
+
+Lemma implies_to_or p1 p2 :
+  (p1 → p2) == (!p1 ∨ p2).
+Proof.
+  apply predicate_ext => e; rewrite /tla_implies /tla_or /tla_not /=.
+  tauto.
+Qed.
+
+Lemma not_implies p1 p2 :
+  !(p1 → p2) == (p1 ∧ !p2).
+Proof.
+  rewrite implies_to_or.
+  rewrite not_or not_not //.
+Qed.
+
+Ltac dual0 :=
+  apply not_inj;
+  repeat first [
+    rewrite !not_eventually |
+    rewrite !not_always |
+    rewrite !not_and |
+    rewrite !not_or |
+    rewrite !not_not |
+    rewrite !not_implies
+  ].
+
+Tactic Notation "dual" := dual0.
+Tactic Notation "dual" constr(lem) := dual0; rewrite lem; done.
+
 Theorem always_idem p :
   □ □ p == □ p.
 Proof.
@@ -165,8 +207,7 @@ Qed.
 Theorem eventually_idem p :
   ◇ ◇ p == ◇ p.
 Proof.
-  rewrite !eventually_to_always ?not_not.
-  rewrite always_idem //.
+  dual always_idem.
 Qed.
 
 Theorem always_intro p :
@@ -187,28 +228,56 @@ Proof.
   - destruct (H k); auto.
 Qed.
 
-Lemma not_or p1 p2 :
-  !(p1 ∨ p2) == (!p1 ∧ !p2).
-Proof.
-  apply predicate_ext => e; rewrite /tla_or /tla_and /tla_not /=.
-  tauto.
-Qed.
-
-Lemma not_and p1 p2 :
-  !(p1 ∧ p2) == (!p1 ∨ !p2).
-Proof.
-  apply predicate_ext => e; rewrite /tla_or /tla_and /tla_not /=.
-  tauto.
-Qed.
-
 Theorem eventually_or p1 p2 :
   ◇(p1 ∨ p2) == (◇p1 ∨ ◇ p2).
 Proof.
-  rewrite !eventually_to_always.
-  rewrite not_or always_and.
-  rewrite -not_eventually -not_eventually !not_not.
-  rewrite -not_or not_not.
-  rewrite //.
+  dual always_and.
+Qed.
+
+Theorem always_eventually_distrib p1 p2 :
+  □◇ (p1 ∨ p2) == ((□◇ p1) ∨ (□◇ p2)).
+Proof.
+  apply predicate_ext => e; rewrite /always /eventually /tla_or.
+  setoid_rewrite drop_drop.
+  split.
+  - intros H.
+    apply NNPP.
+    intros H1.
+    apply prop_not_or in H1.
+    rewrite -!not_forall in H1.
+    setoid_rewrite <- not_exists in H1.
+    destruct H1 as [[x1 Hnot1] [x2 Hnot2]].
+    destruct (H (Nat.max x1 x2)) as [k H1or2].
+    destruct H1or2 as [H1|H2].
+    { apply (Hnot1 (k + Nat.max x1 x2 - x1)).
+      assert (k + Nat.max x1 x2 - x1 + x1 = k + Nat.max x1 x2) by lia.
+      congruence. }
+    { apply (Hnot2 (k + Nat.max x1 x2 - x2)).
+      assert (k + Nat.max x1 x2 - x2 + x2 = k + Nat.max x1 x2) by lia.
+      congruence. }
+  - intros [H|H]; intros k.
+    + destruct (H k) as [k' ?]; eauto.
+    + destruct (H k) as [k' ?]; eauto.
+Qed.
+
+Lemma always_eventually_reverse p :
+  □◇ p == ! ◇□ !p.
+Proof.
+  rewrite (eventually_to_always p).
+  rewrite (always_to_eventually (! □ (! p))%L).
+  rewrite not_not //.
+Qed.
+
+Lemma eventually_always_reverse p :
+  ◇□ p == ! □◇ !p.
+Proof.
+  dual always_eventually_reverse.
+Qed.
+
+Theorem eventually_always_distrib p1 p2 :
+  ◇□ (p1 ∧ p2) == ((◇□ p1) ∧ (◇□ p2)).
+Proof.
+  dual always_eventually_distrib.
 Qed.
 
 Theorem always_expand p :
@@ -219,5 +288,11 @@ Proof.
   split; [ | auto ].
   specialize (H 0); rewrite drop_0 // in H.
 Qed.
+
+Definition state_pred (f: Σ → Prop) : predicate :=
+    λ ex, f (ex 0).
+
+Definition action (R: Σ → Σ → Prop) : predicate :=
+    λ ex, R (ex 0) (ex 1).
 
 End TLA.
