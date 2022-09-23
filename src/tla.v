@@ -89,8 +89,11 @@ Notation "□  p" := (always p%L) (at level 50, left associativity) : tla .
 Definition eventually p : predicate := λ e, ∃ k, p (cut k e).
 Notation "◇  p" := (eventually p%L) (at level 50, left associativity) : tla .
 
+(* this is just to force parsing in tla scope *)
+Notation "p == q" := (@eq predicate p%L q%L) (at level 70, only parsing).
+
 Theorem eventually_to_always p :
-  (◇ p = ¬ (□ (¬ p)))%L.
+  ◇ p == ¬ (□ (¬ p)).
 Proof.
   apply predicate_ext => e; rewrite /eventually /always /tla_not.
   rewrite -not_forall.
@@ -99,7 +102,7 @@ Proof.
 Qed.
 
 Theorem always_to_eventually p :
-  (□ p = ¬ (◇ (¬ p)))%L.
+  □ p == ¬ (◇ (¬ p)).
 Proof.
   apply predicate_ext => e; rewrite /eventually /always /tla_not.
   rewrite <- not_exists.
@@ -108,14 +111,14 @@ Proof.
 Qed.
 
 Lemma not_not p :
-  (¬ ¬ p)%L = p.
+  (¬ ¬ p) == p.
 Proof.
   apply predicate_ext => e; rewrite /tla_not.
   rewrite double_negation //.
 Qed.
 
 Lemma not_inj p q :
-  (¬ p)%L = (¬ q)%L →
+  (¬ p) == (¬ q) →
   p = q.
 Proof.
   intros.
@@ -124,13 +127,13 @@ Proof.
 Qed.
 
 Theorem not_eventually p :
-  (¬ ◇ p)%L = (□ ¬ p)%L.
+  (¬ ◇ p) == □ ¬ p.
 Proof.
   rewrite eventually_to_always not_not //.
 Qed.
 
 Theorem not_always p :
-  (¬ □ p)%L = (◇ ¬ p)%L.
+  (¬ □ p) == ◇ ¬ p.
 Proof.
   rewrite eventually_to_always not_not //.
 Qed.
