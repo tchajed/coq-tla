@@ -4,3 +4,6 @@
 -arg -w -arg -deprecated-hint-rewrite-without-locality
 -arg -w -arg -deprecated-typeclasses-transparency-without-locality
 -arg -w -arg -deprecated-syntactic-definition
+# Coq 8.17 warnings
+-arg -w -arg -future-coercion-class-field
+-arg -w -arg -deprecated-tacopt-without-locality

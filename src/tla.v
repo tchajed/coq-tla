@@ -61,6 +61,7 @@ Proof.
   auto.
 Qed.
 
+Declare Scope tla.
 Delimit Scope tla with L.
 
 Definition valid p := ∀ e, p e.

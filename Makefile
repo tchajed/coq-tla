@@ -14,9 +14,9 @@ ifneq ($(MAKECMDGOALS), clean)
 -include .coqdeps.d
 endif
 
-%.vo: %.v
+%.vo: %.v _CoqProject
 	@echo "COQC $<"
-	@coqc $(COQARGS) $(shell cat '_CoqProject') $< -o $@
+	@coqc $(COQARGS) $(COQPROJECT_ARGS) $< -o $@
 
 clean:
 	@echo "CLEAN vo glob aux"
