@@ -63,6 +63,7 @@ Qed.
 
 Declare Scope tla.
 Delimit Scope tla with L.
+Bind Scope tla with predicate.
 
 Definition valid p := ∀ e, p e.
 Notation "⊢  p" := (valid p%L) (at level 99, p at level 200).
@@ -202,23 +203,24 @@ Proof.  unseal.  Qed.
 Hint Rewrite not_eventually not_always
   not_and not_or not_not not_implies : tla.
 
-Ltac dual0 :=
-  apply not_inj;
-  autorewrite with tla.
+Ltac tla_simp := autorewrite with tla; try reflexivity.
 
-Tactic Notation "dual" := dual0; try reflexivity.
+Ltac dual0 :=
+  apply not_inj; tla_simp.
+
+Tactic Notation "dual" := dual0.
 Tactic Notation "dual" constr(lem) := dual0; rewrite lem; done.
 
 Theorem eventually_to_always p :
   ◇ p == ! (□ (! p)).
 Proof.
-  autorewrite with tla; reflexivity.
+  tla_simp.
 Qed.
 
 Theorem always_to_eventually p :
   □ p == ! (◇ (! p)).
 Proof.
-  autorewrite with tla; reflexivity.
+  tla_simp.
 Qed.
 
 Theorem always_idem p :
@@ -240,6 +242,8 @@ Proof.
   dual always_idem.
 Qed.
 
+Hint Rewrite always_idem eventually_idem : tla.
+
 Theorem and_idem p :
   (p ∧ p) == p.
 Proof.  unseal.  Qed.
@@ -255,6 +259,13 @@ Proof.
   split; intros H e; eauto.
   specialize (H e 0).
   rewrite drop_0 // in H.
+Qed.
+
+Theorem implies_generalize p1 p2 :
+  (⊢ p1 → p2) → (⊢ □ p1 → □ p2).
+Proof.
+  unfold valid; autounfold with tla.
+  eauto.
 Qed.
 
 Theorem always_and p1 p2 :
@@ -315,6 +326,34 @@ Proof.
   autorewrite with tla; done.
 Qed.
 
+Theorem always_eventually_idem p :
+  □ ◇ □ ◇ p == □ ◇ p.
+Proof.
+  unseal.
+  repeat setoid_rewrite drop_drop.
+  split.
+  - intros H k.
+    specialize (H k).
+    destruct H as [k' H].
+    specialize (H 0).
+    destruct H as [k'' H].
+    eauto.
+  - intros H k.
+    exists 0. intros k'.
+    destruct (H (k + k')) as [k'' H'].
+    exists k''.
+    replace (k'' + k' + 0 + k) with (k'' + (k + k')) by lia.
+    done.
+Qed.
+
+Theorem eventually_always_idem p :
+  ◇ □ ◇ □ p == ◇ □ p.
+Proof.
+  dual always_eventually_idem.
+Qed.
+
+Hint Rewrite always_eventually_idem eventually_always_idem : tla.
+
 Theorem always_weaken p :
   □ p ⊢ p.
 Proof.
@@ -336,7 +375,40 @@ Qed.
 Definition state_pred (f: Σ → Prop) : predicate :=
     λ ex, f (ex 0).
 
-Definition action (R: Σ → Σ → Prop) : predicate :=
-    λ ex, R (ex 0) (ex 1).
+Definition action := Σ → Σ → Prop.
+
+Implicit Types (a: action).
+
+Definition action_pred a : predicate :=
+    λ ex, a (ex 0) (ex 1).
+
+Notation "⟨ a ⟩" := (action_pred a).
+
+Definition enabled a : predicate :=
+  state_pred (λ s, ∃ s', a s s').
+
+Definition weak_fairness a : predicate :=
+    □ (□ (enabled a) → (◇ ⟨a⟩)).
+
+Theorem weak_fairness_alt1 a :
+  weak_fairness a == □ ◇ (! (enabled a) ∨ □ ◇ ⟨a⟩).
+Proof.
+  unfold weak_fairness.
+  rewrite implies_to_or.
+  tla_simp.
+  rewrite -!eventually_or.
+  rewrite !always_eventually_distrib.
+  tla_simp.
+Qed.
+
+Theorem weak_fairness_alt2 a :
+  weak_fairness a == (◇ □ (enabled a) → □ ◇ ⟨a⟩).
+Proof.
+  rewrite weak_fairness_alt1.
+  rewrite implies_to_or.
+  tla_simp.
+  rewrite always_eventually_distrib.
+  tla_simp.
+Qed.
 
 End TLA.
