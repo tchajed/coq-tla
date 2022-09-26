@@ -500,6 +500,20 @@ Proof.
   { eauto. }
 Qed.
 
+Theorem always_induction p :
+  □ p == (p ∧ □(p → next p)).
+Proof.
+  apply equiv_to_impl.
+  - unseal.
+    intuition eauto.
+    rewrite -(drop_0 e) //.
+  - unseal.
+    destruct H as [Hp Hnext] .
+    generalize dependent e.
+    induction k; intros; eauto.
+    rewrite drop_0 //.
+Qed.
+
 Theorem next_always p :
   □ p ⊢ next (□ p).
 Proof.
