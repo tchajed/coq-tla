@@ -6,6 +6,15 @@ From Coq Require Import Lia.
 
 From stdpp Require Import base.
 
+Ltac deex :=
+  match goal with
+  | [ H : exists (varname : _), _ |- _ ] =>
+    let newvar := fresh varname in
+    destruct H as [newvar ?]
+  | [ H: _ ∧ _ |- _ ] => destruct H
+  | _ => subst
+  end.
+
 Module classical_logic.
 
   Lemma not_forall {A: Type} (P: A → Prop) :
@@ -118,44 +127,97 @@ Notation "□  p" := (always p%L) (at level 51, right associativity) : tla.
 Definition eventually p : predicate := λ e, ∃ k, p (drop k e).
 Notation "◇  p" := (eventually p%L) (at level 51, right associativity) : tla.
 
+(* This serves the rule of the "prime" in TLA, but with a more general and
+formal definition than TLA, which seems to only use them in actions and does not
+treat it as a full-fledged modality. *)
+Definition next p : predicate := λ e, p (drop 1 e).
+
 (* this is just to force parsing in tla scope *)
 Notation "p == q" := (@eq predicate p%L q%L) (at level 70, only parsing).
 
-Hint Unfold tla_and tla_or tla_not tla_implies eventually always : tla.
+Lemma equiv_to_impl p q :
+  (p ⊢ q) → (q ⊢ p) → (p == q).
+Proof.
+  intros H1 H2.
+  apply predicate_ext => e.
+  intuition eauto.
+Qed.
+
+Hint Unfold tla_and tla_or tla_not tla_implies eventually always next : tla.
+Hint Unfold valid pred_impl : tla.
 
 Local Ltac instance_t :=
   rewrite /Proper /respectful /Basics.flip /Basics.impl /pred_impl;
   autounfold with tla;
-  try solve [ intuition auto ].
+  try solve [ intuition (deex; eauto) ].
 
 Global Instance implies_impl_proper :
   Proper (Basics.flip pred_impl ==> pred_impl ==> pred_impl) tla_implies.
 Proof.  instance_t.  Qed.
 
-Instance and_impl_proper :
+Global Instance implies_impl_flip_proper :
+  Proper (pred_impl ==> flip pred_impl ==> flip pred_impl) tla_implies.
+Proof.  instance_t.  Qed.
+
+Global Instance and_impl_proper :
   Proper (pred_impl ==> pred_impl ==> pred_impl) tla_and.
 Proof. instance_t. Qed.
 
-Instance and_impl_proper' p :
+Global Instance and_impl_flip_proper :
+  Proper (flip pred_impl ==> flip pred_impl ==> flip pred_impl) tla_and.
+Proof. instance_t. Qed.
+
+Global Instance and_impl_proper' p :
   Proper (pred_impl ==> pred_impl) (tla_and p).
 Proof. apply and_impl_proper. reflexivity. Qed.
 
-Instance or_impl_proper :
+Global Instance or_impl_proper :
   Proper (pred_impl ==> pred_impl ==> pred_impl) tla_or.
 Proof. instance_t. Qed.
 
-Instance pred_impl_proper :
+Global Instance eventually_impl_proper :
+  Proper (pred_impl ==> pred_impl) eventually.
+Proof.  instance_t. Qed.
+
+Global Instance always_impl_proper :
+  Proper (pred_impl ==> pred_impl) always.
+Proof.  instance_t. Qed.
+
+Global Instance next_impl_proper :
+  Proper (pred_impl ==> pred_impl) next.
+Proof.  instance_t. Qed.
+
+Global Instance pred_impl_proper :
   Proper (Basics.flip pred_impl ==> pred_impl ==> Basics.impl) pred_impl.
 Proof. instance_t. Qed.
 
-Instance pred_flip_impl_proper :
+Global Instance pred_flip_impl_proper :
   Proper (pred_impl ==> Basics.flip pred_impl ==> Basics.flip impl) pred_impl.
 Proof. instance_t. Qed.
 
+Global Instance impl_valid :
+  Proper (pred_impl ==> impl) valid.
+Proof. instance_t. Qed.
+
+Global Instance impl_flip_valid :
+  Proper (flip pred_impl ==> flip impl) valid.
+Proof. instance_t. Qed.
+
 Ltac unseal :=
-  apply predicate_ext => e;
+  lazymatch goal with
+  | |- @eq predicate _ _ =>
+    apply predicate_ext => e
+  | _ => idtac
+  end;
   autounfold with tla;
-  try tauto.
+  try tauto;
+  repeat setoid_rewrite drop_drop;
+  repeat lazymatch goal with
+  | |- (∀ (e: exec), _) => intro e
+  | |- (∀ (n: _), _) => let n := fresh n in intro n
+  | |- _ → _ => let H := fresh "H" in intro H
+  end;
+  eauto.
 
 Theorem not_eventually p :
   ! ◇p == □ !p.
@@ -226,14 +288,12 @@ Qed.
 Theorem always_idem p :
   □ □ p == □ p.
 Proof.
-  apply predicate_ext => e; rewrite /always.
+  unseal.
   split.
   - intros H k.
-    specialize (H 0 k).
-    rewrite drop_0 // in H.
-  - intros H k k'.
-    rewrite drop_drop.
-    eauto.
+    specialize (H k 0).
+    rewrite //= in H.
+  - intuition auto.
 Qed.
 
 Theorem eventually_idem p :
@@ -252,11 +312,22 @@ Theorem or_idem p :
   (p ∨ p) == p.
 Proof.  unseal.  Qed.
 
+Theorem tla_and_assoc p1 p2 p3 :
+  ((p1 ∧ p2) ∧ p3) == (p1 ∧ p2 ∧ p3).
+Proof. unseal. Qed.
+
+Theorem tla_or_assoc p1 p2 p3 :
+  ((p1 ∨ p2) ∨ p3) == (p1 ∨ p2 ∨ p3).
+Proof. unseal. Qed.
+
+Hint Rewrite tla_and_assoc : tla.
+Hint Rewrite tla_or_assoc : tla.
+
 Theorem always_intro p :
   (⊢ p) ↔ ⊢ □ p.
 Proof.
-  rewrite /valid /always.
-  split; intros H e; eauto.
+  unseal.
+  split; intros H e; [ by eauto | ].
   specialize (H e 0).
   rewrite drop_0 // in H.
 Qed.
@@ -277,6 +348,18 @@ Proof.
   - destruct (H k); auto.
 Qed.
 
+Theorem next_and p1 p2 :
+  next (p1 ∧ p2) == (next p1 ∧ next p2).
+Proof.
+  unseal.
+Qed.
+
+Theorem next_or p1 p2 :
+  next (p1 ∨ p2) == (next p1 ∨ next p2).
+Proof.
+  unseal.
+Qed.
+
 Theorem eventually_or p1 p2 :
   ◇(p1 ∨ p2) == (◇p1 ∨ ◇ p2).
 Proof.
@@ -287,7 +370,6 @@ Theorem always_eventually_distrib p1 p2 :
   □◇ (p1 ∨ p2) == ((□◇ p1) ∨ (□◇ p2)).
 Proof.
   unseal.
-  setoid_rewrite drop_drop.
   split.
   - intros H.
     apply NNPP.
@@ -354,22 +436,134 @@ Qed.
 
 Hint Rewrite always_eventually_idem eventually_always_idem : tla.
 
+Theorem entails_and_iff p q1 q2 :
+  ((p ⊢ q1) ∧ (p ⊢ q2)) ↔ (p ⊢ q1 ∧ q2).
+Proof.
+  unseal.
+  intuition eauto.
+  - apply H; done.
+  - apply H; done.
+Qed.
+
+Theorem entails_and p q1 q2 :
+  (p ⊢ q1) →
+  (p ⊢ q2) →
+  (p ⊢ q1 ∧ q2).
+Proof.
+  rewrite -entails_and_iff //.
+Qed.
+
 Theorem always_weaken p :
   □ p ⊢ p.
 Proof.
-  rewrite /valid => e; rewrite /always /tla_implies /=.
-  intros H.
+  unseal.
   specialize (H 0).
   rewrite drop_0 // in H.
 Qed.
 
+Theorem always_to_next p :
+  □ p ⊢ next p.
+Proof.
+  unseal.
+Qed.
+
+Theorem next_to_eventually p :
+  next p ⊢ ◇ p.
+Proof.
+  unseal.
+Qed.
+
 Theorem always_expand p :
-  □ p ⊢ p ∧ □ p.
+  □ p == (p ∧ □ p).
 Proof.
   rewrite -{1}(and_idem p).
   rewrite always_and.
-  rewrite -> always_weaken at 1.
-  reflexivity.
+  unseal.
+  intuition eauto.
+  specialize (H0 0).
+  rewrite drop_0 in H0; eauto.
+Qed.
+
+Lemma add_1_succ (n: nat) : n + 1 = S n.
+Proof. lia. Qed.
+
+Theorem always_unroll p :
+  □ p == (p ∧ next (□ p)).
+Proof.
+  apply equiv_to_impl; unseal.
+  { intuition eauto.
+    rewrite -(drop_0 e) //. }
+  intuition eauto.
+  setoid_rewrite add_1_succ in H1.
+  destruct k.
+  { rewrite drop_0 //. }
+  { eauto. }
+Qed.
+
+Theorem next_always p :
+  □ p ⊢ next (□ p).
+Proof.
+  rewrite -> always_unroll at 1.
+  unseal.
+Qed.
+
+Theorem next_eventually p :
+  (p ∨ next (◇ p)) == ◇ p.
+Proof.
+  unseal.
+  intuition (deex; eauto).
+  { exists 0; rewrite drop_0 //. }
+  setoid_rewrite add_1_succ.
+  destruct k; eauto.
+  rewrite drop_0 in H; auto.
+Qed.
+
+Theorem next_eventually_weaken p :
+  next (◇ p) ⊢ ◇ p.
+Proof.
+  rewrite <- next_eventually at 2.
+  unseal.
+Qed.
+
+(* the induction principle from the TLA paper *)
+Theorem next_induction (n inv: predicate) :
+  (inv ∧ n ⊢ next inv) →
+  (inv ∧ □n ⊢ □inv).
+Proof.
+  unseal.
+  destruct H0 as [Hinit Hn].
+  induction k.
+  - rewrite drop_0 //.
+  - change (S k) with (1 + k).
+    rewrite -drop_drop.
+    apply H; eauto.
+Qed.
+
+Theorem init_safety (init n inv safe : predicate) :
+  (init ⊢ inv) →
+  (inv ∧ n ⊢ next inv) →
+  (inv ⊢ safe) →
+  ⊢ init ∧ □ n → □ safe.
+Proof.
+  intros Hinit Hnext Hsafe.
+  rewrite <- Hsafe.
+  rewrite -> Hinit.
+  apply next_induction.
+  auto.
+Qed.
+
+(* This is a more general induction principle _internal_ to the logic. It's
+different from `next_induction` because it requires the implication only for the
+"current" execution. *)
+Theorem next_induction_internal (n inv: predicate) :
+  ⊢ □(inv ∧ n → next inv) → (inv ∧ □n → □inv).
+Proof.
+  unseal.
+  destruct H0 as [Hinit Hn].
+  induction k.
+  - rewrite drop_0 //.
+  - change (S k) with (1 + k).
+    apply H; eauto.
 Qed.
 
 Definition state_pred (f: Σ → Prop) : predicate :=
