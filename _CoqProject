@@ -1,5 +1,6 @@
 -Q src TLA
 -Q external/stdpp/stdpp stdpp
+-Q external/stdpp/stdpp_unstable stdpp.unstable
 # stdpp disabled options
 -arg -w -arg -deprecated-hint-rewrite-without-locality
 -arg -w -arg -deprecated-typeclasses-transparency-without-locality
