@@ -6,3 +6,5 @@
 *.vos
 /.coqdeps.d
 .lia.cache
+# Alectryon
+/docs
