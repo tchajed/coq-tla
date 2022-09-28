@@ -67,7 +67,7 @@ Definition eventually p : predicate := λ e, ∃ k, p (drop k e).
 (* This serves the rule of the "prime" in TLA, but with a more general and
 formal definition than TLA, which seems to only use them in actions and does not
 treat it as a full-fledged modality. *)
-Definition next p : predicate := λ e, p (drop 1 e).
+Definition later p : predicate := λ e, p (drop 1 e).
 
 (*|
 `valid` asserts that a TLA formula "holds" or "is true", which is defined as holding for all executions. This is sometimes phrased as saying that `p` is a tautology, but that can be confusing if you're not used to it. We'll use the standard logic notation `⊢ p` to state that `p` is valid. Note that validity is a "meta language assertion" (Prop, since Coq is our meta language), not a TLA formula.
@@ -104,7 +104,7 @@ Qed.
 End TLA.
 
 #[export]
-Hint Unfold tla_and tla_or tla_not tla_implies eventually always next : tla.
+Hint Unfold tla_and tla_or tla_not tla_implies eventually always later : tla.
 #[export]
 Hint Unfold valid pred_impl : tla.
 
@@ -200,8 +200,8 @@ Global Instance always_impl_proper :
   Proper (pred_impl ==> pred_impl) always.
 Proof.  instance_t. Qed.
 
-Global Instance next_impl_proper :
-  Proper (pred_impl ==> pred_impl) next.
+Global Instance later_impl_proper :
+  Proper (pred_impl ==> pred_impl) later.
 Proof.  instance_t. Qed.
 
 Global Instance pred_impl_proper :

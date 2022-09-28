@@ -84,14 +84,14 @@ Proof.
   - destruct (H k); auto.
 Qed.
 
-Theorem next_and p1 p2 :
-  next (p1 ∧ p2) == (next p1 ∧ next p2).
+Theorem later_and p1 p2 :
+  later (p1 ∧ p2) == (later p1 ∧ later p2).
 Proof.
   unseal.
 Qed.
 
-Theorem next_or p1 p2 :
-  next (p1 ∨ p2) == (next p1 ∨ next p2).
+Theorem later_or p1 p2 :
+  later (p1 ∨ p2) == (later p1 ∨ later p2).
 Proof.
   unseal.
 Qed.
@@ -197,14 +197,14 @@ Proof.
   rewrite drop_0 // in H.
 Qed.
 
-Theorem always_to_next p :
-  □ p ⊢ next p.
+Theorem always_to_later p :
+  □ p ⊢ later p.
 Proof.
   unseal.
 Qed.
 
-Theorem next_to_eventually p :
-  next p ⊢ ◇ p.
+Theorem later_to_eventually p :
+  later p ⊢ ◇ p.
 Proof.
   unseal.
 Qed.
@@ -224,7 +224,7 @@ Lemma add_1_succ (n: nat) : n + 1 = S n.
 Proof. lia. Qed.
 
 Theorem always_unroll p :
-  □ p == (p ∧ next (□ p)).
+  □ p == (p ∧ later (□ p)).
 Proof.
   apply equiv_to_impl; unseal.
   { intuition eauto.
@@ -237,28 +237,28 @@ Proof.
 Qed.
 
 Theorem always_induction p :
-  □ p == (p ∧ □(p → next p)).
+  □ p == (p ∧ □(p → later p)).
 Proof.
   apply equiv_to_impl.
   - unseal.
     intuition eauto.
     rewrite -(drop_0 e) //.
   - unseal.
-    destruct H as [Hp Hnext] .
+    destruct H as [Hp Hlater] .
     generalize dependent e.
     induction k; intros; eauto.
     rewrite drop_0 //.
 Qed.
 
-Theorem next_always p :
-  □ p ⊢ next (□ p).
+Theorem later_always p :
+  □ p ⊢ later (□ p).
 Proof.
   rewrite -> always_unroll at 1.
   unseal.
 Qed.
 
-Theorem next_eventually p :
-  (p ∨ next (◇ p)) == ◇ p.
+Theorem later_eventually p :
+  (p ∨ later (◇ p)) == ◇ p.
 Proof.
   unseal.
   intuition (deex; eauto).
@@ -268,16 +268,16 @@ Proof.
   rewrite drop_0 in H; auto.
 Qed.
 
-Theorem next_eventually_weaken p :
-  next (◇ p) ⊢ ◇ p.
+Theorem later_eventually_weaken p :
+  later (◇ p) ⊢ ◇ p.
 Proof.
-  rewrite <- next_eventually at 2.
+  rewrite <- later_eventually at 2.
   unseal.
 Qed.
 
 (* the induction principle from the TLA paper *)
-Theorem next_induction (n inv: predicate) :
-  (inv ∧ n ⊢ next inv) →
+Theorem later_induction (n inv: predicate) :
+  (inv ∧ n ⊢ later inv) →
   (inv ∧ □n ⊢ □inv).
 Proof.
   unseal.
@@ -291,22 +291,22 @@ Qed.
 
 Theorem init_safety (init n inv safe : predicate) :
   (init ⊢ inv) →
-  (inv ∧ n ⊢ next inv) →
+  (inv ∧ n ⊢ later inv) →
   (inv ⊢ safe) →
   ⊢ init ∧ □ n → □ safe.
 Proof.
-  intros Hinit Hnext Hsafe.
+  intros Hinit Hlater Hsafe.
   rewrite <- Hsafe.
   rewrite -> Hinit.
-  apply next_induction.
+  apply later_induction.
   auto.
 Qed.
 
 (* This is a more general induction principle _internal_ to the logic. It's
-different from `next_induction` because it requires the implication only for the
+different from `later_induction` because it requires the implication only for the
 "current" execution. *)
-Theorem next_induction_internal (n inv: predicate) :
-  ⊢ □(inv ∧ n → next inv) → (inv ∧ □n → □inv).
+Theorem later_induction_internal (n inv: predicate) :
+  ⊢ □(inv ∧ n → later inv) → (inv ∧ □n → □inv).
 Proof.
   unseal.
   destruct H0 as [Hinit Hn].
