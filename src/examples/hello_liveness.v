@@ -1,4 +1,4 @@
-From TLA Require Import defs classical automation logic.
+From TLA Require Import logic.
 
 Section example.
 

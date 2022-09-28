@@ -1,4 +1,5 @@
-From TLA Require Import defs classical automation.
+From TLA Require Export defs automation.
+From TLA Require Import classical.
 
 Section TLA.
 
