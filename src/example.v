@@ -52,6 +52,25 @@ Definition next s s' :=
 
 Definition init (s: state) : Prop := s.(x) = A ∧ s.(happy).
 
+Hint Unfold init happy next ab bc : stm.
+
+Ltac stm :=
+  autounfold with stm in *;
+  intros;
+  repeat match goal with
+        | s: state |- _ =>
+          let x := fresh "x" in
+          let happy := fresh "happy" in
+          destruct s as [x happy]
+        | H: (@eq state _ _) |- _ => inversion H; subst; clear H
+        end;
+  intuition idtac;
+  try solve [
+      try match goal with
+      | |- ∃ (s: state), _ => eexists {| x := _; happy := _; |}
+      end;
+    intuition (subst; eauto; try congruence) ].
+
 Theorem always_happy :
   state_pred init ∧ □ ⟨next⟩ ⊢ □ (state_pred (λ s, s.(happy))).
 Proof.
@@ -59,14 +78,11 @@ Proof.
   - apply state_pred_impl.
 
     (* SM reasoning *)
-    rewrite /init /happy; intuition eauto.
+    stm.
   - apply action_preserves_inv => s s'.
 
     (* SM reasoning *)
-    rewrite /happy /next /ab /bc.
-    destruct s, s'; simpl.
-    intuition (subst; auto).
-    congruence.
+    stm.
   - reflexivity.
 Qed.
 
@@ -76,24 +92,18 @@ Theorem a_leads_to_b :
 Proof.
   apply wf1.
   - unseal.
-    intuition auto.
-    rewrite /next in H1.
-    rewrite /ab /bc in H1.
-    intuition (eauto; try congruence).
+    stm.
   - unseal.
-    rewrite /ab; intuition eauto.
+    stm.
   - apply state_pred_impl.
-    rewrite /ab.
-    intuition eauto.
-    exists {| x := B; happy := happy s |}; simpl.
-    auto.
+    stm.
 Qed.
 
 Lemma init_a :
   state_pred init ⊢ state_pred (λ s, s.(x) = A).
 Proof.
   apply state_pred_impl.
-  rewrite /init; tauto.
+  stm.
 Qed.
 
 Theorem eventually_b :
