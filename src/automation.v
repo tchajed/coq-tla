@@ -95,16 +95,35 @@ Lemma drop_n {Σ} (e: exec Σ) (k n: nat) :
   drop k e n = e (n + k).
 Proof.  reflexivity. Qed.
 
+Local Ltac specific_states_exec e :=
+  repeat match goal with
+         | H: context[drop _ _ _] |- _ => setoid_rewrite drop_n in H
+         | |- _ => setoid_rewrite drop_n
+         end;
+  generalize dependent (e 0); intros s;
+  generalize dependent (e 1); intros s';
+  try clear s';
+  clear e.
+
+(* Try to prove a theorem about an execution e for just the first two states, in
+order to simplify proving theorems about state_pred and action_pred. *)
+Ltac specific_states :=
+  lazymatch goal with
+  | e: exec _, e': exec _ |- _ => fail "multiple execs to choose from"
+  | e: exec _ |- _ => specific_states_exec e
+  | _ => fail "no exec variables"
+  end.
+
 Ltac unseal :=
+  (* cleanup *)
   lazymatch goal with
   | |- @eq (predicate _) _ _ =>
     apply predicate_ext => e
   | _ => idtac
   end;
   autounfold with tla;
-  try tauto;
   repeat setoid_rewrite drop_drop;
-  repeat setoid_rewrite drop_n;
+  repeat setoid_rewrite drop_n; simpl;
   repeat lazymatch goal with
   | |- (∀ (e: exec _), _) => intro e
   | |- (∀ (n: ?T), _) =>
@@ -115,13 +134,7 @@ Ltac unseal :=
     end
   | |- _ → _ => let H := fresh "H" in intro H
   end;
-  eauto.
-
-(* Try to prove a theorem about an execution e for just the first two states, in
-order to simplify proving theorems about state_pred and action_pred. *)
-Ltac specific_states e :=
-  rewrite drop_n in *;
-  generalize dependent (e 0); intros s;
-  generalize dependent (e 1); intros s';
-  try clear s';
-  try clear e.
+  try specific_states;
+  (* finishing tactics*)
+  try tauto;
+  try solve [ intuition eauto ].

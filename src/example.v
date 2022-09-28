@@ -95,18 +95,12 @@ Theorem a_leads_to_b :
   state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = B).
 Proof.
   apply wf1.
-  - unseal; rewrite /drop /=.
-    generalize dependent (e 0); intros s.
-    generalize dependent (e 1); intros s'.
-    clear e.
+  - unseal.
     intuition auto.
     rewrite /next in H1.
     rewrite /ab /bc in H1.
     intuition (eauto; try congruence).
-  - unseal; rewrite /drop /=.
-    generalize dependent (e 0); intros s.
-    generalize dependent (e 1); intros s'.
-    clear e.
+  - unseal.
     rewrite /ab; intuition eauto.
   - apply state_pred_impl.
     rewrite /ab.
