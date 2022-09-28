@@ -129,7 +129,7 @@ Ltac unseal :=
   | |- (∀ (n: ?T), _) =>
     let kind := type of T in
     lazymatch kind with
-    | Prop => let H := fresh "H" in intro H
+    | Prop => intro
     | _ => let n := fresh n in intro n
     end
   | |- _ → _ => let H := fresh "H" in intro H

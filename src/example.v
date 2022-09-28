@@ -11,22 +11,13 @@ Implicit Types (e: exec) (p q: predicate) (a: action Σ).
 Implicit Types (n m k: nat).
 
 Lemma wf1 (p q: predicate) (next a: Σ → Σ → Prop) :
-  (⊢ p ∧ ⟨next⟩ → later p ∨ later q) →
-  (⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q) →
-  (⊢ p → enabled a) →
+  ∀ (Hpuntilq: ⊢ p ∧ ⟨next⟩ → later p ∨ later q)
+    (Haq: ⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q)
+    (Henable: ⊢ p → enabled a),
   (⊢ □ ⟨next⟩ ∧ weak_fairness a → p ~~> q).
 Proof.
-  intros H1 H2 H3.
   rewrite weak_fairness_alt1'.
-  autounfold with tla in *.
-  setoid_rewrite drop_n.
-  simpl.
-  intros e [Hlater Hwf].
-  intros k Hp.
-  setoid_rewrite drop_drop.
-  rewrite /weak_fairness in Hwf; autounfold with tla in Hwf.
-  repeat setoid_rewrite drop_drop in Hwf.
-  setoid_rewrite drop_n in Hwf; simpl in Hwf.
+  unseal.
 Admitted.
 
 End lib.
