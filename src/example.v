@@ -1,28 +1,4 @@
-From TLA Require Import defs automation logic.
-
-Section lib.
-
-Context [Σ: Type].
-
-Notation exec := (exec Σ).
-Notation predicate := (predicate Σ).
-
-Implicit Types (e: exec) (p q: predicate) (a: action Σ).
-Implicit Types (n m k: nat).
-
-Lemma wf1 (p q: predicate) (next a: Σ → Σ → Prop) :
-  ∀ (Hpuntilq: ⊢ p ∧ ⟨next⟩ → later p ∨ later q)
-    (Haq: ⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q)
-    (Henable: ⊢ p → enabled a),
-  (⊢ □ ⟨next⟩ ∧ weak_fairness a → p ~~> q).
-Proof.
-  rewrite weak_fairness_alt1'.
-  unseal.
-Admitted.
-
-End lib.
-
-(* ---------------------------------------  *)
+From TLA Require Import defs classical automation logic.
 
 Section example.
 

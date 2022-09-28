@@ -351,6 +351,51 @@ Proof.
   tla_simp.
 Qed.
 
+Lemma until_next (p q: predicate) (next: action Σ) (e: exec) :
+  (∀ e, p e ∧ next (e 0) (e 1) → p (drop 1 e) ∨ q (drop 1 e)) →
+  (∀ k, next (e k) (e (S k))) →
+  (∀ k, p (drop k e) → (∀ k', p (drop (k' + k) e)) ∨ ∃ k', q (drop (k' + k) e)).
+Proof.
+  intros Hind Hnext k Hp.
+  apply classical.double_negation.
+  rewrite classical.not_or classical.not_forall classical.not_exists.
+  intros [[k' Hnotp] Hnotq].
+  apply Hnotp; clear Hnotp.
+  generalize dependent e. generalize dependent k.
+  induction k'.
+  - intuition auto.
+  - intros.
+    destruct (Hind (drop k e)); eauto; swap 1 2.
+    { rewrite drop_drop in H. exfalso; eapply Hnotq; apply H.  }
+    rewrite drop_drop in H.
+    replace (S k' + k) with (k' + S k) by lia.
+    eapply IHk'; eauto.
+    intros.
+    replace (x + S k) with (S x + k) by lia; eauto.
+Qed.
+
+Lemma wf1 (p q: predicate) (next a: action Σ) :
+  ∀ (Hpuntilq: ⊢ p ∧ ⟨next⟩ → later p ∨ later q)
+    (Haq: ⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q)
+    (Henable: ⊢ p → enabled a),
+  (⊢ □ ⟨next⟩ ∧ weak_fairness a → p ~~> q).
+Proof.
+  rewrite weak_fairness_alt1'.
+  unseal.
+  destruct H as [Hnext Henabled_a].
+
+  edestruct (until_next p q next e Hpuntilq Hnext); eauto.
+
+  destruct (Henabled_a k) as [k' [Hnotenabled | Ha]].
+  { (* impossible, we have p everywhere after k *)
+    contradiction Hnotenabled.
+    apply Henable; eauto. }
+
+  exists (S k').
+  change (S k' + k) with (1 + (k' + k)). rewrite -drop_drop.
+  apply Haq; eauto.
+Qed.
+
 Lemma state_pred_impl (P Q: Σ -> Prop) :
   (∀ s, P s → Q s) →
   state_pred P ⊢ state_pred Q.
