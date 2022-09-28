@@ -1,3 +1,6 @@
 [submodule "external/stdpp"]
 	path = external/stdpp
 	url = https://gitlab.mpi-sws.org/iris/stdpp.git
+[submodule "external/coq-record-update"]
+	path = external/coq-record-update
+	url = https://github.com/tchajed/coq-record-update
