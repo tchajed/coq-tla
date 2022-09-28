@@ -33,7 +33,13 @@ jobs:
           ocaml_version: "4.13-flambda"
           before_script: |
             sudo chown -R coq:coq . # workaround a permission issue
-          install: ""
+          install: |
+            startGroup Install dependencies
+              sudo apt-get update
+              sudo apt-get install -y python3 python3-pip
+              opam install coq-serapi
+              python3 -m pip install git+https://github.com/cpitclaudel/alectryon.git
+            endGroup
           script: |
             startGroup Build
               make -j2 -k
