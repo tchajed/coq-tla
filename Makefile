@@ -27,7 +27,8 @@ docs:
 	@mkdir -p docs
 
 docs/%.html: src/%.v src/%.vo | docs
-	alectryon --long-line-threshold 80 $(COQPROJECT_Q_ARGS) --frontend coq+rst --backend webpage $< -o $@
+	@echo "ALECTRYON $<"
+	@alectryon --long-line-threshold 80 $(COQPROJECT_Q_ARGS) --frontend coq+rst --backend webpage $< -o $@
 
 clean:
 	@echo "CLEAN vo glob aux"
