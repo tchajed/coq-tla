@@ -317,12 +317,20 @@ Proof.
 Qed.
 
 Theorem weak_fairness_alt1 a :
-  weak_fairness a == □ ◇ (! (enabled a) ∨ □ ◇ ⟨a⟩).
+  weak_fairness a == □ ◇ ((! (enabled a)) ∨ □ ◇ ⟨a⟩).
 Proof.
   unfold weak_fairness.
   rewrite implies_to_or.
   tla_simp.
   rewrite -!eventually_or.
+  rewrite !always_eventually_distrib.
+  tla_simp.
+Qed.
+
+Theorem weak_fairness_alt1' a :
+  weak_fairness a == □ ◇ ((! (enabled a)) ∨ ⟨a⟩).
+Proof.
+  rewrite weak_fairness_alt1.
   rewrite !always_eventually_distrib.
   tla_simp.
 Qed.
