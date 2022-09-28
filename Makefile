@@ -24,7 +24,7 @@ endif
 	@coqc $(COQPROJECT_ARGS) $< -o $@
 
 docs:
-	mkdir -p docs
+	@mkdir -p docs
 
 docs/%.html: src/%.v src/%.vo | docs
 	alectryon --long-line-threshold 80 $(COQPROJECT_Q_ARGS) --frontend coq+rst --backend webpage $< -o $@
