@@ -454,6 +454,13 @@ Proof.
   replace (k'' + k' + k) with (k'' + (k' + k)) by lia; auto.
 Qed.
 
+Theorem leads_to_trans' (p q r: predicate) :
+  ⊢ p ~~> q → q ~~> r → p ~~> r.
+Proof.
+  rewrite <- (leads_to_trans p q r).
+  tla_prop.
+Qed.
+
 Theorem leads_to_apply p q :
   p ∧ p ~~> q ⊢ ◇ q.
 Proof.
