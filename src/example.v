@@ -10,20 +10,6 @@ Notation predicate := (predicate Σ).
 Implicit Types (e: exec) (p q: predicate) (a: action Σ).
 Implicit Types (n m k: nat).
 
-Lemma state_pred_impl (p q: Σ -> Prop) :
-  (∀ s, p s → q s) →
-  state_pred p ⊢ state_pred q.
-Proof.
-  unseal.
-Qed.
-
-Lemma action_preserves_inv (p: Σ → Prop) (a: action Σ) :
-    (∀ s s', p s → a s s' → p s') →
-    state_pred p ∧ ⟨a⟩ ⊢ later (state_pred p).
-Proof.
-  unseal.
-Admitted.
-
 Lemma wf1 (p q: predicate) (next a: Σ → Σ → Prop) :
   (⊢ p ∧ ⟨next⟩ → later p ∨ later q) →
   (⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q) →
@@ -42,12 +28,6 @@ Proof.
   repeat setoid_rewrite drop_drop in Hwf.
   setoid_rewrite drop_n in Hwf; simpl in Hwf.
 Admitted.
-
-Lemma modus_ponens (p q: predicate) :
-  (p ∧ (p → q)) ⊢ q.
-Proof.
-  unseal.
-Qed.
 
 End lib.
 

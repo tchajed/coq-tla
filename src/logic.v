@@ -59,6 +59,12 @@ Proof. unseal. Qed.
 
 Hint Rewrite tla_and_assoc tla_or_assoc : tla.
 
+Lemma modus_ponens (p q: predicate) :
+  (p ∧ (p → q)) ⊢ q.
+Proof.
+  unseal.
+Qed.
+
 Theorem always_intro p :
   (⊢ p) ↔ ⊢ □ p.
 Proof.
@@ -343,6 +349,20 @@ Proof.
   tla_simp.
   rewrite always_eventually_distrib.
   tla_simp.
+Qed.
+
+Lemma state_pred_impl (P Q: Σ -> Prop) :
+  (∀ s, P s → Q s) →
+  state_pred P ⊢ state_pred Q.
+Proof.
+  unseal.
+Qed.
+
+Lemma action_preserves_inv (P: Σ → Prop) (a: action Σ) :
+    (∀ s s', P s → a s s' → P s') →
+    state_pred P ∧ ⟨a⟩ ⊢ later (state_pred P).
+Proof.
+  unseal.
 Qed.
 
 End TLA.
