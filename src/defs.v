@@ -108,6 +108,8 @@ Hint Unfold tla_and tla_or tla_not tla_implies eventually always later : tla.
 #[export]
 Hint Unfold valid pred_impl : tla.
 
+#[global] Hint Unfold state_pred action_pred : tla.
+
 Declare Scope tla.
 Delimit Scope tla with L.
 Bind Scope tla with predicate.
@@ -137,6 +139,15 @@ Definition enabled {Σ} (a: action Σ) : predicate Σ :=
 
 Definition weak_fairness {Σ} (a: action Σ) : predicate Σ :=
     □ (□ (enabled a) → (◇ ⟨a⟩)).
+
+#[global] Hint Unfold weak_fairness : tla.
+
+Definition leads_to {Σ} (p q: predicate Σ) : predicate Σ :=
+  □ (p → ◇ q).
+
+#[global] Hint Unfold leads_to : tla.
+
+Notation "p ~~> q" := (leads_to p q) (at level 51, right associativity).
 
 Ltac deex :=
   match goal with

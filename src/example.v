@@ -1,8 +1,5 @@
 From TLA Require Import defs automation logic.
 
-(* TODO: move to library *)
-#[global] Hint Unfold state_pred action_pred : tla.
-
 Section lib.
 
 Context [Σ: Type].
@@ -24,26 +21,14 @@ Lemma action_preserves_inv (p: Σ → Prop) (a: action Σ) :
     (∀ s s', p s → a s s' → p s') →
     state_pred p ∧ ⟨a⟩ ⊢ later (state_pred p).
 Proof.
-  intros H.
   unseal.
 Admitted.
-
-Definition leads_to (p q: predicate) : predicate :=
-  □ (p → ◇ q).
-
-Lemma drop_n (e: exec) (k n: nat) :
-  drop k e n = e (n + k).
-Proof.  reflexivity. Qed.
-
-Hint Rewrite drop_n : tla.
-
-Hint Unfold leads_to : tla.
 
 Lemma wf1 (p q: predicate) (next a: Σ → Σ → Prop) :
   (⊢ p ∧ ⟨next⟩ → later p ∨ later q) →
   (⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q) →
   (⊢ p → enabled a) →
-  (⊢ □ ⟨next⟩ ∧ weak_fairness a → leads_to p q).
+  (⊢ □ ⟨next⟩ ∧ weak_fairness a → p ~~> q).
 Proof.
   intros H1 H2 H3.
   rewrite weak_fairness_alt1'.
@@ -107,7 +92,7 @@ Qed.
 
 Theorem a_leads_to_b :
   □ ⟨ next ⟩ ∧ weak_fairness ab ⊢
-  leads_to (state_pred (λ s, s.(x) = A)) (state_pred (λ s, s.(x) = B)).
+  state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = B).
 Proof.
   apply wf1.
   - unseal; rewrite /drop /=.
@@ -157,7 +142,7 @@ Admitted.
 
 Theorem a_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
-  leads_to (state_pred (λ s, s.(x) = A)) (state_pred (λ s, s.(x) = C)).
+  state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = C).
 Proof.
 Admitted.
 

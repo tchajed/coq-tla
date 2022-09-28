@@ -91,6 +91,10 @@ Proof.
   f_equal; lia.
 Qed.
 
+Lemma drop_n {Σ} (e: exec Σ) (k n: nat) :
+  drop k e n = e (n + k).
+Proof.  reflexivity. Qed.
+
 Ltac unseal :=
   lazymatch goal with
   | |- @eq (predicate _) _ _ =>
@@ -100,6 +104,7 @@ Ltac unseal :=
   autounfold with tla;
   try tauto;
   repeat setoid_rewrite drop_drop;
+  repeat setoid_rewrite drop_n;
   repeat lazymatch goal with
   | |- (∀ (e: exec _), _) => intro e
   | |- (∀ (n: ?T), _) =>
@@ -111,3 +116,12 @@ Ltac unseal :=
   | |- _ → _ => let H := fresh "H" in intro H
   end;
   eauto.
+
+(* Try to prove a theorem about an execution e for just the first two states, in
+order to simplify proving theorems about state_pred and action_pred. *)
+Ltac specific_states e :=
+  rewrite drop_n in *;
+  generalize dependent (e 0); intros s;
+  generalize dependent (e 1); intros s';
+  try clear s';
+  try clear e.
