@@ -1,6 +1,8 @@
 From TLA Require Export defs automation.
 From TLA Require Import classical.
 
+Set Default Proof Using "Type".
+
 Section TLA.
 
 Context [Σ: Type].
@@ -308,17 +310,28 @@ Proof.
     apply H; eauto.
 Qed.
 
-Theorem init_safety (init n inv safe : predicate) :
+Theorem init_safety (init next inv safe : predicate) :
   (init ⊢ inv) →
-  (inv ∧ n ⊢ later inv) →
+  (inv ∧ next ⊢ later inv) →
   (inv ⊢ safe) →
-  ⊢ init ∧ □ n → □ safe.
+  ⊢ init ∧ □ next → □ safe.
 Proof.
   intros Hinit Hlater Hsafe.
   rewrite <- Hsafe.
   rewrite -> Hinit.
   apply later_induction.
   auto.
+Qed.
+
+Theorem init_invariant (init: Σ → Prop) (next: action Σ) (inv: Σ → Prop) :
+  (∀ s, init s → inv s) →
+  (∀ s s', inv s → next s s' → inv s') →
+  state_pred init ∧ □ ⟨next⟩ ⊢ □ state_pred inv.
+Proof.
+  intros Hinit Hinv.
+  eapply init_safety; [ | | reflexivity ].
+  - unseal.
+  - unseal.
 Qed.
 
 (* This is a more general induction principle _internal_ to the logic. It's
