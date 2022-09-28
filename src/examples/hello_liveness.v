@@ -86,9 +86,9 @@ Theorem a_leads_to_b :
   state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = B).
 Proof.
   apply wf1.
-  - unseal.  stm.
-  - unseal.  stm.
-  - apply state_pred_impl => s.  stm.
+  - stm.
+  - stm.
+  - stm.
 Qed.
 
 Lemma init_a :
@@ -115,9 +115,9 @@ Theorem b_leads_to_c :
   leads_to (state_pred (λ s, s.(x) = B)) (state_pred (λ s, s.(x) = C)).
 Proof.
   apply wf1.
-  - unseal.  stm.
-  - unseal.  stm.
-  - apply state_pred_impl => s.  stm.
+  - stm.
+  - stm.
+  - stm.
 Qed.
 
 Theorem a_leads_to_c :

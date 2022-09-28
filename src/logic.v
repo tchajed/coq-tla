@@ -310,7 +310,7 @@ Proof.
     apply H; eauto.
 Qed.
 
-Theorem init_safety (init next inv safe : predicate) :
+Theorem tla_init_safety (inv init next safe : predicate) :
   (init ⊢ inv) →
   (inv ∧ next ⊢ later inv) →
   (inv ⊢ safe) →
@@ -323,15 +323,23 @@ Proof.
   auto.
 Qed.
 
+Theorem init_safety (inv init: Σ → Prop) (next: action Σ) (safe : Σ → Prop) :
+  (∀ s, init s → inv s) →
+  (∀ s s', inv s → next s s' → inv s') →
+  (∀ s, inv s → safe s) →
+  ⊢ state_pred init ∧ □ ⟨next⟩ → □ (state_pred safe).
+Proof.
+  intros Hinit Hinv Hsafe.
+  apply (tla_init_safety (state_pred inv)); unseal.
+Qed.
+
 Theorem init_invariant (init: Σ → Prop) (next: action Σ) (inv: Σ → Prop) :
   (∀ s, init s → inv s) →
   (∀ s s', inv s → next s s' → inv s') →
   state_pred init ∧ □ ⟨next⟩ ⊢ □ state_pred inv.
 Proof.
   intros Hinit Hinv.
-  eapply init_safety; [ | | reflexivity ].
-  - unseal.
-  - unseal.
+  apply (init_safety inv); auto.
 Qed.
 
 (* This is a more general induction principle _internal_ to the logic. It's
@@ -400,7 +408,10 @@ Proof.
     replace (x + S k) with (S x + k) by lia; eauto.
 Qed.
 
-Lemma wf1 (p q: predicate) (next a: action Σ) :
+(** WF1 exploits a weak fairness assumption to show a leads_to. This is the
+general rule as presented in the paper. [wf1] below specializes it to the
+situation where p and q are simple state predicates. *)
+Lemma tla_wf1 (p q: predicate) (next a: action Σ) :
   ∀ (Hpuntilq: ⊢ p ∧ ⟨next⟩ → later p ∨ later q)
     (Haq: ⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q)
     (Henable: ⊢ p → tla_enabled a),
@@ -420,6 +431,20 @@ Proof.
   exists (S k').
   change (S k' + k) with (1 + (k' + k)). rewrite -drop_drop.
   apply Haq; eauto.
+Qed.
+
+(** WF1 for state predicates. This has the advantage of stating all assumptions
+as simple quantified statements, without temporal logic. *)
+Lemma wf1 (p q: Σ → Prop) (next a: action Σ) :
+  ∀ (Hpuntilq: ∀ s s', p s → next s s' → p s' ∨ q s')
+    (Haq: ∀ s s', p s → next s s' → a s s' → q s')
+    (Henable: ∀ s, p s → enabled a s),
+  (⊢ □ ⟨next⟩ ∧ weak_fairness a → state_pred p ~~> state_pred q).
+Proof.
+  intros.
+  apply tla_wf1; unseal.
+  rewrite /tla_enabled; tla_simp.
+  eauto.
 Qed.
 
 Lemma state_pred_impl (P Q: Σ -> Prop) :

@@ -70,10 +70,24 @@ Lemma not_implies p1 p2 :
   !(p1 → p2) == (p1 ∧ !p2).
 Proof.  unseal.  Qed.
 
+Lemma state_pred_e (P: Σ → Prop) e :
+  state_pred P e ↔ P (e 0).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma action_pred_e (a: action Σ) e :
+  ⟨ a ⟩ e ↔ a (e 0) (e 1).
+Proof.
+  reflexivity.
+Qed.
+
 End TLA.
 
 Hint Rewrite not_eventually not_always
   not_and not_or not_not not_implies : tla.
+
+Hint Rewrite state_pred_e action_pred_e : tla.
 
 Ltac tla_simp := autorewrite with tla; try reflexivity.
 
