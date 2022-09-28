@@ -34,7 +34,8 @@ Section TLA.
 
 Context {Σ: Type}.
 
-(* This trick avoids needing to repeat the parameters to [exec] and [predicate] throughout. *)
+(* This trick avoids needing to repeat the parameters to [exec] and [predicate]
+throughout. *)
 Local Notation exec := (exec Σ).
 Local Notation predicate := (predicate Σ).
 

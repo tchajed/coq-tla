@@ -309,8 +309,8 @@ Proof.
 Qed.
 
 (* This is a more general induction principle _internal_ to the logic. It's
-different from `later_induction` because it requires the implication only for the
-"current" execution. *)
+different from `later_induction` because it requires the implication only for
+the "current" execution. *)
 Theorem later_induction_internal (n inv: predicate) :
   ⊢ □(inv ∧ n → later inv) → (inv ∧ □n → □inv).
 Proof.
