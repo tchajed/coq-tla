@@ -49,6 +49,18 @@ Theorem or_idem p :
   (p ∨ p) == p.
 Proof.  unseal.  Qed.
 
+Theorem tla_and_comm p1 p2 :
+  (p1 ∧ p2) == (p2 ∧ p1).
+Proof. unseal. Qed.
+
+Theorem tla_or_comm p1 p2 :
+  (p1 ∨ p2) == (p2 ∨ p1).
+Proof. unseal. Qed.
+
+Theorem tla_and_implies p1 p2 q :
+  (p1 ∧ p2 → q) == (p1 → p2 → q).
+Proof. unseal. Qed.
+
 Theorem tla_and_assoc p1 p2 p3 :
   ((p1 ∧ p2) ∧ p3) == (p1 ∧ p2 ∧ p3).
 Proof. unseal. Qed.
@@ -408,6 +420,32 @@ Lemma action_preserves_inv (P: Σ → Prop) (a: action Σ) :
     state_pred P ∧ ⟨a⟩ ⊢ later (state_pred P).
 Proof.
   unseal.
+Qed.
+
+Theorem leads_to_refl p :
+  ⊢ p ~~> p.
+Proof.
+  unseal.
+  exists 0; eauto.
+Qed.
+
+Theorem leads_to_trans (p q r: predicate) :
+  p ~~> q ∧ q ~~> r ⊢ p ~~> r.
+Proof.
+  unseal.
+  destruct H as [Hpq Hqr].
+  edestruct Hpq as [k' Hq]; eauto.
+  edestruct Hqr as [k'' Hr]; eauto.
+  exists (k'' + k').
+  replace (k'' + k' + k) with (k'' + (k' + k)) by lia; auto.
+Qed.
+
+Theorem leads_to_apply p q :
+  p ∧ p ~~> q ⊢ ◇ q.
+Proof.
+  rewrite /leads_to.
+  rewrite -> always_weaken.
+  apply modus_ponens.
 Qed.
 
 End TLA.

@@ -25,7 +25,7 @@ Definition action (Σ: Type) := Σ → Σ → Prop.
 Definition action_pred {Σ: Type} (a: action Σ) : predicate Σ :=
     λ ex, a (ex 0) (ex 1).
 
-Notation "⟨ a ⟩" := (action_pred a).
+Notation "⟨ a ⟩" := (action_pred a) (format "⟨ a ⟩").
 
 Set Default Proof Using "Type".
 Set Default Goal Selector "!".

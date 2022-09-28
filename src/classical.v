@@ -38,4 +38,8 @@ Module classical.
     tauto.
   Qed.
 
+  Lemma excluded_middle (P: Prop) : P ∨ ~P.
+    tauto.
+  Qed.
+
 End classical.

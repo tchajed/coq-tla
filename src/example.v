@@ -42,14 +42,8 @@ Theorem always_happy :
   state_pred init ∧ □ ⟨next⟩ ⊢ □ (state_pred (λ s, s.(happy))).
 Proof.
   apply (init_safety _ _ (state_pred (λ s, s.(happy))) _).
-  - apply state_pred_impl.
-
-    (* SM reasoning *)
-    stm.
-  - apply action_preserves_inv => s s'.
-
-    (* SM reasoning *)
-    stm.
+  - apply state_pred_impl => s.  stm.
+  - apply action_preserves_inv => s s'.  stm.
   - reflexivity.
 Qed.
 
@@ -58,19 +52,15 @@ Theorem a_leads_to_b :
   state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = B).
 Proof.
   apply wf1.
-  - unseal.
-    stm.
-  - unseal.
-    stm.
-  - apply state_pred_impl.
-    stm.
+  - unseal.  stm.
+  - unseal.  stm.
+  - apply state_pred_impl => s.  stm.
 Qed.
 
 Lemma init_a :
   state_pred init ⊢ state_pred (λ s, s.(x) = A).
 Proof.
-  apply state_pred_impl.
-  stm.
+  apply state_pred_impl => s.  stm.
 Qed.
 
 Theorem eventually_b :
@@ -79,9 +69,7 @@ Theorem eventually_b :
 Proof.
   rewrite -> a_leads_to_b.
   rewrite -> init_a.
-  rewrite /leads_to.
-  rewrite -> always_weaken.
-  rewrite -> modus_ponens.
+  rewrite -> leads_to_apply.
   reflexivity.
 Qed.
 
@@ -89,18 +77,30 @@ Theorem b_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness bc ⊢
   leads_to (state_pred (λ s, s.(x) = B)) (state_pred (λ s, s.(x) = C)).
 Proof.
-Admitted.
+  apply wf1.
+  - unseal.  stm.
+  - unseal.  stm.
+  - apply state_pred_impl => s.  stm.
+Qed.
 
 Theorem a_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
   state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = C).
 Proof.
-Admitted.
+  rewrite <- (leads_to_trans _ (state_pred (λ s, s.(x) = B))).
+  rewrite <- a_leads_to_b.
+  rewrite <- b_leads_to_c.
+  tla_prop.
+Qed.
 
 Theorem eventually_c :
   state_pred init ∧ □ ⟨next⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
   ◇ (state_pred (λ s, s.(x) = C)).
 Proof.
-Admitted.
+  rewrite -> a_leads_to_c.
+  rewrite -> init_a.
+  rewrite -> leads_to_apply.
+  reflexivity.
+Qed.
 
 End example.

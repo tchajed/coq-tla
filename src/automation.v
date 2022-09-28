@@ -62,6 +62,10 @@ Lemma implies_to_or p1 p2 :
   (p1 → p2) == (!p1 ∨ p2).
 Proof.  unseal.  Qed.
 
+Lemma or_to_implies p1 p2 :
+  (p1 ∨ p2) == (!p1 → p2).
+Proof. unseal. Qed.
+
 Lemma not_implies p1 p2 :
   !(p1 → p2) == (p1 ∧ !p2).
 Proof.  unseal.  Qed.
@@ -138,3 +142,9 @@ Ltac unseal :=
   (* finishing tactics*)
   try tauto;
   try solve [ intuition eauto ].
+
+(* unfold very little, to only use propositional logic *)
+Ltac tla_prop :=
+  unfold tla_and, tla_or, tla_implies, tla_not, pred_impl, valid;
+  intros;
+  tauto.
