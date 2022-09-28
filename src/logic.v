@@ -349,7 +349,7 @@ Proof.
 Qed.
 
 Theorem weak_fairness_alt1 a :
-  weak_fairness a == □ ◇ ((! (enabled a)) ∨ □ ◇ ⟨a⟩).
+  weak_fairness a == □ ◇ ((! (tla_enabled a)) ∨ □ ◇ ⟨a⟩).
 Proof.
   unfold weak_fairness.
   rewrite implies_to_or.
@@ -360,7 +360,7 @@ Proof.
 Qed.
 
 Theorem weak_fairness_alt1' a :
-  weak_fairness a == □ ◇ ((! (enabled a)) ∨ ⟨a⟩).
+  weak_fairness a == □ ◇ ((! (tla_enabled a)) ∨ ⟨a⟩).
 Proof.
   rewrite weak_fairness_alt1.
   rewrite !always_eventually_distrib.
@@ -368,7 +368,7 @@ Proof.
 Qed.
 
 Theorem weak_fairness_alt2 a :
-  weak_fairness a == (◇ □ (enabled a) → □ ◇ ⟨a⟩).
+  weak_fairness a == (◇ □ (tla_enabled a) → □ ◇ ⟨a⟩).
 Proof.
   rewrite weak_fairness_alt1.
   rewrite implies_to_or.
@@ -403,7 +403,7 @@ Qed.
 Lemma wf1 (p q: predicate) (next a: action Σ) :
   ∀ (Hpuntilq: ⊢ p ∧ ⟨next⟩ → later p ∨ later q)
     (Haq: ⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q)
-    (Henable: ⊢ p → enabled a),
+    (Henable: ⊢ p → tla_enabled a),
   (⊢ □ ⟨next⟩ ∧ weak_fairness a → p ~~> q).
 Proof.
   rewrite weak_fairness_alt1'.

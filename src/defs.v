@@ -135,13 +135,16 @@ Notation "◇  p" := (eventually p%L) (at level 51, right associativity) : tla.
 
 (* these two definitions are here so they can use the notation *)
 
-Definition enabled {Σ} (a: action Σ) : predicate Σ :=
-  state_pred (λ s, ∃ s', a s s').
+(** [enabled a] is a state predicate for [a] being enabled *)
+Definition enabled {Σ} (a: action Σ) (s:Σ) := ∃ s', a s s'.
+
+Definition tla_enabled {Σ} (a: action Σ) : predicate Σ :=
+    state_pred (enabled a).
 
 Definition weak_fairness {Σ} (a: action Σ) : predicate Σ :=
-    □ (□ (enabled a) → (◇ ⟨a⟩)).
+    □ (□ (tla_enabled a) → (◇ ⟨a⟩)).
 
-#[global] Hint Unfold weak_fairness : tla.
+#[global] Hint Unfold enabled weak_fairness : tla.
 
 Definition leads_to {Σ} (p q: predicate Σ) : predicate Σ :=
   □ (p → ◇ q).

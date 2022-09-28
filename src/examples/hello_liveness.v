@@ -35,6 +35,8 @@ A little automation will prove all the state-machine specific reasoning required
 |*)
 Hint Unfold init happy next ab bc : stm.
 
+Hint Unfold enabled : stm.
+
 Ltac stm :=
   autounfold with stm in *;
   intros;
