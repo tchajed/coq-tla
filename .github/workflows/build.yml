@@ -46,7 +46,9 @@ jobs:
             sudo chown -R coq:coq . # workaround a permission issue
           install: |
             startGroup Install dependencies
-              opam install -y coq-serapi
+              sudo apt-get update
+              sudo apt-get install -y python3 python3-pip
+              opam install coq-serapi
               python3 -m pip install git+https://github.com/cpitclaudel/alectryon.git
             endGroup
           script: |
