@@ -82,6 +82,10 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem tla_and_assoc p1 p2 p3 :
+  ((p1 ∧ p2) ∧ p3) == (p1 ∧ p2 ∧ p3).
+Proof. unseal. Qed.
+
 End TLA.
 
 Hint Rewrite not_eventually not_always
@@ -162,3 +166,29 @@ Ltac tla_prop :=
   unfold tla_and, tla_or, tla_implies, tla_not, pred_impl, valid;
   intros;
   tauto.
+
+Lemma tla_pose_lemma {Σ} (p1 q1: predicate Σ) :
+  (* the lemma to introduce *)
+  (p1 ⊢ q1) →
+  ∀ (p2 q2: predicate Σ),
+  (* side condition to show precondition (to be proved by [tla_prop]) *)
+  (p2 ⊢ p1) →
+  (* the new goal *)
+  (p2 ∧ q1 ⊢ q2) →
+  (p2 ⊢ q2).
+Proof. unseal. Qed.
+
+Ltac tla_pose lem :=
+  let H := fresh "Htemp" in
+  epose proof lem as H;
+  apply (tla_pose_lemma _ _ H); clear H;
+  [ tla_prop | rewrite tla_and_assoc ].
+
+Lemma combine_preds {Σ} (next: Σ → Σ → Prop) (P: Σ → Prop) :
+  (□ ⟨ next ⟩ ∧ □ ⌜ P ⌝) == □ ⟨ λ s s', next s s' ∧ P s ∧ P s' ⟩.
+Proof.
+  unseal.
+  intuition eauto.
+  - specialize (H k). intuition auto.
+  - specialize (H k). intuition auto.
+Qed.
