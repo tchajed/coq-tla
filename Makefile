@@ -32,8 +32,9 @@ docs/%.html: src/%.v src/%.vo | docs
 
 clean:
 	@echo "CLEAN vo glob aux"
-	@rm -f $(ALL_VFILES:.v=.vo) $(ALL_VFILES:.v=.glob)
-	@find $(SRC_DIRS) -name ".*.aux" -exec rm {} \;
+	@find $(SRC_DIRS) \( -name ".*.aux" -or -name "*.vo*" -or -name "*.glob" \) \
+		-exec rm {} \;
+	@rm -f .lia.cache
 	rm -rf docs
 	rm -f .coqdeps.d
 
