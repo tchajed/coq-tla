@@ -130,12 +130,23 @@ Proof.
   autounfold with tla; intuition auto.
 Qed.
 
+Theorem entails_cut p q r :
+  (p ⊢ q) →
+  (p ∧ q ⊢ r) →
+  (p ⊢ r).
+Proof.
+  autounfold with tla; intuition auto.
+Qed.
+
 End TLA.
 
 Hint Rewrite not_eventually not_always
   not_and not_or not_not not_implies : tla.
 
 Hint Rewrite state_pred_e action_pred_e : tla.
+
+#[global]
+Hint Unfold tla_true tla_false : tla.
 
 Ltac tla_simp := autorewrite with tla; try reflexivity.
 

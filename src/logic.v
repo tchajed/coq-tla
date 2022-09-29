@@ -72,6 +72,30 @@ Theorem tla_or_assoc p1 p2 p3 :
   ((p1 ∨ p2) ∨ p3) == (p1 ∨ p2 ∨ p3).
 Proof. unseal. Qed.
 
+Theorem tla_and_true_r p :
+  (p ∧ tla_true) == p.
+Proof. unseal. Qed.
+
+Theorem tla_and_true_l p :
+  (tla_true ∧ p) == p.
+Proof. unseal. Qed.
+
+Theorem tla_or_false_r p :
+  (p ∨ tla_false) == p.
+Proof. unseal. Qed.
+
+Theorem tla_or_false_l p :
+  (tla_false ∨ p) == p.
+Proof. unseal. Qed.
+
+Theorem any_impl_true p :
+  p ⊢ tla_true.
+Proof. unseal. Qed.
+
+Theorem false_impl_any p :
+  tla_false ⊢ p.
+Proof. unseal. Qed.
+
 Hint Rewrite tla_and_assoc tla_or_assoc : tla.
 
 Lemma modus_ponens (p q: predicate) :
@@ -227,6 +251,21 @@ Proof.
   unseal.
   specialize (H 0).
   rewrite drop_0 // in H.
+Qed.
+
+Theorem always_weaken_eventually p :
+  □ p ⊢ ◇ p.
+Proof.
+  autounfold with tla.
+  intros e H.
+  exists 0; eauto.
+Qed.
+
+Theorem always_and_eventually p q :
+  □ p ∧ ◇ q ⊢ ◇ (p ∧ q).
+Proof.
+  unseal.
+  intuition (repeat deex; eauto).
 Qed.
 
 Theorem always_to_later p :
@@ -537,6 +576,18 @@ Proof.
   apply modus_ponens.
 Qed.
 
+Theorem eventually_from_leads_to q p φ :
+  (p ⊢ q) →
+  (p ⊢ q ~~> φ) →
+  (p ⊢ ◇ φ).
+Proof.
+  intros Hq Hleads.
+  tla_pose Hq.
+  tla_pose Hleads.
+  rewrite -> leads_to_apply.
+  tla_prop.
+Qed.
+
 Theorem impl_to_leads_to p q :
   (p ⊢ q) →
   ⊢ p ~~> q.
@@ -695,8 +746,15 @@ Proof.
   unseal.
 Qed.
 
-
 End TLA.
+
+Hint Rewrite
+  tla_and_true_r tla_and_true_l
+  tla_or_false_l tla_or_false_r : tla.
+
+Hint Rewrite tla_and_assoc tla_or_assoc : tla.
+
+Hint Rewrite always_idem eventually_idem : tla.
 
 Ltac leads_to_trans q :=
   rewrite <- (leads_to_trans _ q _);
@@ -705,3 +763,11 @@ Ltac leads_to_trans q :=
 Ltac leads_to_etrans :=
   erewrite <- leads_to_trans;
   tla_split.
+
+Ltac tla_clear p :=
+  rewrite -> (any_impl_true p); tla_simp.
+
+Ltac tla_clear_pat pat :=
+  match goal with
+  | |- context p [pat] => tla_clear p
+  end.

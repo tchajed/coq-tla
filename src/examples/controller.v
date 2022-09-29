@@ -254,7 +254,8 @@ Lemma eventually_send_create2 :
 Proof.
   rewrite leads_to_assume_not.
   rewrite not_state_pred combine_state_preds.
-  rewrite (tla_and_em (⌜λ s, s.(sent2Create)⌝) (⌜λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists)⌝)).
+  rewrite (tla_and_em (⌜λ s, s.(sent2Create)⌝)
+             (⌜λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists)⌝)).
   rewrite tla_and_distr_l.
   rewrite leads_to_or_split.
   rewrite !not_state_pred !combine_state_preds.
@@ -279,27 +280,38 @@ Lemma init_create2 :
   ⌜init⌝ ∧ □ ⟨next⟩ ∧
     weak_fairness reconcile ∧
     weak_fairness create1 ∧ weak_fairness create2 ⊢
-  ⌜ init ⌝ ~~>
-  ⌜ λ s, s.(obj2Exists) ⌝.
+  ◇ ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
+  apply (eventually_from_leads_to ⌜init⌝); [ tla_prop | ].
   leads_to_trans ⌜λ s, s.(obj1Exists)⌝.
   - tla_apply init_send_create1.
   - tla_apply eventually_send_create2.
 Qed.
 
-(** This is the final liveness theorem. We need the network actions to be
-_each_ be treated fairly, and [reconcile] to run fairly. *)
+(** This is the final liveness theorem. We need [reconcile] to be weakly fair
+(that is, the controller gets a chance to run if it's enabled), and network
+actions to be _each_ be treated fairly. *)
 Theorem eventually_create_both :
   ⌜init⌝ ∧ □ ⟨next⟩ ∧
-     weak_fairness create1 ∧ weak_fairness create2 ∧ weak_fairness reconcile ⊢
+    weak_fairness reconcile ∧
+     weak_fairness create1 ∧ weak_fairness create2 ⊢
    ◇ ⌜λ s, s.(obj1Exists) ∧ s.(obj2Exists)⌝.
 Proof.
-  tla_pose init_create2.
-  (* TODO: I made this more difficult by only proving [◇ s.(obj2Exists)] in
-  init_create2. To get s.(obj1Exists), we'll need to use a safety proof.
-  (Actually it would be nice to go from ◇ s.(obj1Exists) to □ s.(obj1Exists) via
-  an invariant, since the former is an intermediate result, but that seems a bit
-  trickier, and we already have the relevant safety theorem above.) *)
-Admitted.
+  eapply entails_cut.
+  { apply init_create2. }
+
+  tla_clear (weak_fairness reconcile ∧
+                 weak_fairness create1 ∧ weak_fairness create2)%L.
+
+  tla_pose is_safe.
+  tla_clear ⌜init⌝. tla_clear (□⟨next⟩)%L.
+
+  rewrite tla_and_comm.
+  rewrite -> always_and_eventually.
+  rewrite combine_state_preds.
+  apply eventually_impl_proper.
+  apply state_pred_impl.
+  stm.
+Qed.
 
 End example.

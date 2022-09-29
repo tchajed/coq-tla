@@ -104,6 +104,9 @@ Proof.
   intuition eauto.
 Qed.
 
+Definition tla_true : predicate := λ _, True.
+Definition tla_false : predicate := λ _, False.
+
 End TLA.
 
 #[export]
