@@ -75,8 +75,6 @@ Definition init s :=
          obj1Exists := false; obj2Exists := false;
          messages := ∅; |}.
 
-Definition safe (s: state) := s.(obj2Exists) → s.(obj1Exists).
-
 Hint Unfold init next : stm.
 Hint Unfold reconcile cluster send1_a send2_a create1 create2 : stm.
 
@@ -95,6 +93,17 @@ Ltac stm :=
   try solve [ intuition auto ];
   try set_solver.
 
+(*|
+------------
+Safety
+------------
+
+We do some safety reasoning. The safety property proven is that of object 2
+exists, then object 1 also exists. This property is not inductive; the exact
+inductive invariant wasn't immediately obvious, so I just started randomly
+proving reasonable-looking invariants until the proof went through.
+|*)
+
 Theorem messages_sent :
   ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, (CreateReq 1 ∈ s.(messages) ↔ s.(sent1Create)) ∧
                              (CreateReq 2 ∈ s.(messages) ↔ s.(sent2Create))⌝.
@@ -104,15 +113,35 @@ Proof.
   - stm.
 Qed.
 
+(*|
+The proof starts out with `tla_pose messages_sent`. This will place the
+conclusion of `messages_sent` in this theorem's premises, after proving that the
+current premises imply the premises of `message_sent`. The result is a use of
+modus ponens where we derive the invariant in `messages_sent` without losing `□
+⟨next⟩` for example.
+|*)
+
 Theorem obj1_invariant :
   ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, (s.(sent2Create) → s.(obj1Exists)) ∧ (s.(obj1Exists) → s.(sent1Create))⌝.
 Proof.
   tla_pose messages_sent.
   rewrite !combine_preds.
+  (* The state here looks like a regular invariant proof from an initial
+  predicate, except that the transition system semantics is assumed to satisfy
+  the invariant. Of course this reasoning is sound because it _already implied_
+  this invariant, so logically nothing changes, but practically speaking we can
+  build on previously proven invariants and thus can break down the proof of
+  complex inductive invariants. *)
   apply init_invariant.
   - stm.
   - stm.
 Qed.
+
+(*|
+`messages_sent` and `obj1_invariant` are just enough help to prove this larger
+invariant, which nicely characterizes when obj2Exists is possible. Note that two
+of these conjuncts follow easily from obj1_invariant, but we assume that first.
+|*)
 
 Theorem create_invariant :
   ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, s.(obj2Exists) → s.(sent2Create) ∧ s.(sent1Create) ∧ s.(obj1Exists)⌝.
@@ -124,6 +153,12 @@ Proof.
   - stm.
   - stm.
 Qed.
+
+(*|
+What we've proven above implies safety.
+|*)
+
+Definition safe (s: state) := s.(obj2Exists) → s.(obj1Exists).
 
 Theorem is_safe :
   ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜safe⌝.
