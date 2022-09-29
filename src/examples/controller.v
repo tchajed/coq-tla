@@ -1,7 +1,5 @@
 From RecordUpdate Require Import RecordUpdate.
-
 From stdpp Require Import sets.
-
 From TLA Require Import logic.
 
 Section example.
@@ -199,7 +197,8 @@ Qed.
 
 Theorem eventually_create1 :
   □ ⟨next⟩ ∧ weak_fairness create1 ⊢
-  ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝ ~~> ⌜ λ s, s.(obj1Exists) ⌝.
+  ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝ ~~>
+  ⌜ λ s, s.(obj1Exists) ⌝.
 Proof.
   apply wf1; stm.
 Qed.
@@ -208,7 +207,8 @@ Qed.
 through due to invariants, but don't follow in a straightforward [~~>] chain. *)
 Theorem eventually_send2 :
   □ ⟨ next ⟩ ∧ weak_fairness reconcile ⊢
-  ⌜ λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists) ∧ ¬ s.(sent2Create) ⌝ ~~> ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝.
+  ⌜ λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists) ∧ ¬ s.(sent2Create) ⌝ ~~>
+  ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝.
 Proof.
   apply wf1.
   - stm.
@@ -219,7 +219,8 @@ Qed.
 
 Theorem eventually_create2 :
   □ ⟨next⟩ ∧ weak_fairness create2 ⊢
-  ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝ ~~> ⌜ λ s, s.(obj2Exists) ⌝.
+  ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝ ~~>
+  ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
   apply wf1; stm.
 Qed.

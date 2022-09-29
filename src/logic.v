@@ -486,7 +486,8 @@ Proof.
 Qed.
 
 Theorem tla_enabled_or a1 a2 :
-  tla_enabled (λ s s', a1 s s' ∨ a2 s s')%type == (tla_enabled a1 ∨ tla_enabled a2).
+  tla_enabled (λ s s', a1 s s' ∨ a2 s s')%type ==
+  (tla_enabled a1 ∨ tla_enabled a2).
 Proof.
   apply predicate_ext => e.
   rewrite /tla_enabled; tla_simp.
