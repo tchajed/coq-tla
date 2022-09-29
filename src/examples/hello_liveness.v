@@ -63,7 +63,7 @@ The safety property is pretty easy, using `init_invariant`. In fact it's so simp
 |*)
 
 Theorem always_happy :
-  state_pred init ∧ □ ⟨next⟩ ⊢ □ (state_pred (λ s, s.(happy))).
+  ⌜ init ⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, s.(happy)⌝.
 Proof.
   apply init_invariant.
   - stm.
@@ -83,7 +83,7 @@ Notice that the state-machine reasoning all happens here, and in the analogous `
 |*)
 Theorem a_leads_to_b :
   □ ⟨ next ⟩ ∧ weak_fairness ab ⊢
-  state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = B).
+  ⌜λ s, s.(x) = A⌝ ~~> ⌜λ s, s.(x) = B⌝.
 Proof.
   apply wf1.
   - stm.
@@ -92,7 +92,7 @@ Proof.
 Qed.
 
 Lemma init_a :
-  state_pred init ⊢ state_pred (λ s, s.(x) = A).
+  ⌜init⌝ ⊢ ⌜λ s, s.(x) = A⌝.
 Proof.
   apply state_pred_impl => s.  stm.
 Qed.
@@ -101,8 +101,8 @@ Qed.
 This theorem isn't directly needed; we carry out the same reasoning to derive ◇ C from the leads_to proofs.
 |*)
 Theorem eventually_b :
-  state_pred init ∧ □ ⟨next⟩ ∧ weak_fairness ab ⊢
-  ◇ (state_pred (λ s, s.(x) = B)).
+  ⌜init⌝ ∧ □ ⟨next⟩ ∧ weak_fairness ab ⊢
+  ◇ ⌜λ s, s.(x) = B⌝.
 Proof.
   rewrite -> a_leads_to_b.
   rewrite -> init_a.
@@ -112,7 +112,7 @@ Qed.
 
 Theorem b_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness bc ⊢
-  leads_to (state_pred (λ s, s.(x) = B)) (state_pred (λ s, s.(x) = C)).
+   ⌜λ s, s.(x) = B⌝ ~~> ⌜λ s, s.(x) = C⌝.
 Proof.
   apply wf1.
   - stm.
@@ -122,9 +122,9 @@ Qed.
 
 Theorem a_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
-  state_pred (λ s, s.(x) = A) ~~> state_pred (λ s, s.(x) = C).
+  ⌜ λ s, s.(x) = A ⌝ ~~> ⌜ λ s, s.(x) = C ⌝.
 Proof.
-  rewrite <- (leads_to_trans _ (state_pred (λ s, s.(x) = B))).
+  rewrite <- (leads_to_trans _ ⌜λ s, s.(x) = B⌝).
   rewrite <- a_leads_to_b.
   rewrite <- b_leads_to_c.
   tla_prop.
@@ -132,7 +132,7 @@ Qed.
 
 Theorem eventually_c :
   state_pred init ∧ □ ⟨next⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
-  ◇ (state_pred (λ s, s.(x) = C)).
+  ◇ ⌜ λ s, s.(x) = C ⌝.
 Proof.
   rewrite -> a_leads_to_c.
   rewrite -> init_a.

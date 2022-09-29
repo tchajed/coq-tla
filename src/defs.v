@@ -21,11 +21,13 @@ There are a few primitive ways to construct TLA predicates, by lifting state pre
 Definition state_pred {Σ: Type} (f: Σ → Prop) : predicate Σ :=
     λ ex, f (ex 0).
 
+Notation "⌜  P  ⌝" := (state_pred P%type).
+
 Definition action (Σ: Type) := Σ → Σ → Prop.
 Definition action_pred {Σ: Type} (a: action Σ) : predicate Σ :=
     λ ex, a (ex 0) (ex 1).
 
-Notation "⟨ a ⟩" := (action_pred a) (format "⟨ a ⟩").
+Notation "⟨ a ⟩" := (action_pred a%type) (format "⟨ a ⟩").
 
 Set Default Proof Using "Type".
 Set Default Goal Selector "!".
