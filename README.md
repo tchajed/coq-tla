@@ -11,7 +11,7 @@ with many hypotheses.
 Documentation compiled with Alectryon is automatically generated. Some good
 places to start are the [basic
 definitions](https://tchajed.github.io/coq-tla/defs.html) and a simple [example
-of liveness](https://tchajed.github.io/coq-tla/examples/hello_liveness.html)for
+of liveness](https://tchajed.github.io/coq-tla/examples/hello_liveness.html) for
 a toy transition system.
 
 The TLA definitions and rules owe a lot to the classic paper ["The Temporal
