@@ -565,6 +565,12 @@ Theorem impl_drop_hyp p q :
   p ⊢ q.
 Proof. unseal. Qed.
 
+(* a very crude way to drop a hypothesis *)
+Theorem impl_drop_one p q r :
+  (p ⊢ q) →
+  p ∧ r ⊢ q.
+Proof. unseal. Qed.
+
 Lemma enabled_eq (P: Σ → Prop) (f: Σ → Σ) s :
   enabled (λ s s', P s ∧ s' = f s) s ↔ P s.
 Proof.
@@ -625,8 +631,77 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma leads_to_assume (q p r φ: predicate) :
+  (* side condition *)
+  (r ⊢ □ q) →
+  (* continue proof with q in the leads_to premise *)
+  (r ⊢ (p ∧ q) ~~> φ) →
+  (r ⊢ p ~~> φ).
+Proof.
+  rewrite /leads_to.
+  intros H Hleads_to.
+  tla_pose H.
+  rewrite -> Hleads_to.
+  unseal.
+Qed.
+
+(* when proving a leads_to, it's safe to assume the postcondition isn't already
+achieved (because the proof is trivial in that case) *)
+Lemma leads_to_assume_not p q :
+  p ~~> q == (p ∧ !q) ~~> q.
+Proof.
+  tla_split; [ unseal | ].
+  rewrite {2}(tla_and_em q p).
+  rewrite tla_and_distr_l.
+  rewrite leads_to_or_split; tla_split.
+  - apply impl_drop_hyp.
+    apply impl_to_leads_to.
+    tla_prop.
+  - reflexivity.
+Qed.
+
+Lemma combine_preds (next: Σ → Σ → Prop) (P: Σ → Prop) :
+  (□ ⟨ next ⟩ ∧ □ ⌜ P ⌝) == □ ⟨ λ s s', next s s' ∧ P s ∧ P s' ⟩.
+Proof.
+  unseal.
+  intuition eauto.
+  - specialize (H k). intuition auto.
+  - specialize (H k). intuition auto.
+Qed.
+
+Lemma combine_state_preds (P Q: Σ → Prop) :
+  (⌜P⌝ ∧ ⌜Q⌝) == ⌜λ s, P s ∧ Q s⌝.
+Proof.
+  unseal.
+Qed.
+
+Lemma combine_or_preds (P Q: Σ → Prop) :
+  (⌜P⌝ ∨ ⌜Q⌝) == ⌜λ s, P s ∨ Q s⌝.
+Proof.
+  unseal.
+Qed.
+
+Lemma combine_always_preds (P Q: Σ → Prop) :
+  (□⌜P⌝ ∧ □⌜Q⌝) == □⌜λ s, P s ∧ Q s⌝.
+Proof.
+  rewrite -always_and.
+  rewrite combine_state_preds.
+  reflexivity.
+Qed.
+
+Lemma not_state_pred (P: Σ → Prop) :
+  !⌜λ s, P s⌝ == ⌜λ s, ¬ P s⌝.
+Proof.
+  unseal.
+Qed.
+
+
 End TLA.
 
 Ltac leads_to_trans q :=
   rewrite <- (leads_to_trans _ q _);
+  tla_split.
+
+Ltac leads_to_etrans :=
+  erewrite <- leads_to_trans;
   tla_split.

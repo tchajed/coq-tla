@@ -102,10 +102,14 @@ inductive invariant wasn't immediately obvious, so I just started randomly
 proving reasonable-looking invariants until the proof went through.
 |*)
 
+Definition msg_inv s :=
+  (CreateReq 1 ∈ s.(messages) ↔ s.(sent1Create)) ∧
+  (CreateReq 2 ∈ s.(messages) ↔ s.(sent2Create)).
+
+Hint Unfold msg_inv : stm.
+
 Theorem messages_sent :
-  ⌜init⌝ ∧ □ ⟨next⟩ ⊢
-    □ ⌜λ s, (CreateReq 1 ∈ s.(messages) ↔ s.(sent1Create)) ∧
-            (CreateReq 2 ∈ s.(messages) ↔ s.(sent2Create))⌝.
+  ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜msg_inv⌝.
 Proof.
   apply init_invariant.
   - stm.
@@ -244,27 +248,35 @@ Proof.
 Qed.
 
 Lemma eventually_send_create2 :
-  □ ⟨next⟩ ∧ weak_fairness reconcile ∧ weak_fairness create2 ⊢
+  ⌜init⌝ ∧ □ ⟨next⟩ ∧ weak_fairness reconcile ∧ weak_fairness create2 ⊢
   ⌜ λ s, s.(obj1Exists) ⌝ ~~>
   ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
-  rewrite (tla_and_em (⌜λ s, s.(obj2Exists)⌝) (⌜λ s, s.(obj1Exists)⌝)).
+  rewrite leads_to_assume_not.
+  rewrite not_state_pred combine_state_preds.
+  rewrite (tla_and_em (⌜λ s, s.(sent2Create)⌝) (⌜λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists)⌝)).
   rewrite tla_and_distr_l.
   rewrite leads_to_or_split.
-  rewrite !combine_state_preds.
-  rewrite not_state_pred.
+  rewrite !not_state_pred !combine_state_preds.
   tla_split.
-  { apply impl_drop_hyp.
-    apply leads_to_impl. intuition idtac. }
+  {
+    apply (leads_to_assume ⌜msg_inv⌝).
+    { tla_apply messages_sent. }
+    leads_to_etrans; [ | tla_apply eventually_create2 ].
+    apply impl_drop_hyp.
+    rewrite combine_state_preds.
+    apply leads_to_impl; stm. }
 
-  (* TODO: there's a sort of new principle needed here: □ ⟨next⟩ implies some
-  safety, so that safety invariant should be free to assume in the premise of
-  the leads_to proof. Maybe the idea is that if we're proving [r ⊢ p ~~> φ] and [r
-  ⊢ □ q], then we can instead prove [r ⊢ (p ∧ q) ~~> φ]. *)
-Admitted.
+  leads_to_trans ⌜λ s, CreateReq 2 ∈ s.(messages)⌝.
+  {
+    leads_to_etrans; [ | tla_apply eventually_send2 ].
+    apply impl_drop_hyp.
+    apply leads_to_impl; intuition idtac. }
+  tla_apply eventually_create2.
+Qed.
 
 Lemma init_create2 :
-  □ ⟨next⟩ ∧
+  ⌜init⌝ ∧ □ ⟨next⟩ ∧
     weak_fairness reconcile ∧
     weak_fairness create1 ∧ weak_fairness create2 ⊢
   ⌜ init ⌝ ~~>
