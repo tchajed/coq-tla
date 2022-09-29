@@ -4,6 +4,9 @@ From Coq.Logic Require Import
 From Coq.ssr Require Export ssreflect.
 From stdpp Require Export base.
 
+#[export] Set Default Proof Using "Type".
+#[export] Set Default Goal Selector "!".
+
 (*|
 ================================
 Embedding the TLA logic in Coq.
@@ -28,9 +31,6 @@ Definition action_pred {Σ: Type} (a: action Σ) : predicate Σ :=
     λ ex, a (ex 0) (ex 1).
 
 Notation "⟨ a ⟩" := (action_pred a%type) (format "⟨ a ⟩").
-
-Set Default Proof Using "Type".
-Set Default Goal Selector "!".
 
 Section TLA.
 

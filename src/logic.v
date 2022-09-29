@@ -221,25 +221,6 @@ Qed.
 
 Hint Rewrite always_eventually_idem eventually_always_idem : tla.
 
-Theorem entails_and_iff p q1 q2 :
-  ((p ⊢ q1) ∧ (p ⊢ q2)) ↔ (p ⊢ q1 ∧ q2).
-Proof.
-  unseal.
-  intuition eauto.
-  - apply H; done.
-  - apply H; done.
-Qed.
-
-Theorem entails_and p q1 q2 :
-  (p ⊢ q1) →
-  (p ⊢ q2) →
-  (p ⊢ q1 ∧ q2).
-Proof.
-  rewrite -entails_and_iff //.
-Qed.
-
-Definition tla_split := entails_and.
-
 Theorem always_weaken p :
   □ p ⊢ p.
 Proof.
@@ -556,6 +537,34 @@ Proof.
   apply modus_ponens.
 Qed.
 
+Theorem impl_to_leads_to p q :
+  (p ⊢ q) →
+  ⊢ p ~~> q.
+Proof.
+  unseal.
+  exists 0; auto.
+Qed.
+
+Instance impl_leads_to_subrelation : subrelation pred_impl (λ p q, ⊢ p ~~> q).
+Proof.
+  unfold subrelation.
+  apply impl_to_leads_to.
+Qed.
+
+Theorem leads_to_impl (P Q: Σ → Prop) :
+  (∀ s, P s → Q s) →
+  ⊢ ⌜P⌝ ~~> ⌜Q⌝.
+Proof.
+  intros.
+  apply impl_to_leads_to.
+  unseal.
+Qed.
+
+Theorem impl_drop_hyp p q :
+  (⊢ q) →
+  p ⊢ q.
+Proof. unseal. Qed.
+
 Lemma enabled_eq (P: Σ → Prop) (f: Σ → Σ) s :
   enabled (λ s s', P s ∧ s' = f s) s ↔ P s.
 Proof.
@@ -564,4 +573,60 @@ Proof.
   intuition.
 Qed.
 
+(** more general excluded middle that allows inserting an [r ∨ !r] anywhere in a
+TLA goal *)
+Lemma tla_and_em r p :
+  p == (p ∧ (r ∨ !r)).
+Proof.
+  unseal.
+Qed.
+
+Lemma tla_excluded_middle r p q :
+  (p ∧ r ⊢ q) →
+  (p ∧ !r ⊢ q) →
+  (p ⊢ q).
+Proof.
+  rewrite {3}(tla_and_em r p).
+  unseal.
+Qed.
+
+Lemma tla_and_distr_l p q r :
+  (p ∧ (q ∨ r)) == (p ∧ q ∨ p ∧ r).
+Proof.
+  unseal.
+Qed.
+
+Lemma tla_and_distr_r p q r :
+  ((q ∨ r) ∧ p) == (q ∧ p ∨ r ∧ p).
+Proof.
+  unseal.
+Qed.
+
+Lemma tla_or_distr_l p q r :
+  (p ∨ (q ∧ r)) == ((p ∨ q) ∧ (p ∨ r)).
+Proof.
+  unseal.
+Qed.
+
+Lemma tla_or_distr_r p q r :
+  ((q ∧ r) ∨ p) == ((q ∨ p) ∧ (r ∨ p)).
+Proof.
+  unseal.
+Qed.
+
+Lemma leads_to_or_split p q r :
+  (p ∨ q) ~~> r == ((p ~~> r) ∧ (q ~~> r)).
+Proof.
+  rewrite /leads_to.
+  rewrite -always_and.
+  f_equal.
+  rewrite !implies_to_or; tla_simp.
+  rewrite !tla_or_distr_r.
+  reflexivity.
+Qed.
+
 End TLA.
+
+Ltac leads_to_trans q :=
+  rewrite <- (leads_to_trans _ q _);
+  tla_split.

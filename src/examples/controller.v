@@ -183,7 +183,7 @@ Proof.
   intuition idtac.
 Qed.
 
-Theorem eventually_send1 :
+Lemma eventually_send1 :
   □ ⟨next⟩ ∧ weak_fairness reconcile ⊢
   ⌜ λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists) ⌝ ~~>
   ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝.
@@ -195,7 +195,7 @@ Proof.
     intuition auto.
 Qed.
 
-Theorem eventually_create1 :
+Lemma eventually_create1 :
   □ ⟨next⟩ ∧ weak_fairness create1 ⊢
   ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝ ~~>
   ⌜ λ s, s.(obj1Exists) ⌝.
@@ -203,9 +203,27 @@ Proof.
   apply wf1; stm.
 Qed.
 
+Lemma init_send_create1 :
+  □ ⟨next⟩ ∧ weak_fairness create1 ∧ weak_fairness reconcile ⊢
+  ⌜init⌝ ~~>
+  ⌜ λ s, s.(obj1Exists) ⌝.
+Proof.
+  rewrite <- (leads_to_trans _ ⌜λ s, CreateReq 1 ∈ s.(messages)⌝).
+  tla_split.
+  - rewrite <- (leads_to_trans _ ⌜λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists)⌝).
+    tla_split.
+    { apply impl_drop_hyp.
+      apply leads_to_impl.
+      stm. }
+    tla_pose eventually_send1.
+    tla_prop.
+  - tla_pose eventually_create1.
+    tla_prop.
+Qed.
+
 (* TODO: the preconditions here are actually a bit tricky; they are carried
 through due to invariants, but don't follow in a straightforward [~~>] chain. *)
-Theorem eventually_send2 :
+Lemma eventually_send2 :
   □ ⟨ next ⟩ ∧ weak_fairness reconcile ⊢
   ⌜ λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists) ∧ ¬ s.(sent2Create) ⌝ ~~>
   ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝.
@@ -217,12 +235,59 @@ Proof.
     intuition auto.
 Qed.
 
-Theorem eventually_create2 :
+Lemma eventually_create2 :
   □ ⟨next⟩ ∧ weak_fairness create2 ⊢
   ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝ ~~>
   ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
   apply wf1; stm.
 Qed.
+
+Lemma eventually_send_create2 :
+  □ ⟨next⟩ ∧ weak_fairness reconcile ∧ weak_fairness create2 ⊢
+  ⌜ λ s, s.(obj1Exists) ⌝ ~~>
+  ⌜ λ s, s.(obj2Exists) ⌝.
+Proof.
+  rewrite (tla_and_em (⌜λ s, s.(obj2Exists)⌝) (⌜λ s, s.(obj1Exists)⌝)).
+  rewrite tla_and_distr_l.
+  rewrite leads_to_or_split.
+  rewrite !combine_state_preds.
+  rewrite not_state_pred.
+  tla_split.
+  { apply impl_drop_hyp.
+    apply leads_to_impl. intuition idtac. }
+
+  (* TODO: there's a sort of new principle needed here: □ ⟨next⟩ implies some
+  safety, so that safety invariant should be free to assume in the premise of
+  the leads_to proof. Maybe the idea is that if we're proving [r ⊢ p ~~> φ] and [r
+  ⊢ □ q], then we can instead prove [r ⊢ (p ∧ q) ~~> φ]. *)
+Admitted.
+
+Lemma init_create2 :
+  □ ⟨next⟩ ∧
+    weak_fairness reconcile ∧
+    weak_fairness create1 ∧ weak_fairness create2 ⊢
+  ⌜ init ⌝ ~~>
+  ⌜ λ s, s.(obj2Exists) ⌝.
+Proof.
+  leads_to_trans ⌜λ s, s.(obj1Exists)⌝.
+  - tla_apply init_send_create1.
+  - tla_apply eventually_send_create2.
+Qed.
+
+(** This is the final liveness theorem. We need the network actions to be
+_each_ be treated fairly, and [reconcile] to run fairly. *)
+Theorem eventually_create_both :
+  ⌜init⌝ ∧ □ ⟨next⟩ ∧
+     weak_fairness create1 ∧ weak_fairness create2 ∧ weak_fairness reconcile ⊢
+   ◇ ⌜λ s, s.(obj1Exists) ∧ s.(obj2Exists)⌝.
+Proof.
+  tla_pose init_create2.
+  (* TODO: I made this more difficult by only proving [◇ s.(obj2Exists)] in
+  init_create2. To get s.(obj1Exists), we'll need to use a safety proof.
+  (Actually it would be nice to go from ◇ s.(obj1Exists) to □ s.(obj1Exists) via
+  an invariant, since the former is an intermediate result, but that seems a bit
+  trickier, and we already have the relevant safety theorem above.) *)
+Admitted.
 
 End example.

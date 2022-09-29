@@ -95,6 +95,62 @@ Theorem tla_and_assoc p1 p2 p3 :
   ((p1 ∧ p2) ∧ p3) == (p1 ∧ p2 ∧ p3).
 Proof. unseal. Qed.
 
+Theorem entails_to_iff p q :
+  (p ⊢ q) →
+  (q ⊢ p) →
+  p == q.
+Proof.
+  autounfold with tla; intros.
+  apply predicate_ext => e.
+  split; eauto.
+Qed.
+
+Theorem entails_and_iff p q1 q2 :
+  ((p ⊢ q1) ∧ (p ⊢ q2)) ↔ (p ⊢ q1 ∧ q2).
+Proof.
+  autounfold with tla.
+  intuition eauto.
+  - apply H; done.
+  - apply H; done.
+Qed.
+
+Theorem entails_and p q1 q2 :
+  (p ⊢ q1) →
+  (p ⊢ q2) →
+  (p ⊢ q1 ∧ q2).
+Proof.
+  rewrite -entails_and_iff //.
+Qed.
+
+Theorem entails_trans p q r :
+  (p ⊢ q) →
+  (q ⊢ r) →
+  (p ⊢ r).
+Proof.
+  autounfold with tla; intuition auto.
+Qed.
+
+Lemma combine_preds (next: Σ → Σ → Prop) (P: Σ → Prop) :
+  (□ ⟨ next ⟩ ∧ □ ⌜ P ⌝) == □ ⟨ λ s s', next s s' ∧ P s ∧ P s' ⟩.
+Proof.
+  unseal.
+  intuition eauto.
+  - specialize (H k). intuition auto.
+  - specialize (H k). intuition auto.
+Qed.
+
+Lemma combine_state_preds (P Q: Σ → Prop) :
+  (⌜P⌝ ∧ ⌜Q⌝) == ⌜λ s, P s ∧ Q s⌝.
+Proof.
+  unseal.
+Qed.
+
+Lemma not_state_pred (P: Σ → Prop) :
+  !⌜λ s, P s⌝ == ⌜λ s, ¬ P s⌝.
+Proof.
+  unseal.
+Qed.
+
 End TLA.
 
 Hint Rewrite not_eventually not_always
@@ -196,11 +252,11 @@ Ltac tla_pose lem :=
   apply (tla_pose_lemma _ _ H); clear H;
   [ tla_prop | rewrite tla_and_assoc ].
 
-Lemma combine_preds {Σ} (next: Σ → Σ → Prop) (P: Σ → Prop) :
-  (□ ⟨ next ⟩ ∧ □ ⌜ P ⌝) == □ ⟨ λ s s', next s s' ∧ P s ∧ P s' ⟩.
-Proof.
-  unseal.
-  intuition eauto.
-  - specialize (H k). intuition auto.
-  - specialize (H k). intuition auto.
-Qed.
+Ltac tla_split :=
+  match goal with
+  | |- @eq (predicate _) _ _ => apply entails_to_iff
+  | |- pred_impl _ (tla_and _ _) => apply entails_and
+  end.
+
+Ltac tla_apply lem :=
+  eapply entails_trans; [ | apply lem ]; try solve [ tla_prop ].
