@@ -1,6 +1,6 @@
 From RecordUpdate Require Import RecordUpdate.
 
-From stdpp Require Import sets gmap.
+From stdpp Require Import sets.
 
 From TLA Require Import logic.
 
@@ -16,15 +16,6 @@ Inductive message :=
 Instance message_eqdec : EqDecision message.
 Proof. solve_decision. Defined.
 
-#[global]
-Instance message_countable : Countable message.
-Proof.
-  refine (inj_countable' (λ m, match m with
-  | CreateReq id => id
-  end)
-  (λ id, CreateReq id) _); intros []; done.
-Qed.
-
 Record state := mkState {
   (* local controller state *)
   sent1Create: bool;
@@ -35,7 +26,7 @@ Record state := mkState {
   obj2Exists: bool;
 
   (* messages *)
-  messages: gset message;
+  messages: list message;
 }.
 
 Instance _eta_state : Settable _ :=
@@ -49,11 +40,11 @@ Implicit Types (s: state) (e: exec) (a: action).
 
 Definition send1_a : action :=
   λ s s', negb s.(obj1Exists) ∧ negb s.(sent1Create) ∧
-          s' = s <| sent1Create := true |> <| messages ::= (∪) {[CreateReq 1]} |>.
+          s' = s <| sent1Create := true |> <| messages ::= cons (CreateReq 1) |>.
 
 Definition send2_a : action :=
   λ s s', s.(obj1Exists) ∧ s.(sent1Create) ∧ negb s.(obj2Exists) ∧ negb s.(sent2Create) ∧
-          s' = s <| sent2Create := true |> <| messages ::= (∪) {[CreateReq 2]} |>.
+          s' = s <| sent2Create := true |> <| messages ::= cons (CreateReq 2) |>.
 
 Definition reconcile: action := λ s s', send1_a s s' ∨ send2_a s s'.
 
@@ -73,7 +64,7 @@ Definition next : action :=
 Definition init s :=
   s = {| sent1Create := false; sent2Create := false;
          obj1Exists := false; obj2Exists := false;
-         messages := ∅; |}.
+         messages := [] |}.
 
 Hint Unfold init next : stm.
 Hint Unfold reconcile cluster send1_a send2_a create1 create2 : stm.
