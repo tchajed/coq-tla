@@ -238,3 +238,7 @@ Global Instance impl_flip_valid :
 Proof. instance_t. Qed.
 
 End rewriting.
+
+Arguments enabled {Σ}%type_scope a%type_scope.
+Arguments tla_enabled {Σ}%type_scope a%type_scope.
+Arguments weak_fairness {Σ}%type_scope a%type_scope.

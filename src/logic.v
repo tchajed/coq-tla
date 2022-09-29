@@ -147,22 +147,50 @@ Proof.
     + destruct (H k) as [k' ?]; eauto.
 Qed.
 
+Theorem eventually_and p1 p2 :
+  ◇ (p1 ∧ p2) ⊢ ◇ p1 ∧ ◇ p2.
+Proof.
+  unseal.
+  deex; intuition eauto.
+Qed.
+
+(* this is a weakening; the left side says they happen at the same time, while
+the right allows them to happen only separately *)
+Theorem always_eventually_and p1 p2 :
+  □◇ (p1 ∧ p2) ⊢ □◇ p1 ∧ □◇ p2.
+Proof.
+  rewrite -> eventually_and.
+  rewrite always_and //.
+Qed.
+
 Theorem eventually_always_distrib p1 p2 :
   ◇□ (p1 ∧ p2) == ((◇□ p1) ∧ (◇□ p2)).
 Proof.
   dual always_eventually_distrib.
 Qed.
 
+Theorem always_or p1 p2 :
+  □ p1 ∨ □ p2 ⊢ □ (p1 ∨ p2).
+Proof.
+  dual eventually_and.
+Qed.
+
+Theorem eventually_always_or p1 p2 :
+  ◇□ p1 ∨ ◇□ p2 ⊢ ◇□ (p1 ∨ p2).
+Proof.
+  dual always_eventually_and.
+Qed.
+
 Lemma always_eventually_reverse p :
   □◇ p == ! ◇□ !p.
 Proof.
-  autorewrite with tla; done.
+  tla_simp.
 Qed.
 
 Lemma eventually_always_reverse p :
   ◇□ p == ! □◇ !p.
 Proof.
-  autorewrite with tla; done.
+  tla_simp.
 Qed.
 
 Theorem always_eventually_idem p :
@@ -445,6 +473,22 @@ Proof.
   apply tla_wf1; unseal.
   rewrite /tla_enabled; tla_simp.
   eauto.
+Qed.
+
+Theorem enabled_or a1 a2 :
+  ∀ s, enabled (λ s s', a1 s s' ∨ a2 s s') s ↔ (enabled a1 s ∨ enabled a2 s).
+Proof.
+  unfold enabled.
+  intuition (repeat deex; eauto).
+  intuition eauto.
+Qed.
+
+Theorem tla_enabled_or a1 a2 :
+  tla_enabled (λ s s', a1 s s' ∨ a2 s s')%type == (tla_enabled a1 ∨ tla_enabled a2).
+Proof.
+  apply predicate_ext => e.
+  rewrite /tla_enabled; tla_simp.
+  rewrite enabled_or; tla_simp.
 Qed.
 
 Lemma state_pred_impl (P Q: Σ -> Prop) :

@@ -36,6 +36,15 @@ Proof.
   rewrite H //.
 Qed.
 
+Lemma not_impl p q :
+  (!p ⊢ !q) →
+  q ⊢ p.
+Proof.
+  autounfold with tla; intuition eauto.
+  apply classical.double_negation.
+  eauto.
+Qed.
+
 Theorem not_eventually p :
   ! ◇p == □ !p.
 Proof.
@@ -96,10 +105,13 @@ Hint Rewrite state_pred_e action_pred_e : tla.
 Ltac tla_simp := autorewrite with tla; try reflexivity.
 
 Ltac dual0 :=
-  apply not_inj; tla_simp.
+  match goal with
+  | |- _ = _ => apply not_inj; tla_simp
+  | |- pred_impl _ _ => apply not_impl; tla_simp
+  end.
 
 Tactic Notation "dual" := dual0.
-Tactic Notation "dual" constr(lem) := dual0; rewrite lem; done.
+Tactic Notation "dual" constr(lem) := dual0; rewrite -> lem; done.
 
 Lemma drop_drop {Σ} k1 k2 (e: exec Σ) : drop k1 (drop k2 e) = drop (k1 + k2) e.
 Proof.
