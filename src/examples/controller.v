@@ -1,3 +1,23 @@
+(*|
+
+=============================================
+Example: a controller-like state machine
+=============================================
+
+This example is intended to model something like a distributed system like
+Kubernetes. It models a controller that on startup sends a message to create
+"object 1" then "object 2". These messages are processed by the network (a
+different set of transitions), which actually transitions to a state where the
+objects exist. The goal is to create object 1, wait for it to exist, and then
+create object 2.
+
+The specification for this controller has two parts. First is a safety property:
+if object 2 exists, object 1 should exist (enforcing the ordering). Second is a
+liveness property that under some fairness assumptions both objects eventually
+exist.
+
+|*)
+
 From RecordUpdate Require Import RecordUpdate.
 From stdpp Require Import sets.
 From TLA Require Import logic.
@@ -176,6 +196,19 @@ Proof.
   stm.
 Qed.
 
+(*|
+------------
+Liveness
+------------
+
+Now we get to the interesting part: a liveness proof showing that both objects
+are eventually created. First, this requires making fairness assumptions like
+[weak_fairness reconcile]. These assumptions ensure we only consider executions
+where actions get to run, as long as they're enabled. Next, we exploit
+[weak_fairness] to prove a number of [~~>] ("leads to") theorems that go through
+the steps of the protocol. Finally, we tie everything together to show liveness.
+|*)
+
 Lemma reconcile_enabled s :
   enabled reconcile s ↔
     ((¬ s.(obj1Exists) ∧ ¬ s.(sent1Create)) ∨
@@ -225,8 +258,6 @@ Proof.
     tla_prop.
 Qed.
 
-(* TODO: the preconditions here are actually a bit tricky; they are carried
-through due to invariants, but don't follow in a straightforward [~~>] chain. *)
 Lemma eventually_send2 :
   □ ⟨ next ⟩ ∧ weak_fairness reconcile ⊢
   ⌜ λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists) ∧ ¬ s.(sent2Create) ⌝ ~~>
@@ -247,11 +278,26 @@ Proof.
   apply wf1; stm.
 Qed.
 
+(*|
+This next proof is actually not that simple. You might think we want to chain
+[eventually_send1] and [eventually_send2] (like we did above for object 1), but
+we can only apply [eventually_send1] under some additional preconditions. The
+issue is that [reconcile] only tries to create object 2 if it doesn't exist;
+there's a similar issue in principle for object 1, but the required conditions
+are immediately met at initialization.
+
+The proof handles this issue by using a different strategy when the
+preconditions for [eventually_send2] fail; basically in one case we're already
+done because [s.(obj2Exists)] is true, and in the other we've already sent a
+request for object 2 and it will eventually be created.
+|*)
+
 Lemma eventually_send_create2 :
   ⌜init⌝ ∧ □ ⟨next⟩ ∧ weak_fairness reconcile ∧ weak_fairness create2 ⊢
   ⌜ λ s, s.(obj1Exists) ⌝ ~~>
   ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
+  (* This proof is actually interesting.  *)
   rewrite leads_to_assume_not.
   rewrite not_state_pred combine_state_preds.
   rewrite (tla_and_em (⌜λ s, s.(sent2Create)⌝)
@@ -261,6 +307,13 @@ Proof.
   rewrite !not_state_pred !combine_state_preds.
   tla_split.
   {
+
+  (*
+  This next step is a key idea: we prove that the current premises imply
+  [□ msg_inv] (a previously proven safety proof), and then we can safely assume
+  them in the premise of the [~~>].
+  *)
+
     apply (leads_to_assume ⌜msg_inv⌝).
     { tla_apply messages_sent. }
     leads_to_etrans; [ | tla_apply eventually_create2 ].
