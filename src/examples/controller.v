@@ -40,16 +40,16 @@ Implicit Types (s: state) (e: exec) (a: action).
 
 Definition send1_a : action :=
   λ s s',
-  negb s.(obj1Exists) ∧ negb s.(sent1Create) ∧
+  (¬s.(obj1Exists) ∧ ¬s.(sent1Create)) ∧
   s' = s <| sent1Create := true |> <| messages ::= cons (CreateReq 1) |>.
 
 Definition send2_a : action :=
   λ s s',
   (* reconcile would also check that send1_a is disabled but we can ignore that
   because of the check on obj1Exists *)
-  s.(obj1Exists) ∧
+  (s.(obj1Exists) ∧
   (* now make sure we should be trying*)
-  negb s.(obj2Exists) ∧ negb s.(sent2Create) ∧
+  ¬s.(obj2Exists) ∧ ¬s.(sent2Create)) ∧
   s' = s <| sent2Create := true |> <| messages ::= cons (CreateReq 2) |>.
 
 Definition reconcile: action :=
@@ -78,7 +78,9 @@ Hint Unfold reconcile cluster send1_a send2_a create1 create2 : stm.
 
 Ltac stm_simp :=
   autounfold with stm;
-  intros; intuition idtac;
+  intros; (intuition idtac);
+  rewrite ?enabled_eq;
+  repeat deex;
   repeat match goal with
         | s: state |- _ => destruct s
         | H: @eq state _ _ |- _ => inversion H; subst; clear H
@@ -170,6 +172,56 @@ Proof.
   apply always_impl_proper.
   unseal.
   stm.
+Qed.
+
+Lemma reconcile_enabled s :
+  enabled reconcile s ↔
+    ((¬ s.(obj1Exists) ∧ ¬ s.(sent1Create)) ∨
+    (s.(obj1Exists) ∧ ¬ s.(obj2Exists) ∧ ¬ s.(sent2Create))).
+Proof.
+  rewrite /reconcile.
+  rewrite enabled_or.
+  autounfold with stm; rewrite !enabled_eq.
+  intuition idtac.
+Qed.
+
+Theorem eventually_send1 :
+  □ ⟨next⟩ ∧ weak_fairness reconcile ⊢
+  ⌜ λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists) ⌝ ~~>
+  ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝.
+Proof.
+  apply wf1.
+  - stm.
+  - stm.
+  - intros s. rewrite reconcile_enabled.
+    intuition auto.
+Qed.
+
+Theorem eventually_create1 :
+  □ ⟨next⟩ ∧ weak_fairness create1 ⊢
+  ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝ ~~> ⌜ λ s, s.(obj1Exists) ⌝.
+Proof.
+  apply wf1; stm.
+Qed.
+
+(* TODO: the preconditions here are actually a bit tricky; they are carried
+through due to invariants, but don't follow in a straightforward [~~>] chain. *)
+Theorem eventually_send2 :
+  □ ⟨ next ⟩ ∧ weak_fairness reconcile ⊢
+  ⌜ λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists) ∧ ¬ s.(sent2Create) ⌝ ~~> ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝.
+Proof.
+  apply wf1.
+  - stm.
+  - stm.
+  - intros s. rewrite reconcile_enabled.
+    intuition auto.
+Qed.
+
+Theorem eventually_create2 :
+  □ ⟨next⟩ ∧ weak_fairness create2 ⊢
+  ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝ ~~> ⌜ λ s, s.(obj2Exists) ⌝.
+Proof.
+  apply wf1; stm.
 Qed.
 
 End example.

@@ -238,6 +238,8 @@ Proof.
   rewrite -entails_and_iff //.
 Qed.
 
+Definition tla_split := entails_and.
+
 Theorem always_weaken p :
   □ p ⊢ p.
 Proof.
@@ -491,6 +493,21 @@ Proof.
   rewrite enabled_or; tla_simp.
 Qed.
 
+(* there doesn't seem to be any characterization of weak_fairness of a composite
+action - it's just different to be able to run a1 ∨ a2 compared with fairness of
+each individually (intuitively the latter seems stronger, but it doesn't seem to
+be an implication, either) *)
+Theorem wf_or a1 a2 :
+  weak_fairness (λ s s', a1 s s' ∨ a2 s s')%type ==
+  (weak_fairness a1 ∧ weak_fairness a2).
+Proof.
+  rewrite !weak_fairness_alt1'.
+  rewrite tla_enabled_or.
+  rewrite !always_eventually_distrib.
+  fold (⟨ a1 ⟩) (⟨ a2 ⟩).
+  tla_simp.
+Abort.
+
 Lemma state_pred_impl (P Q: Σ -> Prop) :
   (∀ s, P s → Q s) →
   state_pred P ⊢ state_pred Q.
@@ -536,6 +553,14 @@ Proof.
   rewrite /leads_to.
   rewrite -> always_weaken.
   apply modus_ponens.
+Qed.
+
+Lemma enabled_eq (P: Σ → Prop) (f: Σ → Σ) s :
+  enabled (λ s s', P s ∧ s' = f s) s ↔ P s.
+Proof.
+  rewrite /enabled.
+  intuition (try deex; eauto).
+  intuition.
 Qed.
 
 End TLA.
