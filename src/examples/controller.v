@@ -39,14 +39,21 @@ Local Notation exec := (exec state).
 Implicit Types (s: state) (e: exec) (a: action).
 
 Definition send1_a : action :=
-  λ s s', negb s.(obj1Exists) ∧ negb s.(sent1Create) ∧
-          s' = s <| sent1Create := true |> <| messages ::= cons (CreateReq 1) |>.
+  λ s s',
+  negb s.(obj1Exists) ∧ negb s.(sent1Create) ∧
+  s' = s <| sent1Create := true |> <| messages ::= cons (CreateReq 1) |>.
 
 Definition send2_a : action :=
-  λ s s', s.(obj1Exists) ∧ s.(sent1Create) ∧ negb s.(obj2Exists) ∧ negb s.(sent2Create) ∧
-          s' = s <| sent2Create := true |> <| messages ::= cons (CreateReq 2) |>.
+  λ s s',
+  (* reconcile would also check that send1_a is disabled but we can ignore that
+  because of the check on obj1Exists *)
+  s.(obj1Exists) ∧
+  (* now make sure we should be trying*)
+  negb s.(obj2Exists) ∧ negb s.(sent2Create) ∧
+  s' = s <| sent2Create := true |> <| messages ::= cons (CreateReq 2) |>.
 
-Definition reconcile: action := λ s s', send1_a s s' ∨ send2_a s s'.
+Definition reconcile: action :=
+    λ s s', send1_a s s' ∨ send2_a s s'.
 
 Definition create1 : action :=
   λ s s', CreateReq 1 ∈ s.(messages) ∧
@@ -96,8 +103,9 @@ proving reasonable-looking invariants until the proof went through.
 |*)
 
 Theorem messages_sent :
-  ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, (CreateReq 1 ∈ s.(messages) ↔ s.(sent1Create)) ∧
-                             (CreateReq 2 ∈ s.(messages) ↔ s.(sent2Create))⌝.
+  ⌜init⌝ ∧ □ ⟨next⟩ ⊢
+    □ ⌜λ s, (CreateReq 1 ∈ s.(messages) ↔ s.(sent1Create)) ∧
+            (CreateReq 2 ∈ s.(messages) ↔ s.(sent2Create))⌝.
 Proof.
   apply init_invariant.
   - stm.
@@ -113,7 +121,9 @@ modus ponens where we derive the invariant in `messages_sent` without losing `�
 |*)
 
 Theorem obj1_invariant :
-  ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, (s.(sent2Create) → s.(obj1Exists)) ∧ (s.(obj1Exists) → s.(sent1Create))⌝.
+  ⌜init⌝ ∧ □ ⟨next⟩ ⊢
+  □ ⌜λ s, (s.(sent2Create) → s.(obj1Exists)) ∧
+          (s.(obj1Exists) → s.(sent1Create))⌝.
 Proof.
   tla_pose messages_sent.
   rewrite !combine_preds.
@@ -135,7 +145,9 @@ of these conjuncts follow easily from obj1_invariant, but we assume that first.
 |*)
 
 Theorem create_invariant :
-  ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, s.(obj2Exists) → s.(sent2Create) ∧ s.(sent1Create) ∧ s.(obj1Exists)⌝.
+  ⌜init⌝ ∧ □ ⟨next⟩ ⊢
+  □ ⌜λ s, s.(obj2Exists) →
+    s.(sent2Create) ∧ s.(sent1Create) ∧ s.(obj1Exists)⌝.
 Proof.
   tla_pose messages_sent.
   tla_pose obj1_invariant.
