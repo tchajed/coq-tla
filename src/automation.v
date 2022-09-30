@@ -178,7 +178,7 @@ Proof.
 Qed.
 
 Lemma action_pred_e (a: action Σ) e :
-  ⟨ a ⟩ e ↔ a (e 0) (e 1).
+  action_pred a e ↔ a (e 0) (e 1).
 Proof.
   reflexivity.
 Qed.
@@ -294,6 +294,8 @@ Ltac specific_states :=
   | e: exec _ |- _ => specific_states_exec e
   | _ => fail "no exec variables"
   end.
+
+Hint Rewrite @drop_n : tla.
 
 Ltac unseal :=
   (* cleanup *)

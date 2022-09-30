@@ -25,6 +25,11 @@ Proof.
   auto.
 Qed.
 
+Theorem invariant_internal (inv next : predicate) :
+   □ next ⊢ (inv → next → later inv) → inv → □ inv.
+Proof.
+Admitted.
+
 Theorem init_safety (inv init: Σ → Prop) (next: action Σ) (safe : Σ → Prop) :
   (∀ s, init s → inv s) →
   (∀ s s', inv s → next s s' → inv s') →
@@ -214,7 +219,7 @@ Proof.
   rewrite !weak_fairness_alt1'.
   rewrite tla_enabled_or.
   rewrite !always_eventually_distrib.
-  fold (⟨ a1 ⟩) (⟨ a2 ⟩).
+  fold (⟨ a1 ⟩)%L (⟨ a2 ⟩)%L.
   tla_simp.
 Abort.
 

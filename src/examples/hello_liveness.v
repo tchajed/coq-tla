@@ -123,7 +123,7 @@ Theorem a_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
   ⌜ λ s, s.(x) = A ⌝ ~~> ⌜ λ s, s.(x) = C ⌝.
 Proof.
-  leads_to_trans (⌜λ s, s.(x) = B⌝).
+  leads_to_trans (⌜λ s, s.(x) = B⌝)%L.
   { tla_apply a_leads_to_b. }
   tla_apply b_leads_to_c.
 Qed.
@@ -135,7 +135,7 @@ Proof.
 (*|
 `leads_to_apply p` will switch from proving `◇ q` to `p` and `p ~~> q`.
 |*)
-  apply (leads_to_apply ⌜λ s, s.(x) = A⌝).
+  apply (leads_to_apply ⌜λ s, s.(x) = A⌝%L).
   { rewrite -> init_a; tla_prop. }
   tla_apply a_leads_to_c.
 Qed.

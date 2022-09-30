@@ -20,7 +20,40 @@ exist.
 
 From RecordUpdate Require Import RecordUpdate.
 From stdpp Require Import sets.
-From TLA Require Import logic.
+From TLA Require Import proofmode logic defs.
+
+Module ipm_patch.
+  Import iris.proofmode.coq_tactics.
+  Import iris.proofmode.ltac_tactics.
+
+  Ltac iris.proofmode.ltac_tactics.iIntoEmpValid_go ::=
+    lazymatch goal with
+    | |- IntoEmpValid (?φ → ?ψ) _ =>
+      (* Case [φ → ψ] *)
+      (* note: the ltac pattern [_ → _] would not work as it would also match
+        [∀ _, _] *)
+      notypeclasses refine (into_emp_valid_impl _ _ _ _ _);
+        [(*goal for [φ] *)|iIntoEmpValid_go]
+    | |- IntoEmpValid (∀ _, _) _ =>
+      (* Case [∀ x : A, φ] *)
+      notypeclasses refine (into_emp_valid_forall _ _ _ _); iIntoEmpValid_go
+    | |- IntoEmpValid (∀.. _, _) _ =>
+      (* Case [∀.. x : TT, φ] *)
+      notypeclasses refine (into_emp_valid_tforall _ _ _ _); iIntoEmpValid_go
+    | |- _ =>
+      first
+        [(* Case [P ⊢ Q], [P ⊣⊢ Q], [⊢ P] *)
+        notypeclasses refine (into_emp_valid_here _ _ _)
+        |(* Case [φ → ψ] *)
+        notypeclasses refine (into_emp_valid_impl _ _ _ _ _);
+          [(*goal for [φ] *)|iIntoEmpValid_go]
+        |(* Case [∀ x : A, φ] *)
+        notypeclasses refine (into_emp_valid_forall _ _ _ _); iIntoEmpValid_go
+        |(* Case [∀.. x : TT, φ] *)
+        notypeclasses refine (into_emp_valid_tforall _ _ _ _); iIntoEmpValid_go
+        ]
+    end.
+End ipm_patch.
 
 Section example.
 
@@ -122,7 +155,7 @@ inductive invariant wasn't immediately obvious, so I just started randomly
 proving reasonable-looking invariants until the proof went through.
 |*)
 
-Definition msg_inv s :=
+Definition msg_inv s: Prop :=
   (CreateReq 1 ∈ s.(messages) ↔ s.(sent1Create)) ∧
   (CreateReq 2 ∈ s.(messages) ↔ s.(sent2Create)).
 
@@ -136,6 +169,14 @@ Proof.
   - stm.
 Qed.
 
+Theorem messages_sent' :
+  ⊢ ⌜init⌝ → □⟨next⟩ → □ ⌜msg_inv⌝.
+Proof.
+  rewrite <- messages_sent.
+  tla_prop.
+Qed.
+
+
 (*|
 The proof starts out with `tla_pose messages_sent`. This will place the
 conclusion of `messages_sent` in this theorem's premises, after proving that the
@@ -144,22 +185,66 @@ modus ponens where we derive the invariant in `messages_sent` without losing `�
 ⟨next⟩` for example.
 |*)
 
+Instance combine_forall {Σ} (p q: predicate Σ) :
+  FromSep (□(p ∧ q))%L (□p)%L (□q)%L.
+Proof.
+  rewrite /FromSep.
+  rewrite /bi_entails /bi_sep /=.
+  rewrite always_and //.
+Qed.
+
+Instance tla_FromPure {Σ} (p: predicate Σ) : FromPure false p (∀ (e: defs.exec Σ), p e) | 99.
+Proof.
+  rewrite /FromPure.
+  rewrite /bi_entails /bi_pure /=.
+  rewrite proofmode.tlaProp_pure_unseal /proofmode.tlaProp_pure_def.
+  unseal.
+Qed.
+
+Instance tla_wand_FromPure {Σ} (p q: predicate Σ) : FromPure false (p -∗ q) (∀ (e: defs.exec Σ), p e → q e).
+Proof.
+  rewrite /FromPure.
+  rewrite /bi_entails /bi_pure /bi_wand /=.
+  rewrite proofmode.tlaProp_pure_unseal /proofmode.tlaProp_pure_def.
+  unseal.
+Qed.
+
+Instance tla_FromAffinely {Σ} (p: predicate Σ) : FromAffinely p ⌜∀ (e: defs.exec Σ), p e⌝.
+Proof.
+  rewrite /FromAffinely.
+  rewrite /bi_entails /bi_pure /bi_affinely /= /bi_emp /=.
+  rewrite proofmode.tlaProp_pure_unseal /proofmode.tlaProp_pure_def.
+  autounfold with tla; intros.
+  destruct H as [_ H].
+  eauto.
+Qed.
+
+Lemma persistently_weaken {Σ} (p: predicate Σ) : □p ⊣⊢ p.
+Proof.
+  change (□ p ⊣⊢ p) with ((□ p)%I = p).
+  rewrite /bi_intuitionistically /=.
+  rewrite /bi_affinely /bi_persistently /=.
+  apply predicate_ext => e.
+  rewrite /bi_emp /bi_and /=.
+  unseal.
+Qed.
+
 Theorem obj1_invariant :
   ⌜init⌝ ∧ □ ⟨next⟩ ⊢
   □ ⌜λ s, (s.(sent2Create) → s.(obj1Exists)) ∧
           (s.(obj1Exists) → s.(sent1Create))⌝.
 Proof.
-  tla_pose messages_sent.
-  rewrite !combine_preds.
-  (* The state here looks like a regular invariant proof from an initial
-  predicate, except that the transition system semantics is assumed to satisfy
-  the invariant. Of course this reasoning is sound because it _already implied_
-  this invariant, so logically nothing changes, but practically speaking we can
-  build on previously proven invariants and thus can break down the proof of
-  complex inductive invariants. *)
-  apply init_invariant.
-  - stm.
-  - stm.
+  iIntros "(Hinit & Hnext)".
+  iDestruct (messages_sent with "[$]") as "#Hmsg".
+  iCombine "Hnext Hmsg" as "Hnext".
+  iApply (invariant_internal with "Hnext [] [Hinit]").
+  - (* note that we could actually use Hmsg while eliminating the IPM, rather
+    than trick above of combining it into Hnext *)
+    iPureIntro => e; autounfold with tla; rewrite ?drop_n /=; specific_states.
+    stm.
+  - iRevert "Hinit".
+    iPureIntro => e; autounfold with tla; rewrite ?drop_n /=; specific_states.
+    stm.
 Qed.
 
 (*|
@@ -245,8 +330,8 @@ Lemma init_send_create1 :
   ⌜init⌝ ~~>
   ⌜ λ s, s.(obj1Exists) ⌝.
 Proof.
-  leads_to_trans ⌜λ s, CreateReq 1 ∈ s.(messages)⌝.
-  - leads_to_trans ⌜λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists)⌝.
+  leads_to_trans ⌜λ s, CreateReq 1 ∈ s.(messages)⌝%L.
+  - leads_to_trans ⌜λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists)⌝%L.
     { apply impl_drop_hyp.
       apply pred_leads_to.
       stm. }
@@ -348,7 +433,7 @@ In the second case of the split, we don't have `s.(sent2Create)`, so we'll use
 `eventually_send2` chained with `eventually_create2`.
 |*)
 
-  leads_to_trans ⌜λ s, CreateReq 2 ∈ s.(messages)⌝.
+  leads_to_trans ⌜λ s, CreateReq 2 ∈ s.(messages)⌝%L.
   {
     leads_to_etrans; [ | tla_apply eventually_send2 ].
     apply impl_drop_hyp.
@@ -363,7 +448,7 @@ Lemma init_create2 :
   ◇ ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
   apply (leads_to_apply ⌜init⌝); [ tla_prop | ].
-  leads_to_trans ⌜λ s, s.(obj1Exists)⌝.
+  leads_to_trans ⌜λ s, s.(obj1Exists)⌝%L.
   - tla_apply init_send_create1.
   - tla_apply eventually_send_create2.
 Qed.
@@ -389,7 +474,7 @@ Proof.
      ◇obj2Exists with □safe but there's a bunch of re-arranging to do (including
      modalities, so it isn't easily automated, either).
    *)
-  tla_clear ⌜init⌝. tla_clear (□⟨next⟩)%L.
+  tla_clear ⌜init⌝%L. tla_clear (□⟨next⟩)%L.
   rewrite tla_and_comm.
   rewrite -> always_and_eventually.
   rewrite combine_state_preds.

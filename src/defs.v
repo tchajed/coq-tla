@@ -7,6 +7,9 @@ From stdpp Require Export base.
 #[export] Set Default Proof Using "Type".
 #[export] Set Default Goal Selector "!".
 
+Declare Scope tla.
+Delimit Scope tla with L.
+
 (*|
 ================================
 Embedding the TLA logic in Coq.
@@ -24,13 +27,13 @@ There are a few primitive ways to construct TLA predicates, by lifting state pre
 Definition state_pred {Σ: Type} (f: Σ → Prop) : predicate Σ :=
     λ ex, f (ex 0).
 
-Notation "⌜  P  ⌝" := (state_pred P%type) (at level 1, P at level 200).
+Notation "⌜  P  ⌝" := (state_pred P%type) (at level 1, P at level 200) : tla.
 
 Definition action (Σ: Type) := Σ → Σ → Prop.
 Definition action_pred {Σ: Type} (a: action Σ) : predicate Σ :=
     λ ex, a (ex 0) (ex 1).
 
-Notation "⟨ a ⟩" := (action_pred a%type) (format "⟨ a ⟩").
+Notation "⟨ a ⟩" := (action_pred a%type) (format "⟨ a ⟩") : tla.
 
 Section TLA.
 
@@ -114,8 +117,6 @@ Definition tla_false : predicate := λ _, False.
 
 End TLA.
 
-Declare Scope tla.
-Delimit Scope tla with L.
 Bind Scope tla with predicate.
 
 Notation "⊢  p" := (valid p%L) (at level 20, p at level 200).

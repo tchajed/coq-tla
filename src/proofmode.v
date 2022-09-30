@@ -96,18 +96,33 @@ Canonical Structure tlaPropI (Σ: Type) : bi :=
   {| bi_ofe_mixin := ofe_mixin_of (predicate Σ);
      bi_bi_mixin := @tlaProp_bi_mixin Σ; bi_bi_later_mixin := @tlaProp_bi_later_mixin Σ |}.
 
-Global Instance tlaProp_pure_forall (Σ: Type) : BiPureForall (tlaPropI Σ).
+Global Instance tlaProp_pure_forall {Σ: Type} : BiPureForall (tlaPropI Σ).
 Proof.
   intros A φ. rewrite /bi_forall /bi_pure /=.
   autounfold with tla. rewrite tlaProp_pure_unseal /tlaProp_pure_def.
   eauto.
 Qed.
 
-(* every TLA predicate is persistent because this isn't a linear/affine logic *)
-Global Instance tlaProp_persistent (Σ: Type) (p: predicate Σ) : Persistent p.
+(* every TLA predicate is persistent because this isn't a linear logic *)
+Global Instance tlaProp_persistent {Σ: Type} (p: predicate Σ) : Persistent p.
 Proof.
   rewrite /Persistent.
   rewrite /bi_persistently //=.
+Qed.
+
+(* the logic is also affine (we can always drop predicates) *)
+Global Instance tlaProp_affine {Σ: Type} : BiAffine (tlaPropI Σ).
+Proof.
+  hnf. rewrite /Affine /=.
+  unseal.
+Qed.
+
+Global Instance tlaProp_absorbing {Σ: Type} (p: predicate Σ) : Absorbing p.
+Proof.
+  rewrite /Absorbing.
+  rewrite /bi_absorbingly /=.
+  rewrite /bi_entails /bi_sep /bi_pure /=.
+  unseal.
 Qed.
 
 Lemma tlaProp_proofmode_test {Σ} {A} (P Q R : predicate Σ) (Φ Ψ : A → predicate Σ) :
