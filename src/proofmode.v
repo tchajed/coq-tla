@@ -1,5 +1,5 @@
 From iris.bi Require Import interface.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Export tactics.
 
 From TLA Require Import defs automation.
 
@@ -10,11 +10,8 @@ Context [Σ: Type].
 Notation tlaProp := (predicate Σ).
 
 Section ofe.
-  Inductive tlaProp_equiv' (P Q : tlaProp) : Prop :=
-    { tlaProp_in_equiv : ∀ σ, P σ ↔ Q σ }.
-  Local Instance tlaProp_equiv : Equiv tlaProp := tlaProp_equiv'.
-  Local Instance tlaProp_equivalence : Equivalence (≡@{tlaProp}).
-  Proof. split; repeat destruct 1; constructor; naive_solver. Qed.
+  Local Instance tlaProp_equiv : Equiv tlaProp := eq.
+  Local Instance tlaProp_equivalence : Equivalence (≡@{tlaProp}) := _.
   Canonical Structure tlaPropO := discreteO tlaProp.
 End ofe.
 
@@ -31,18 +28,12 @@ Local Definition tlaProp_pure_unseal :
   @tlaProp_pure = @tlaProp_pure_def := seal_eq tlaProp_pure_aux.
 
 Notation tlaProp_and := tla_and.
-
 Notation tlaProp_or := tla_or.
-
 Notation tlaProp_impl := tla_implies.
-
 Notation tlaProp_forall := tla_forall.
-
 Notation tlaProp_exist := tla_exists.
-
 Notation tlaProp_sep := tla_and.
 Notation tlaProp_wand := tla_implies.
-
 Definition tlaProp_persistently (P : tlaProp) : tlaProp := P.
 
 (** Iris's [bi] class requires the presence of a later modality, but for non
@@ -50,9 +41,27 @@ step-indexed logics, it can be defined as the identity. *)
 Definition tlaProp_later (P : tlaProp) : tlaProp := P.
 
 Section mixins.
+  Lemma equiv_expand (P Q: tlaProp) :
+    (P ≡ Q) = (∀ n, P n ↔ Q n).
+  Proof.
+    change (P ≡ Q) with (P = Q).
+    apply PropExtensionality.propositional_extensionality.
+    split; [ by intros -> | ].
+    intros. apply predicate_ext; intuition.
+  Qed.
+
+  Lemma dist_expand (P Q: tlaProp) (n: nat) :
+    (P ≡{n}≡ Q) = (∀ n, P n ↔ Q n).
+  Proof.
+    apply equiv_expand.
+  Qed.
+
   Ltac unseal :=
     autounfold with tla;
-    rewrite ?tlaProp_pure_unseal /tlaProp_pure_def /=.
+    rewrite /Proper /respectful /pointwise_relation;
+    rewrite ?tlaProp_pure_unseal /tlaProp_pure_def /=;
+    repeat setoid_rewrite equiv_expand at 1;
+    repeat setoid_rewrite dist_expand at 1.
 
   Lemma tlaProp_bi_mixin :
     BiMixin
@@ -60,87 +69,17 @@ Section mixins.
       tlaProp_impl (@tlaProp_forall Σ) (@tlaProp_exist Σ)
       tlaProp_sep tlaProp_wand tlaProp_persistently.
   Proof.
-    split.
-    - (* [PreOrder tlaProp_entails] *)
-      split; hnf; repeat destruct 1; unseal; naive_solver.
+    split; unseal; try naive_solver.
+    - split; naive_solver.
+    - move=> A n Φ1 Φ2 HΦ.
+      rewrite dist_expand => e.
+      split => ? x; specialize (HΦ x);
+        rewrite dist_expand in HΦ; naive_solver.
     - (* [P ≡ Q ↔ (P ⊢ Q) ∧ (Q ⊢ P)] *)
-      intros P Q; split.
-      + intros [HPQ]; split; naive_solver.
-      + intros [HPQ HQP]; split; naive_solver.
-    - (* [Proper (iff ==> dist n) bi_pure] *)
-      unseal=> n φ1 φ2 Hφ; split; naive_solver.
-    - (* [NonExpansive2 bi_and] *)
-      unseal=> n P1 P2 [HP] Q1 Q2 [HQ]; split; naive_solver.
-    - (* [NonExpansive2 bi_or] *)
-      unseal=> n P1 P2 [HP] Q1 Q2 [HQ]; split; naive_solver.
-    - (* [NonExpansive2 bi_impl] *)
-      unseal=> n P1 P2 [HP] Q1 Q2 [HQ]; split; naive_solver.
-    - (* [Proper (pointwise_relation _ (dist n) ==> dist n) (bi_forall A)] *)
-      unseal=> A n Φ1 Φ2 HΦ; split=> σ /=; split=> ? x; by apply HΦ.
-    - (* [Proper (pointwise_relation _ (dist n) ==> dist n) (bi_exist A)] *)
-      unseal=> A n Φ1 Φ2 HΦ; split=> σ /=; split=> -[x ?]; exists x; by apply HΦ.
-    - (* [NonExpansive2 bi_sep] *)
-      unseal=> n P1 P2 [HP] Q1 Q2 [HQ]; split; naive_solver.
-    - (* [NonExpansive2 bi_wand] *)
-      unseal=> n P1 P2 [HP] Q1 Q2 [HQ]; split; naive_solver.
-    - (* [NonExpansive2 bi_persistently] *)
-      unseal=> n P1 P2 [HP]; split; naive_solver.
-    - (* [φ → P ⊢ ⌜ φ ⌝] *)
-      unseal=> φ P ?; naive_solver.
-    - (* [(φ → True ⊢ P) → ⌜ φ ⌝ ⊢ P] *)
-      unseal=> φ P HP; move=> σ ?. by apply HP.
-    - (* [P ∧ Q ⊢ P] *)
-      unseal=> P Q; move=> σ [??]; done.
-    - (* [P ∧ Q ⊢ Q] *)
-      unseal=> P Q; move=> σ [??]; done.
-    - (* [(P ⊢ Q) → (P ⊢ R) → P ⊢ Q ∧ R] *)
-      unseal=> P Q R HPQ HPR; move=> σ; split; auto.
-    - (* [P ⊢ P ∨ Q] *)
-      unseal=> P Q; move=> σ; by left.
-    - (* [Q ⊢ P ∨ Q] *)
-      unseal=> P Q; move=> σ; by right.
-    - (* [(P ⊢ R) → (Q ⊢ R) → P ∨ Q ⊢ R] *)
-      unseal=> P Q R HPQ HQR; move=> σ [?|?]; auto.
-    - (* [(P ∧ Q ⊢ R) → P ⊢ Q → R] *)
-      unseal=> P Q R HPQR; move=> σ ??. by apply HPQR.
-    - (* [(P ⊢ Q → R) → P ∧ Q ⊢ R] *)
-      unseal=> P Q R HPQR; move=> σ [??]. by apply HPQR.
-    - (* [(∀ a, P ⊢ Ψ a) → P ⊢ ∀ a, Ψ a] *)
-      unseal=> A P Ψ HPΨ; move=> σ ? a. by apply HPΨ.
-    - (* [(∀ a, Ψ a) ⊢ Ψ a] *)
-      unseal=> A Ψ a; move=> σ ?; done.
-    - (* [Ψ a ⊢ ∃ a, Ψ a] *)
-      unseal=> A Ψ a; move=> σ ?. by exists a.
-    - (* [(∀ a, Φ a ⊢ Q) → (∃ a, Φ a) ⊢ Q] *)
-      unseal=> A Φ Q HΦQ; move=> σ [a ?]. by apply (HΦQ a).
-    - (* [(P ⊢ Q) → (P' ⊢ Q') → P ∗ P' ⊢ Q ∗ Q'] *)
-      unseal=> P P' Q Q' HPQ HP'Q'; move; naive_solver.
-    - (* [P ⊢ emp ∗ P] *)
-      unseal=> P; move=> σ ? /=. naive_solver.
-    - (* [emp ∗ P ⊢ P] *)
-      unseal=> P; move; naive_solver.
-    - (* [P ∗ Q ⊢ Q ∗ P] *)
-      unseal=> P Q; split; naive_solver.
-    - (* [(P ∗ Q) ∗ R ⊢ P ∗ (Q ∗ R)] *)
-      unseal=> P Q R; split; naive_solver.
-    - (* [(P ∗ Q ⊢ R) → P ⊢ Q -∗ R] *)
-      unseal=> P Q R HPQR; naive_solver.
-    - (* [(P ⊢ Q -∗ R) → P ∗ Q ⊢ R] *)
-      unseal=> P Q R HPQR; naive_solver.
-    - (* [(P ⊢ Q) → <pers> P ⊢ <pers> Q] *)
-      unseal=> P Q HPQ; move=> σ. apply HPQ.
-    - (* [<pers> P ⊢ <pers> <pers> P] *)
-      unseal=> P; move=> σ; done.
-    - (* [emp ⊢ <pers> emp] *)
-      unseal; split=> σ; done.
-    - (* [(∀ a, <pers> (Ψ a)) ⊢ <pers> (∀ a, Ψ a)] *)
-      unseal=> A Ψ; move=> σ; done.
-    - (* [<pers> (∃ a, Ψ a) ⊢ ∃ a, <pers> (Ψ a)] *)
-      unseal=> A Ψ; move=> σ; done.
-    - (* [<pers> P ∗ Q ⊢ <pers> P] *)
-      unseal=> P Q; move; naive_solver.
-    - (* [<pers> P ∧ Q ⊢ P ∗ Q] *)
-      unseal=> P Q; move=> σ [??]. naive_solver.
+      move=> A n Φ1 Φ2 HΦ.
+      rewrite dist_expand => e.
+      split; move => [x Hx]; specialize (HΦ x);
+        rewrite dist_expand in HΦ; naive_solver.
   Qed.
 
   Lemma tlaProp_bi_later_mixin :
