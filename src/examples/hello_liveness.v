@@ -65,7 +65,7 @@ The safety property is pretty easy, using `init_invariant`. In fact it's so simp
 Theorem always_happy :
   ⌜ init ⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, s.(happy)⌝.
 Proof.
-  apply init_invariant.
+  apply init_invariant. (* .unfold *)
   - stm.
   - stm.
 Qed.
@@ -75,7 +75,7 @@ Qed.
 Liveness
 -----------
 
-Liveness is more interesting. The high-level strategy is to use the rule `wf1` to prove A ~~> B and that B ~~> C; then we can chain them together and finally apply them by showing that `init` implies A.
+Liveness is more interesting. The high-level strategy is to use the rule `wf1` to prove `A ~~> B` and that `B ~~> C`; then we can chain them together and finally apply them by showing that `init` implies `A`.
 |*)
 
 (*|
@@ -85,7 +85,7 @@ Theorem a_leads_to_b :
   □ ⟨ next ⟩ ∧ weak_fairness ab ⊢
   ⌜λ s, s.(x) = A⌝ ~~> ⌜λ s, s.(x) = B⌝.
 Proof.
-  apply wf1.
+  apply wf1. (* .unfold *)
   - stm.
   - stm.
   - stm.
@@ -132,6 +132,9 @@ Theorem eventually_c :
   state_pred init ∧ □ ⟨next⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
   ◇ ⌜ λ s, s.(x) = C ⌝.
 Proof.
+(*|
+`leads_to_apply p` will switch from proving `◇ q` to `p` and `p ~~> q`.
+|*)
   apply (leads_to_apply ⌜λ s, s.(x) = A⌝).
   { rewrite -> init_a; tla_prop. }
   tla_apply a_leads_to_c.

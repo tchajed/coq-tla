@@ -89,15 +89,23 @@ Lemma until_next (p q: predicate) (next: action Σ) (e: exec) :
        (∃ k', q (drop (k' + k) e)).
 Proof.
   intros Hind Hnext k Hp.
-  (* this proof is highly classical, we immediately appeal to a double negation
-  to deal with this disjunction. *)
+
+(*|
+This proof is highly classical - we immediately appeal to a double negation
+to deal with this disjunction.
+|*)
+
   apply classical.double_negation.
   rewrite classical.not_or classical.not_forall classical.not_exists.
-  (* Classical reasoning gives a speicifc k with ¬p and always ¬q. It turns out
-  we'll always derive a contradiction from the ¬p, by induction on the k. This
-  is what makes the proof so classical, this k comes out of nowhere. *)
   intros [[k' Hnotp] Hnotq].
-  apply Hnotp; clear Hnotp.
+
+(*|
+Classical reasoning gives a *specific* k' with `¬p` and `□ ¬q`. It turns out
+we'll always derive a contradiction from the `¬p`, by induction on the k'. This
+is what makes the proof so classical, this k' sort of comes out of nowhere.
+|*)
+
+  apply Hnotp; clear Hnotp. (* .unfold *)
   generalize dependent e. generalize dependent k.
   induction k'.
   - intuition auto.
@@ -167,7 +175,6 @@ establish a more specific postcondition [q] than [a] might have in general.
 |*)
 
 Lemma wf1 (p q: Σ → Prop) (next a: action Σ) :
-  (* this is an inductive step that says if [p] holds, [next] guarantees it continues *)
   ∀ (Hpuntilq: ∀ s s', p s → next s s' → p s' ∨ q s')
     (Haq: ∀ s s', p s → next s s' → a s s' → q s')
     (Henable: ∀ s, p s → enabled a s),

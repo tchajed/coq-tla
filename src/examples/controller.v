@@ -295,29 +295,58 @@ Lemma eventually_send_create2 :
   ⌜ λ s, s.(obj1Exists) ⌝ ~~>
   ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
-  (* This proof is actually interesting.  *)
+(*|
+This proof is actually interesting.
+|*)
+
   rewrite leads_to_assume_not.
   rewrite not_state_pred combine_state_preds.
+
+(*|
+Now we've switched to the case where the conclusion isn't already true. The next
+step is more "inspired": we do the TLA equivalent of a case split on whether or
+not `s.(sent2Create)` is true, *within the `~~>` premise*.
+|*)
+
   rewrite (tla_and_em (⌜λ s, s.(sent2Create)⌝)
              (⌜λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists)⌝)).
   rewrite tla_and_distr_l.
   rewrite leads_to_or_split.
   rewrite !not_state_pred !combine_state_preds.
-  tla_split.
-  {
+(*|
+After a little cleanup, we have two goals.
+|*)
+  tla_split. (* .unfold *)
+  -
 
-  (*
-  This next step is a key idea: we prove that the current premises imply
-  [□ msg_inv] (a previously proven safety proof), and then we can safely assume
-  them in the premise of the [~~>].
-  *)
+(*|
+In this first goal, you can see that we already have `s.(sent2Create)`. This is
+almost enough to guarantee it'll be created, but it's an invariant that this
+implies that we actually sent a message on the network! The key idea encoded in
+the `leads_to_assume` rule is that if we can prove that the current premises
+imply `□ msg_inv` (which is `messages_sent`, a safety proof above), then we can
+safely assume them in the premise of the `~~>`.
+|*)
 
     apply (leads_to_assume ⌜msg_inv⌝).
     { tla_apply messages_sent. }
+    (* .unfold *)
+
+(*|
+`eventually_create2` will prove this goal with just a little low-level
+manipulation.
+|*)
     leads_to_etrans; [ | tla_apply eventually_create2 ].
     apply impl_drop_hyp.
     rewrite combine_state_preds.
-    apply pred_leads_to; stm. }
+    apply pred_leads_to; stm.
+
+  -
+
+(*|
+In the second case of the split, we don't have `s.(sent2Create)`, so we'll use
+`eventually_send2` chained with `eventually_create2`.
+|*)
 
   leads_to_trans ⌜λ s, CreateReq 2 ∈ s.(messages)⌝.
   {
