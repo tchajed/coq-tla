@@ -324,7 +324,71 @@ Proof.
     apply H; eauto.
 Qed.
 
+Theorem always_eventually_always (p: predicate) :
+  □◇□ p == ◇□ p.
+Proof.
+  tla_split.
+  - apply always_weaken.
+  - unseal.
+    destruct H as [k' Hp].
+    exists k'. intros k''.
+    replace (k'' + k' + k) with ((k'' + k) + k') by lia.
+    eauto.
+Qed.
+
+Theorem eventually_always_eventually (p: predicate) :
+  ◇□◇ p == □◇ p.
+Proof.
+  dual always_eventually_always.
+Qed.
+
+(*|
+
+---------------------------------
+Characterization of modalities
+---------------------------------
+
+Modalities can be composed. Here we show that □ and ◇ only give rise to 4
+distinct modalities.
+
+|*)
+
+(*|
+For simplicity we represent a chain of modalities `□ (◇ (◇ (□ ...)) p)` by
+interpreting a list of booleans, where true is □ and false is ◇. Yes, we could
+do something cleaner.
+|*)
+Fixpoint modality_chain (l: list bool) (p: predicate) : predicate :=
+  match l with
+  | nil => p
+  | true :: l => □ (modality_chain l p)
+  | false :: l => ◇ (modality_chain l p)
+  end.
+
+Example modality_chain_ex (p: predicate) :
+  modality_chain [true; false; false; true] p = (□ (◇ (◇ (□ p))))%L.
+Proof. reflexivity. Qed.
+
+Hint Rewrite always_idem eventually_idem : tla.
+Hint Rewrite always_eventually_idem eventually_always_idem : tla.
+Hint Rewrite always_eventually_always eventually_always_eventually : tla.
+
+Theorem modality_chain_reduces (l: list bool) (p: predicate) :
+  (modality_chain l p == p) ∨
+  (modality_chain l p == ◇ p) ∨
+  (modality_chain l p == □ p) ∨
+  (modality_chain l p == ◇□ p) ∨
+  (modality_chain l p == □◇ p).
+Proof.
+  induction l; simpl.
+  - eauto.
+  - destruct a; simpl.
+    + destruct IHl as [-> | [-> | [-> | [-> | ->]]]]; tla_simp; eauto.
+    + destruct IHl as [-> | [-> | [-> | [-> | ->]]]]; tla_simp; eauto.
+Qed.
+
 End TLA.
 
 Hint Rewrite always_idem eventually_idem : tla.
 Hint Rewrite always_eventually_idem eventually_always_idem : tla.
+Hint Rewrite always_eventually_always eventually_always_eventually : tla.
