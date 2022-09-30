@@ -206,7 +206,7 @@ Proof.
   tla_prop.
 Qed.
 
-Theorem leads_to_apply p q :
+Theorem and_leads_to_elim p q :
   p ∧ p ~~> q ⊢ ◇ q.
 Proof.
   rewrite /leads_to.
@@ -214,7 +214,7 @@ Proof.
   apply modus_ponens.
 Qed.
 
-Theorem eventually_from_leads_to q p φ :
+Theorem leads_to_apply q p φ :
   (p ⊢ q) →
   (p ⊢ q ~~> φ) →
   (p ⊢ ◇ φ).
@@ -222,7 +222,7 @@ Proof.
   intros Hq Hleads.
   tla_pose Hq.
   tla_pose Hleads.
-  rewrite -> leads_to_apply.
+  rewrite -> and_leads_to_elim.
   tla_prop.
 Qed.
 
@@ -240,7 +240,7 @@ Proof.
   apply impl_to_leads_to.
 Qed.
 
-Theorem leads_to_impl (P Q: Σ → Prop) :
+Theorem pred_leads_to (P Q: Σ → Prop) :
   (∀ s, P s → Q s) →
   ⊢ ⌜P⌝ ~~> ⌜Q⌝.
 Proof.

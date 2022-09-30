@@ -245,12 +245,10 @@ Lemma init_send_create1 :
   ⌜init⌝ ~~>
   ⌜ λ s, s.(obj1Exists) ⌝.
 Proof.
-  rewrite <- (leads_to_trans _ ⌜λ s, CreateReq 1 ∈ s.(messages)⌝).
-  tla_split.
-  - rewrite <- (leads_to_trans _ ⌜λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists)⌝).
-    tla_split.
+  leads_to_trans ⌜λ s, CreateReq 1 ∈ s.(messages)⌝.
+  - leads_to_trans ⌜λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists)⌝.
     { apply impl_drop_hyp.
-      apply leads_to_impl.
+      apply pred_leads_to.
       stm. }
     tla_pose eventually_send1.
     tla_prop.
@@ -319,13 +317,13 @@ Proof.
     leads_to_etrans; [ | tla_apply eventually_create2 ].
     apply impl_drop_hyp.
     rewrite combine_state_preds.
-    apply leads_to_impl; stm. }
+    apply pred_leads_to; stm. }
 
   leads_to_trans ⌜λ s, CreateReq 2 ∈ s.(messages)⌝.
   {
     leads_to_etrans; [ | tla_apply eventually_send2 ].
     apply impl_drop_hyp.
-    apply leads_to_impl; intuition idtac. }
+    apply pred_leads_to; stm. }
   tla_apply eventually_create2.
 Qed.
 
@@ -335,7 +333,7 @@ Lemma init_create2 :
     weak_fairness create1 ∧ weak_fairness create2 ⊢
   ◇ ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
-  apply (eventually_from_leads_to ⌜init⌝); [ tla_prop | ].
+  apply (leads_to_apply ⌜init⌝); [ tla_prop | ].
   leads_to_trans ⌜λ s, s.(obj1Exists)⌝.
   - tla_apply init_send_create1.
   - tla_apply eventually_send_create2.
@@ -357,8 +355,12 @@ Proof.
                  weak_fairness create1 ∧ weak_fairness create2)%L.
 
   tla_pose is_safe.
-  tla_clear ⌜init⌝. tla_clear (□⟨next⟩)%L.
 
+  (* At this point the reasoning is pretty mundane, we're just trying to combine
+     ◇obj2Exists with □safe but there's a bunch of re-arranging to do (including
+     modalities, so it isn't easily automated, either).
+   *)
+  tla_clear ⌜init⌝. tla_clear (□⟨next⟩)%L.
   rewrite tla_and_comm.
   rewrite -> always_and_eventually.
   rewrite combine_state_preds.

@@ -104,10 +104,9 @@ Theorem eventually_b :
   ⌜init⌝ ∧ □ ⟨next⟩ ∧ weak_fairness ab ⊢
   ◇ ⌜λ s, s.(x) = B⌝.
 Proof.
-  rewrite -> a_leads_to_b.
-  rewrite -> init_a.
-  rewrite -> leads_to_apply.
-  reflexivity.
+  apply (leads_to_apply ⌜ λ s, s.(x) = A ⌝).
+  { rewrite -> init_a; tla_prop. }
+  tla_apply a_leads_to_b.
 Qed.
 
 Theorem b_leads_to_c :
@@ -124,20 +123,18 @@ Theorem a_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
   ⌜ λ s, s.(x) = A ⌝ ~~> ⌜ λ s, s.(x) = C ⌝.
 Proof.
-  rewrite <- (leads_to_trans _ ⌜λ s, s.(x) = B⌝).
-  rewrite <- a_leads_to_b.
-  rewrite <- b_leads_to_c.
-  tla_prop.
+  leads_to_trans (⌜λ s, s.(x) = B⌝).
+  { tla_apply a_leads_to_b. }
+  tla_apply b_leads_to_c.
 Qed.
 
 Theorem eventually_c :
   state_pred init ∧ □ ⟨next⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
   ◇ ⌜ λ s, s.(x) = C ⌝.
 Proof.
-  rewrite -> a_leads_to_c.
-  rewrite -> init_a.
-  rewrite -> leads_to_apply.
-  reflexivity.
+  apply (leads_to_apply ⌜λ s, s.(x) = A⌝).
+  { rewrite -> init_a; tla_prop. }
+  tla_apply a_leads_to_c.
 Qed.
 
 End example.
