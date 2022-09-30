@@ -1,7 +1,8 @@
 From iris.bi Require Import interface.
 From iris.proofmode Require Export tactics.
 
-From TLA Require Import defs automation.
+From TLA Require Export defs.
+From TLA Require Import automation.
 
 Section tla.
 
@@ -61,7 +62,16 @@ Section mixins.
     rewrite /Proper /respectful /pointwise_relation;
     rewrite ?tlaProp_pure_unseal /tlaProp_pure_def /=;
     repeat setoid_rewrite equiv_expand at 1;
-    repeat setoid_rewrite dist_expand at 1.
+    repeat setoid_rewrite dist_expand at 1;
+    try split.
+
+  Instance eq_all_proper {A: Type} : Proper (pointwise_relation A eq ==> impl) (all (A := A)).
+  Proof.
+    intros Φ1 Φ2.
+    rewrite /pointwise_relation /impl /all.
+    intros.
+    rewrite <- H; eauto.
+  Qed.
 
   Lemma tlaProp_bi_mixin :
     BiMixin
@@ -70,16 +80,6 @@ Section mixins.
       tlaProp_sep tlaProp_wand tlaProp_persistently.
   Proof.
     split; unseal; try naive_solver.
-    - split; naive_solver.
-    - move=> A n Φ1 Φ2 HΦ.
-      rewrite dist_expand => e.
-      split => ? x; specialize (HΦ x);
-        rewrite dist_expand in HΦ; naive_solver.
-    - (* [P ≡ Q ↔ (P ⊢ Q) ∧ (Q ⊢ P)] *)
-      move=> A n Φ1 Φ2 HΦ.
-      rewrite dist_expand => e.
-      split; move => [x Hx]; specialize (HΦ x);
-        rewrite dist_expand in HΦ; naive_solver.
   Qed.
 
   Lemma tlaProp_bi_later_mixin :
@@ -112,10 +112,12 @@ Qed.
 
 Lemma tlaProp_proofmode_test {Σ} {A} (P Q R : predicate Σ) (Φ Ψ : A → predicate Σ) :
   P ∗ Q -∗
-  □ R -∗
-  □ (R -∗ ∃ x, Φ x) -∗
+  R -∗
+  (R -∗ ∃ x, Φ x) -∗
   ∃ x, Φ x ∗ Φ x ∗ P ∗ Q.
 Proof.
+  (* Notice that we can introduce HR and HRΦ into the persistent context even
+  though they are arbitrary. *)
   iIntros "[HP HQ] #HR #HRΦ".
   iDestruct ("HRΦ" with "HR") as (x) "#HΦ".
   iExists x. iFrame. by iSplitL.
