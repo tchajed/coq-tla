@@ -12,6 +12,49 @@ Notation predicate := (predicate Σ).
 Implicit Types (e: exec) (p q: predicate) (a: action Σ).
 Implicit Types (n m k: nat).
 
+(* combining predicates and actions *)
+
+Lemma combine_preds (next: Σ → Σ → Prop) (P: Σ → Prop) :
+  (□ ⟨ next ⟩ ∧ □ ⌜ P ⌝) == □ ⟨ λ s s', next s s' ∧ P s ∧ P s' ⟩.
+Proof.
+  unseal.
+  intuition eauto.
+  - specialize (H k). intuition auto.
+  - specialize (H k). intuition auto.
+Qed.
+
+Lemma combine_state_preds (P Q: Σ → Prop) :
+  (⌜P⌝ ∧ ⌜Q⌝) == ⌜λ s, P s ∧ Q s⌝.
+Proof.
+  unseal.
+Qed.
+
+Lemma combine_or_preds (P Q: Σ → Prop) :
+  (⌜P⌝ ∨ ⌜Q⌝) == ⌜λ s, P s ∨ Q s⌝.
+Proof.
+  unseal.
+Qed.
+
+Lemma combine_or_actions (a1 a2: action Σ) :
+  (⟨a1⟩ ∨ ⟨a2⟩) == ⟨λ s s', a1 s s' ∨ a2 s s'⟩.
+Proof.
+  unseal.
+Qed.
+
+Lemma combine_always_preds (P Q: Σ → Prop) :
+  (□⌜P⌝ ∧ □⌜Q⌝) == □⌜λ s, P s ∧ Q s⌝.
+Proof.
+  rewrite -always_and.
+  rewrite combine_state_preds.
+  reflexivity.
+Qed.
+
+Lemma not_state_pred (P: Σ → Prop) :
+  !⌜λ s, P s⌝ == ⌜λ s, ¬ P s⌝.
+Proof.
+  unseal.
+Qed.
+
 Theorem tla_init_safety (inv init next safe : predicate) :
   (init ⊢ inv) →
   (inv ∧ next ⊢ later inv) →
@@ -218,6 +261,147 @@ Proof.
   tla_simp.
 Abort.
 
+Lemma not_wf (a: action Σ) :
+  ! weak_fairness a == (◇ (□ tla_enabled a ∧ ! ◇ ⟨a⟩)).
+Proof.
+  rewrite /weak_fairness; tla_simp.
+Qed.
+
+Lemma not_wf' (a: action Σ) :
+  ! weak_fairness a == (◇ (□ (tla_enabled a ∧ !⟨a⟩))).
+Proof.
+  rewrite /weak_fairness; tla_simp.
+  rewrite always_and //.
+Qed.
+
+Lemma always_eventually_impl p q :
+  (p ⊢ q) →
+  (□◇ p ⊢ □◇ q).
+Proof.
+  intros H.
+  apply always_impl_proper.
+  apply eventually_impl_proper.
+  auto.
+Qed.
+
+Lemma eventually_always_impl p q :
+  (p ⊢ q) →
+  (◇□ p ⊢ ◇□ q).
+Proof.
+  intros H.
+  apply eventually_impl_proper.
+  apply always_impl_proper.
+  auto.
+Qed.
+
+Lemma action_to_enabled a :
+  ⟨a⟩ ⊢ tla_enabled a.
+Proof.
+  rewrite /tla_enabled /enabled.
+  unseal.
+Qed.
+
+Lemma not_enabled_to_action a :
+  !tla_enabled a ⊢ !⟨a⟩.
+Proof.
+  apply not_impl. tla_simp.
+  apply action_to_enabled.
+Qed.
+
+Lemma dr_and_not_action a p :
+  (tla_enabled a ⊢ □ p ∨ ◇⟨a⟩) →
+  tla_enabled a ∧ □ !⟨a⟩ ⊢ □ p.
+Proof.
+  intros Hdr.
+  rewrite -> Hdr; clear Hdr.
+  intros e H.
+  unseal.
+  destruct H as [Hp Hnota].
+  destruct Hp as [Hp | Ha].
+  - pose proof (Hp 0) as Hp0; rewrite drop_0 in Hp0; auto.
+  - destruct Ha as [k' Ha].
+    exfalso; eapply Hnota; eauto.
+Qed.
+
+Lemma dr_and_not_action_always a p :
+  (tla_enabled a ⊢ □ p ∨ ◇⟨a⟩) →
+  □ tla_enabled a ∧ □ !⟨a⟩ ⊢ □ p.
+Proof.
+  intros Hdr.
+  rewrite -> (always_weaken (tla_enabled a)).
+  apply dr_and_not_action; auto.
+Qed.
+
+Lemma eventually_always_or_split p q r :
+  (□ p ⊢ □r) →
+  (□ q ⊢ □r) →
+  (◇□ (p ∨ q) ⊢ ◇□r).
+Proof.
+  intros H1 H2.
+Abort.
+
+Lemma or_implies_split p q r :
+  (p ⊢ r) →
+  (q ⊢ r) →
+  (p ∨ q ⊢ r).
+Proof.
+  unseal.
+Qed.
+
+Theorem wf_combine (a b: action Σ) :
+  (tla_enabled a ⊢ □ !tla_enabled b ∨ ◇ ⟨a⟩) →
+  (tla_enabled b ⊢ □ !tla_enabled a ∨ ◇ ⟨b⟩) →
+  (weak_fairness a ∧ weak_fairness b) ==
+  weak_fairness (λ s s', a s s' ∨ b s s')%type.
+Proof.
+  intros Hdr1 Hdr2.
+  apply not_inj.
+
+  rewrite not_and.
+  rewrite !not_wf'.
+  rewrite -!combine_or_actions.
+  rewrite tla_enabled_or.
+  rewrite not_or.
+  tla_split.
+  - apply or_implies_split; apply eventually_impl_proper; rewrite always_and.
+    + tla_pose (dr_and_not_action_always _ _ Hdr1).
+      rewrite -> not_enabled_to_action.
+
+      (* TODO: why does tla_prop not work here? *)
+      unseal.
+    + tla_pose (dr_and_not_action_always _ _ Hdr2).
+      rewrite -> not_enabled_to_action.
+
+      unseal.
+  - rewrite (eventually_always_distrib (tla_enabled a) (! ⟨a⟩)).
+    rewrite (eventually_always_distrib (tla_enabled b) (! ⟨b⟩)).
+
+    intros e H.
+    destruct H as [k H'].
+    rewrite !always_and in H'. destruct H' as (Hab & Hnota & Hnotb).
+    pose proof (Hab 0) as Hab0;
+      rewrite drop_0 in Hab0;
+      destruct Hab0 as [Ha | Hb].
+    + pose proof (dr_and_not_action _ _ Hdr1 (drop k e) ltac:(unseal)).
+      left.
+      rewrite -eventually_always_distrib.
+      exists k.
+      rewrite always_and.
+      split; eauto.
+      intros k'; setoid_rewrite drop_drop.
+      destruct (Hab k') as [Ha'|Hb']; eauto.
+      { exfalso; eapply H; eauto. }
+    + pose proof (dr_and_not_action _ _ Hdr2 (drop k e) ltac:(unseal)).
+      right.
+      rewrite -eventually_always_distrib.
+      exists k.
+      rewrite always_and.
+      split; eauto.
+      intros k'; setoid_rewrite drop_drop.
+      destruct (Hab k') as [Ha'|Hb']; eauto.
+      { exfalso; eapply H; eauto. }
+Qed.
+
 Lemma state_pred_impl (P Q: Σ -> Prop) :
   (∀ s, P s → Q s) →
   state_pred P ⊢ state_pred Q.
@@ -357,43 +541,6 @@ Proof.
     apply impl_to_leads_to.
     tla_prop.
   - reflexivity.
-Qed.
-
-(* combining predicates and actions *)
-
-Lemma combine_preds (next: Σ → Σ → Prop) (P: Σ → Prop) :
-  (□ ⟨ next ⟩ ∧ □ ⌜ P ⌝) == □ ⟨ λ s s', next s s' ∧ P s ∧ P s' ⟩.
-Proof.
-  unseal.
-  intuition eauto.
-  - specialize (H k). intuition auto.
-  - specialize (H k). intuition auto.
-Qed.
-
-Lemma combine_state_preds (P Q: Σ → Prop) :
-  (⌜P⌝ ∧ ⌜Q⌝) == ⌜λ s, P s ∧ Q s⌝.
-Proof.
-  unseal.
-Qed.
-
-Lemma combine_or_preds (P Q: Σ → Prop) :
-  (⌜P⌝ ∨ ⌜Q⌝) == ⌜λ s, P s ∨ Q s⌝.
-Proof.
-  unseal.
-Qed.
-
-Lemma combine_always_preds (P Q: Σ → Prop) :
-  (□⌜P⌝ ∧ □⌜Q⌝) == □⌜λ s, P s ∧ Q s⌝.
-Proof.
-  rewrite -always_and.
-  rewrite combine_state_preds.
-  reflexivity.
-Qed.
-
-Lemma not_state_pred (P: Σ → Prop) :
-  !⌜λ s, P s⌝ == ⌜λ s, ¬ P s⌝.
-Proof.
-  unseal.
 Qed.
 
 End TLA.

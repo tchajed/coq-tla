@@ -67,6 +67,12 @@ Proof.
   eauto.
 Qed.
 
+Theorem impl_under_always p1 p2 :
+  (p1 ⊢ p2) → (□ p1 ⊢ □ p2).
+Proof.
+  apply implies_generalize.
+Qed.
+
 Theorem always_and p1 p2 :
   □(p1 ∧ p2) == (□p1 ∧ □ p2).
 Proof.

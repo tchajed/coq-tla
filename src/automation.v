@@ -93,6 +93,30 @@ Global Instance always_impl_proper :
   Proper (pred_impl ==> pred_impl) always.
 Proof.  instance_t. Qed.
 
+Global Instance always_apply_proper :
+  Proper (pred_impl ==> eq ==> impl) always.
+Proof.  instance_t. Qed.
+
+Global Instance eventually_apply_proper :
+  Proper (pred_impl ==> eq ==> impl) eventually.
+Proof.  instance_t. intuition (repeat deex; eauto). Qed.
+
+Global Instance or_apply_proper :
+  Proper (pred_impl ==> pred_impl ==> eq ==> impl) tla_or.
+Proof.  instance_t. Qed.
+
+Global Instance and_apply_proper :
+  Proper (pred_impl ==> pred_impl ==> eq ==> impl) tla_and.
+Proof.  instance_t. Qed.
+
+Global Instance not_apply_proper :
+  Proper (flip pred_impl ==> eq ==> impl) tla_not.
+Proof.  instance_t. Qed.
+
+Global Instance not_apply_proper' :
+  Proper (pred_impl ==> eq ==> flip impl) tla_not.
+Proof.  instance_t. Qed.
+
 Global Instance later_impl_proper :
   Proper (pred_impl ==> pred_impl) later.
 Proof.  instance_t. Qed.

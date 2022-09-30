@@ -368,9 +368,11 @@ Proof.
   - tla_apply eventually_send_create2.
 Qed.
 
-(** This is the final liveness theorem. We need [reconcile] to be weakly fair
+(*|
+This is the final liveness theorem. We need `reconcile` to be weakly fair
 (that is, the controller gets a chance to run if it's enabled), and network
-actions to be _each_ be treated fairly. *)
+actions to *each* be treated fairly.
+|*)
 Theorem eventually_create_both :
   ⌜init⌝ ∧ □ ⟨next⟩ ∧
     weak_fairness reconcile ∧
