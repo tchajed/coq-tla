@@ -4,17 +4,9 @@
 Example: a controller-like state machine
 =============================================
 
-This example is intended to model something like a distributed system like
-Kubernetes. It models a controller that on startup sends a message to create
-"object 1" then "object 2". These messages are processed by the network (a
-different set of transitions), which actually transitions to a state where the
-objects exist. The goal is to create object 1, wait for it to exist, and then
-create object 2.
+This example is intended to model something like a controller running in Kubernetes. It models a controller that on startup sends a message to create "object 1" then "object 2" (these are simply modeled as booleans as to whether or not they exist). These messages are processed by the network/rest of the cluster (a different set of transitions), which actually transitions to a state where the objects exist. The goal is to create object 1, wait for it to exist, and then create object 2.
 
-The specification for this controller has two parts. First is a safety property:
-if object 2 exists, object 1 should exist (enforcing the ordering). Second is a
-liveness property that under some fairness assumptions both objects eventually
-exist.
+The specification for this controller has two parts. First is a safety property: if object 2 exists, object 1 should exist (enforcing the ordering). Second is a liveness property that under some fairness assumptions both objects eventually exist.
 
 |*)
 
@@ -278,15 +270,15 @@ Qed.
 
 (*|
 This next proof is actually not that simple. You might think we want to chain
-[eventually_send1] and [eventually_send2] (like we did above for object 1), but
-we can only apply [eventually_send1] under some additional preconditions. The
-issue is that [reconcile] only tries to create object 2 if it doesn't exist;
+`eventually_send1` and `eventually_send2` (like we did above for object 1), but
+we can only apply `eventually_send1` under some additional preconditions. The
+issue is that `reconcile` only tries to create object 2 if it doesn't exist;
 there's a similar issue in principle for object 1, but the required conditions
 are immediately met at initialization.
 
 The proof handles this issue by using a different strategy when the
-preconditions for [eventually_send2] fail; basically in one case we're already
-done because [s.(obj2Exists)] is true, and in the other we've already sent a
+preconditions for `eventually_send2` fail; basically in one case we're already
+done because `s.(obj2Exists)` is true, and in the other we've already sent a
 request for object 2 and it will eventually be created.
 |*)
 
@@ -387,10 +379,11 @@ Proof.
 
   tla_pose is_safe.
 
-  (* At this point the reasoning is pretty mundane, we're just trying to combine
-     ◇obj2Exists with □safe but there's a bunch of re-arranging to do (including
-     modalities, so it isn't easily automated, either).
-   *)
+(*|
+At this point the reasoning is pretty mundane, we're just trying to combine
+`◇obj2Exists` with `□safe` but there's a bunch of re-arranging to do (including
+modalities, so it isn't easily automated, either).
+|*)
   tla_clear ⌜init⌝. tla_clear (□⟨next⟩)%L.
   rewrite tla_and_comm.
   rewrite -> always_and_eventually.
