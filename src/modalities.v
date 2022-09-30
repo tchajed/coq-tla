@@ -1,5 +1,4 @@
 From TLA Require Import defs automation.
-From TLA Require Import propositional_ltl.
 From TLA Require Import classical.
 
 Section TLA.
@@ -222,12 +221,9 @@ Qed.
 Theorem always_expand p :
   □ p == (p ∧ □ p).
 Proof.
-  rewrite -{1}(and_idem p).
-  rewrite always_and.
-  unseal.
-  intuition eauto.
-  specialize (H0 0).
-  rewrite drop_0 in H0; eauto.
+  tla_split; [ | tla_prop ].
+  - tla_split; [ | tla_prop ].
+    apply always_weaken.
 Qed.
 
 Lemma add_1_succ (n: nat) : n + 1 = S n.
