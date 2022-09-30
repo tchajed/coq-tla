@@ -73,14 +73,29 @@ Proof.
   tla_simp.
 Qed.
 
+(** This lemma is used to prove rule WF1. Loosely speaking it takes an
+  assumption of the form [p ∧ ⟨next⟩ → later p ∨ later q] and turns it into a
+  proof that either [p] always holds or eventually [q] holds. *)
 Lemma until_next (p q: predicate) (next: action Σ) (e: exec) :
-  (∀ e, p e ∧ next (e 0) (e 1) → p (drop 1 e) ∨ q (drop 1 e)) →
+  (* induction-like hypothesis: p is preserved until q *)
+  (∀ e, p e ∧ next (e 0) (e 1) →
+        p (drop 1 e) ∨ q (drop 1 e)) →
+  (* this is □⟨next⟩ e *)
   (∀ k, next (e k) (e (S k))) →
-  (∀ k, p (drop k e) → (∀ k', p (drop (k' + k) e)) ∨ ∃ k', q (drop (k' + k) e)).
+  (* we can prove always p or eventually q, but only after some shifted
+  execution satisfying [p] as a base case for the induction *)
+  ∀ k, p (drop k e) →
+       (∀ k', p (drop (k' + k) e)) ∨
+       (∃ k', q (drop (k' + k) e)).
 Proof.
   intros Hind Hnext k Hp.
+  (* this proof is highly classical, we immediately appeal to a double negation
+  to deal with this disjunction. *)
   apply classical.double_negation.
   rewrite classical.not_or classical.not_forall classical.not_exists.
+  (* Classical reasoning gives a speicifc k with ¬p and always ¬q. It turns out
+  we'll always derive a contradiction from the ¬p, by induction on the k. This
+  is what makes the proof so classical, this k comes out of nowhere. *)
   intros [[k' Hnotp] Hnotq].
   apply Hnotp; clear Hnotp.
   generalize dependent e. generalize dependent k.
@@ -107,11 +122,19 @@ Lemma tla_wf1 (p q: predicate) (next a: action Σ) :
 Proof.
   rewrite weak_fairness_alt1'.
   unseal.
-  destruct H as [Hnext Henabled_a].
+  destruct H as [Hnext Hwf_alt].
 
-  edestruct (until_next p q next e Hpuntilq Hnext); eauto.
+  (* [until_next] produces three goals. The first is simply the proof of [p
+  (drop k e)] which is needed as a starting point. Then it leaves two
+  possibilities: either [p] always holds, or [◇ q] (loosely speaking). The
+  latter case is exactly the goal so it goes through immediately. *)
+  edestruct (until_next p q next e Hpuntilq Hnext); [ eassumption | | by auto ].
 
-  destruct (Henabled_a k) as [k' [Hnotenabled | Ha]].
+  (* in the former case we'll show that weak fairness gives us either that [a]
+  is never enabled (false, because p implies it is enabled), or that [a]
+  executes at some point, at which point [Haq] easily gives us [q].  *)
+
+  destruct (Hwf_alt k) as [k' [Hnotenabled | Ha]].
   { (* impossible, we have p everywhere after k *)
     contradiction Hnotenabled.
     apply Henable; eauto. }
@@ -121,9 +144,30 @@ Proof.
   apply Haq; eauto.
 Qed.
 
-(** WF1 for state predicates. This has the advantage of stating all assumptions
-as simple quantified statements, without temporal logic. *)
+(*|
+**WF1**. This is an important rule that uses a weak fairness assumption to show
+that [p ~~> q].
+
+This has the advantage of stating all assumptions
+as simple quantified statements, without temporal logic.
+
+Intuitively [wf1] is used to prove [p ~~> q] from the weak fairness of some
+action [a]. The second premise establishes the intuition that [a] which has
+"precondition" [p] and "postcondition" [q]: if [a] runs in a state satisfying
+[p], then [q] holds. The first premise says that [p] is preserved by [⟨next⟩],
+or [q] just magically becomes true, in which case [a] need not run and [p ~~> q]
+can still be true. (This is important because [q] might actually disable the
+action from running again.) The third premise says that [p] enables [a], so
+preserving it also preserves that the action is enabled.
+
+[p] is separate from [enabled a] in order to accomplish two things. First, it
+allows to strengthen the inductive hypothesis to show [Hpuntilq]. Second, it
+gives a stronger premise for [Haq], allowing to use some state-specific fact to
+establish a more specific postcondition [q] than [a] might have in general.
+|*)
+
 Lemma wf1 (p q: Σ → Prop) (next a: action Σ) :
+  (* this is an inductive step that says if [p] holds, [next] guarantees it continues *)
   ∀ (Hpuntilq: ∀ s s', p s → next s s' → p s' ∨ q s')
     (Haq: ∀ s s', p s → next s s' → a s s' → q s')
     (Henable: ∀ s, p s → enabled a s),
