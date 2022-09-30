@@ -348,6 +348,58 @@ Proof.
   unseal.
 Qed.
 
+Lemma wf_combine_impl (a b: action Σ) :
+  (tla_enabled a ⊢ □ !tla_enabled b ∨ ◇ ⟨a⟩) →
+  (tla_enabled b ⊢ □ !tla_enabled a ∨ ◇ ⟨b⟩) →
+  ◇ □ (tla_enabled a ∧ ! ⟨a⟩) ∨ ◇ □ (tla_enabled b ∧ ! ⟨b⟩) ⊢
+  ◇ □ ((tla_enabled a ∨ tla_enabled b) ∧ ! ⟨a⟩ ∧ ! ⟨b⟩).
+Proof.
+  intros Hdr1 Hdr2.
+  apply or_implies_split; apply eventually_impl_proper; rewrite always_and.
+  + tla_pose (dr_and_not_action_always _ _ Hdr1).
+    rewrite -> not_enabled_to_action.
+
+    (* TODO: why does tla_prop not work here? *)
+    unseal.
+  + tla_pose (dr_and_not_action_always _ _ Hdr2).
+    rewrite -> not_enabled_to_action.
+
+    unseal.
+Qed.
+
+(* for some reason this direction of [wf_combine] seems more difficult and
+unstructured *)
+Lemma wf_split_impl (a b: action Σ) :
+  (tla_enabled a ⊢ □ !tla_enabled b ∨ ◇ ⟨a⟩) →
+  (tla_enabled b ⊢ □ !tla_enabled a ∨ ◇ ⟨b⟩) →
+  ◇ □ ((tla_enabled a ∨ tla_enabled b) ∧ ! ⟨a⟩ ∧ ! ⟨b⟩) ⊢
+  ◇ □ (tla_enabled a ∧ ! ⟨a⟩) ∨ ◇ □ (tla_enabled b ∧ ! ⟨b⟩).
+Proof.
+  intros Hdr1 Hdr2.
+  intros e H.
+  destruct H as [k H'].
+  rewrite !always_and in H'. destruct H' as (Hab & Hnota & Hnotb).
+  pose proof (Hab 0) as Hab0;
+    rewrite drop_0 in Hab0;
+    destruct Hab0 as [Ha | Hb].
+  + pose proof (dr_and_not_action _ _ Hdr1 (drop k e) ltac:(unseal)).
+    left.
+    exists k.
+    rewrite always_and.
+    split; eauto.
+    intros k'; setoid_rewrite drop_drop.
+    destruct (Hab k') as [Ha'|Hb']; eauto.
+    { exfalso; eapply H; eauto. }
+  + pose proof (dr_and_not_action _ _ Hdr2 (drop k e) ltac:(unseal)).
+    right.
+    exists k.
+    rewrite always_and.
+    split; eauto.
+    intros k'; setoid_rewrite drop_drop.
+    destruct (Hab k') as [Ha'|Hb']; eauto.
+    { exfalso; eapply H; eauto. }
+Qed.
+
 (** This theorem comes from the book "Specifying Systems", theorem 8.20. It has
 a surprisingly complicated proof! *)
 Theorem wf_combine (a b: action Σ) :
@@ -365,38 +417,8 @@ Proof.
   rewrite tla_enabled_or.
   rewrite not_or.
   tla_split.
-  - apply or_implies_split; apply eventually_impl_proper; rewrite always_and.
-    + tla_pose (dr_and_not_action_always _ _ Hdr1).
-      rewrite -> not_enabled_to_action.
-
-      (* TODO: why does tla_prop not work here? *)
-      unseal.
-    + tla_pose (dr_and_not_action_always _ _ Hdr2).
-      rewrite -> not_enabled_to_action.
-
-      unseal.
-  - intros e H.
-    destruct H as [k H'].
-    rewrite !always_and in H'. destruct H' as (Hab & Hnota & Hnotb).
-    pose proof (Hab 0) as Hab0;
-      rewrite drop_0 in Hab0;
-      destruct Hab0 as [Ha | Hb].
-    + pose proof (dr_and_not_action _ _ Hdr1 (drop k e) ltac:(unseal)).
-      left.
-      exists k.
-      rewrite always_and.
-      split; eauto.
-      intros k'; setoid_rewrite drop_drop.
-      destruct (Hab k') as [Ha'|Hb']; eauto.
-      { exfalso; eapply H; eauto. }
-    + pose proof (dr_and_not_action _ _ Hdr2 (drop k e) ltac:(unseal)).
-      right.
-      exists k.
-      rewrite always_and.
-      split; eauto.
-      intros k'; setoid_rewrite drop_drop.
-      destruct (Hab k') as [Ha'|Hb']; eauto.
-      { exfalso; eapply H; eauto. }
+  - apply wf_combine_impl; auto.
+  - apply wf_split_impl; auto.
 Qed.
 
 Lemma state_pred_impl (P Q: Σ -> Prop) :
