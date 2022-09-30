@@ -348,6 +348,8 @@ Proof.
   unseal.
 Qed.
 
+(** This theorem comes from the book "Specifying Systems", theorem 8.20. It has
+a surprisingly complicated proof! *)
 Theorem wf_combine (a b: action Σ) :
   (tla_enabled a ⊢ □ !tla_enabled b ∨ ◇ ⟨a⟩) →
   (tla_enabled b ⊢ □ !tla_enabled a ∨ ◇ ⟨b⟩) →
@@ -373,10 +375,7 @@ Proof.
       rewrite -> not_enabled_to_action.
 
       unseal.
-  - rewrite (eventually_always_distrib (tla_enabled a) (! ⟨a⟩)).
-    rewrite (eventually_always_distrib (tla_enabled b) (! ⟨b⟩)).
-
-    intros e H.
+  - intros e H.
     destruct H as [k H'].
     rewrite !always_and in H'. destruct H' as (Hab & Hnota & Hnotb).
     pose proof (Hab 0) as Hab0;
@@ -384,7 +383,6 @@ Proof.
       destruct Hab0 as [Ha | Hb].
     + pose proof (dr_and_not_action _ _ Hdr1 (drop k e) ltac:(unseal)).
       left.
-      rewrite -eventually_always_distrib.
       exists k.
       rewrite always_and.
       split; eauto.
@@ -393,7 +391,6 @@ Proof.
       { exfalso; eapply H; eauto. }
     + pose proof (dr_and_not_action _ _ Hdr2 (drop k e) ltac:(unseal)).
       right.
-      rewrite -eventually_always_distrib.
       exists k.
       rewrite always_and.
       split; eauto.
