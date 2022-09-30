@@ -1,11 +1,20 @@
 -Q src TLA
 -Q external/stdpp/stdpp stdpp
+# needed for dependency resolution only (unused)
 -Q external/stdpp/stdpp_unstable stdpp.unstable
+-Q external/iris/iris iris
+# needed for dependency resolution only (unused)
+-Q external/iris/iris_deprecated iris.deprecated
+-Q external/iris/iris_heap_lang iris.heap_lang
+-Q external/iris/iris_unstable iris.unstable
 -Q external/coq-record-update RecordUpdate
-# stdpp disabled options
+# stdpp disabled warnings
 -arg -w -arg -deprecated-hint-rewrite-without-locality
 -arg -w -arg -deprecated-typeclasses-transparency-without-locality
 -arg -w -arg -deprecated-syntactic-definition
+# iris disabled warnings
+-arg -w -arg -notation-overridden
+-arg -w -arg -redundant-canonical-projection
 # Coq 8.17 warnings
 -arg -w -arg -future-coercion-class-field
 -arg -w -arg -deprecated-tacopt-without-locality

@@ -4,3 +4,6 @@
 [submodule "external/coq-record-update"]
 	path = external/coq-record-update
 	url = https://github.com/tchajed/coq-record-update
+[submodule "external/iris"]
+	path = external/iris
+	url = https://gitlab.mpi-sws.org/iris/iris
