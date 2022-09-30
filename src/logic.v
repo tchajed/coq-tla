@@ -246,21 +246,6 @@ Proof.
   rewrite enabled_or; tla_simp.
 Qed.
 
-(* there doesn't seem to be any characterization of weak_fairness of a composite
-action - it's just different to be able to run a1 ∨ a2 compared with fairness of
-each individually (intuitively the latter seems stronger, but it doesn't seem to
-be an implication, either) *)
-Theorem wf_or a1 a2 :
-  weak_fairness (λ s s', a1 s s' ∨ a2 s s')%type ==
-  (weak_fairness a1 ∧ weak_fairness a2).
-Proof.
-  rewrite !weak_fairness_alt1'.
-  rewrite tla_enabled_or.
-  rewrite !always_eventually_distrib.
-  fold (⟨ a1 ⟩) (⟨ a2 ⟩).
-  tla_simp.
-Abort.
-
 Lemma not_wf (a: action Σ) :
   ! weak_fairness a == (◇ (□ tla_enabled a ∧ ! ◇ ⟨a⟩)).
 Proof.
@@ -331,14 +316,6 @@ Proof.
   rewrite -> (always_weaken (tla_enabled a)).
   apply dr_and_not_action; auto.
 Qed.
-
-Lemma eventually_always_or_split p q r :
-  (□ p ⊢ □r) →
-  (□ q ⊢ □r) →
-  (◇□ (p ∨ q) ⊢ ◇□r).
-Proof.
-  intros H1 H2.
-Abort.
 
 Lemma or_implies_split p q r :
   (p ⊢ r) →
