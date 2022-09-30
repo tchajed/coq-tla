@@ -24,7 +24,7 @@ There are a few primitive ways to construct TLA predicates, by lifting state pre
 Definition state_pred {Σ: Type} (f: Σ → Prop) : predicate Σ :=
     λ ex, f (ex 0).
 
-Notation "⌜  P  ⌝" := (state_pred P%type).
+Notation "⌜  P  ⌝" := (state_pred P%type) (at level 1, P at level 200).
 
 Definition action (Σ: Type) := Σ → Σ → Prop.
 Definition action_pred {Σ: Type} (a: action Σ) : predicate Σ :=
@@ -56,6 +56,11 @@ Definition tla_not p : predicate := λ e, ¬ p e.
 Definition tla_or p1 p2 : predicate := λ e, p1 e ∨ p2 e.
 Definition tla_and p1 p2 : predicate := λ e, p1 e ∧ p2 e.
 Definition tla_implies p1 p2 : predicate := λ e, p1 e → p2 e.
+
+Definition tla_forall {A: Type} (Φ: A → predicate) : predicate :=
+  λ e, ∀ (x: A), Φ x e.
+Definition tla_exists {A: Type} (Φ: A → predicate) : predicate :=
+  λ e, ∃ (x: A), Φ x e.
 
 (*|
 The heart of TLA's assertions are the `always` and `eventually` modalities. A modality is in general a transformation on formulas. `always p` (which will be written □ p) says that `p` holds "from now on". This is expressed using the `drop` function, which shifts a behavior by k steps.
@@ -113,10 +118,10 @@ Declare Scope tla.
 Delimit Scope tla with L.
 Bind Scope tla with predicate.
 
-Notation "⊢  p" := (valid p%L) (at level 99, p at level 200).
+Notation "⊢  p" := (valid p%L) (at level 20, p at level 200).
 (* this is just to force parsing in tla scope *)
 Notation "p == q" := (@eq (predicate _) p%L q%L) (at level 70, only parsing).
-Notation "p  ⊢  q" := (pred_impl p%L q%L) (at level 100).
+Notation "p  ⊢  q" := (pred_impl p%L q%L) (at level 99, q at level 200).
 
 Notation "!  p" := (tla_not p%L) (at level 51, right associativity) : tla.
 Notation "p  ∨  q" := (tla_or p%L q%L) : tla.
@@ -124,8 +129,8 @@ Notation "p  ∧  q" := (tla_and p%L q%L) : tla.
 Notation "p  ->  q" := (tla_implies p%L q%L) : tla.
 Notation "p  →  q" := (tla_implies p%L q%L) : tla.
 
-Notation "□  p" := (always p%L) (at level 51, right associativity) : tla.
-Notation "◇  p" := (eventually p%L) (at level 51, right associativity) : tla.
+Notation "□  p" := (always p%L) (at level 20, right associativity) : tla.
+Notation "◇  p" := (eventually p%L) (at level 20, right associativity) : tla.
 
 (*|
 `weak_fairness` is a useful notion for liveness. When `weak_fairness a` holds of a behavior, if at any point the action is always enabled, then it must eventually run.

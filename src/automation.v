@@ -20,6 +20,8 @@ Ltac deex :=
 #[export]
 Hint Unfold tla_and tla_or tla_not tla_implies eventually always later : tla.
 #[export]
+Hint Unfold tla_forall tla_exists : tla.
+#[export]
 Hint Unfold valid pred_impl : tla.
 
 (*|
