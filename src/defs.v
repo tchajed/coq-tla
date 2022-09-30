@@ -1,3 +1,12 @@
+(*|
+================================
+Embedding the TLA logic in Coq
+================================
+
+This development defines a version of TLA (the Temporal Logic of Actions) in
+Coq. This file just sets out the basic definitions of TLA, in particular the notion of a (temporal) predicate, lifting the basic propositional operators like "not" and "and" to predicates, and the always and eventually *modalities* of TLA.
+|*)
+
 From Coq.Logic Require Import
   PropExtensionality FunctionalExtensionality.
 
@@ -7,19 +16,15 @@ From stdpp Require Export base.
 #[export] Set Default Proof Using "Type".
 #[export] Set Default Goal Selector "!".
 
-(*|
-================================
-Embedding the TLA logic in Coq.
-================================
 
-A TLA formula is defined using `predicate`, which is defined in Coq as a predicate over executions (also known as "behaviors" in TLA). Executions are in turn defined to be an infinite sequence of states, which come from some arbitrary type Σ. Note that throughout the entire theory Σ does not change and remains abstract - TLA never talks about how to relate predicates defined for different states.
-|*)
+(*|
+A TLA formula is defined using `predicate`, which is defined in Coq as a predicate over executions (also known as "behaviors" in TLA). Executions are in turn defined to be an infinite sequence of states, which come from some arbitrary type Σ. Note that throughout the entire theory Σ does not change and remains abstract. In TLA, Σ corresponds to the state of all the variables, which are implicitly all available. |*)
 
 Definition exec (Σ: Type) := nat → Σ.
 Definition predicate (Σ: Type) := exec Σ → Prop.
 
 (*|
-There are a few primitive ways to construct TLA predicates, by lifting state predicates or actions.
+There are a few primitive ways to construct TLA predicates, by lifting state predicates or actions; the particular use of actions is what distinguishes TLA from LTL (linear temporal logic), although the two will look very similar in this development.
 |*)
 Definition state_pred {Σ: Type} (f: Σ → Prop) : predicate Σ :=
     λ ex, f (ex 0).
@@ -67,9 +72,9 @@ Definition drop k e : exec := λ n, e (n + k).
 Definition always p : predicate := λ e, ∀ k, p (drop k e).
 Definition eventually p : predicate := λ e, ∃ k, p (drop k e).
 
-(* This serves the rule of the "prime" in TLA, but with a more general and
+(*| This serves the rule of the "prime" in TLA, but with a more general and
 formal definition than TLA, which seems to only use them in actions and does not
-treat it as a full-fledged modality. *)
+treat it as a full-fledged modality. |*)
 Definition later p : predicate := λ e, p (drop 1 e).
 
 (*|
@@ -84,7 +89,7 @@ Definition pred_impl (p q: predicate) :=
   ∀ e, p e → q e.
 
 (*|
-We assume some axioms so that predicates can be proven equal in the `=` sense if they are logically equivalent, which simplifies working with equivalent predicates a bit.
+We assume some Coq axioms so that predicates can be proven equal in the `=` sense if they are logically equivalent, which simplifies working with equivalent predicates a bit.
 |*)
 Lemma predicate_ext p1 p2 : (∀ e, p1 e ↔ p2 e) → p1 = p2.
 Proof.
@@ -133,15 +138,30 @@ Notation "◇  p" := (eventually p%L) (at level 51, right associativity) : tla.
 
 (* these two definitions are here so they can use the notation *)
 
-(** [enabled a] is a state predicate for [a] being enabled *)
+(*|
+`enabled a` is a state predicate that defines what it means for an action to be
+enabled.
+|*)
 Definition enabled {Σ} (a: action Σ) (s:Σ) := ∃ s', a s s'.
 
+(*|
+`tla_enabled` is just a convenience for lifting `enabled a` to a temporal
+predicate.
+|*)
 Definition tla_enabled {Σ} (a: action Σ) : predicate Σ :=
   state_pred (enabled a).
 
+(*|
+Weak fairness is an important definition for stating liveness properties. Typically liveness properties hold only under some assumptions that the behavior in question treats an action _fairly_, intuitively meaning that it gets a chance to run "often enough". This is defined in weak fairness as the following: in a behavior, `a` is treated weakly fairly if whenever it is always enabled, it eventually runs. Alternately, we can rewrite the implication as a disjunction and say that `a` is treated weakly fairly if at every step it is either not enabled at some point, or it executes.
+
+The logic will eventually have a rule `wf1` that allows to use a `weak_fairness a` assumption and prove `◇ q` from it.
+|*)
 Definition weak_fairness {Σ} (a: action Σ) : predicate Σ :=
   □ (□ (tla_enabled a) → (◇ ⟨a⟩)).
 
+(*|
+Leads to, written `p ~~> q`, is a useful definition for expressing something that is eventually true under some assumption. The □ in front is important to make this definition transitive (proven later), in the sense that `⊢ (p ~~> q) → (q ~~> r) → (p ~~> r)`. (Without it, the second leads_to couldn't be used at the time when the first leads_to says q holds).
+|*)
 Definition leads_to {Σ} (p q: predicate Σ) : predicate Σ :=
   □ (p → ◇ q).
 
