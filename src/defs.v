@@ -109,13 +109,6 @@ Definition tla_false : predicate := λ _, False.
 
 End TLA.
 
-#[export]
-Hint Unfold tla_and tla_or tla_not tla_implies eventually always later : tla.
-#[export]
-Hint Unfold valid pred_impl : tla.
-
-#[global] Hint Unfold state_pred action_pred : tla.
-
 Declare Scope tla.
 Delimit Scope tla with L.
 Bind Scope tla with predicate.
@@ -144,103 +137,15 @@ Notation "◇  p" := (eventually p%L) (at level 51, right associativity) : tla.
 Definition enabled {Σ} (a: action Σ) (s:Σ) := ∃ s', a s s'.
 
 Definition tla_enabled {Σ} (a: action Σ) : predicate Σ :=
-    state_pred (enabled a).
+  state_pred (enabled a).
 
 Definition weak_fairness {Σ} (a: action Σ) : predicate Σ :=
-    □ (□ (tla_enabled a) → (◇ ⟨a⟩)).
-
-#[global] Hint Unfold enabled weak_fairness : tla.
+  □ (□ (tla_enabled a) → (◇ ⟨a⟩)).
 
 Definition leads_to {Σ} (p q: predicate Σ) : predicate Σ :=
   □ (p → ◇ q).
 
-#[global] Hint Unfold leads_to : tla.
-
 Notation "p ~~> q" := (leads_to p q) (at level 51, right associativity).
-
-Ltac deex :=
-  match goal with
-  | [ H : exists (varname : _), _ |- _ ] =>
-    let newvar := fresh varname in
-    destruct H as [newvar ?]
-  | [ H: _ ∧ _ |- _ ] => destruct H
-  | _ => subst
-  end.
-
-(*|
-The instances blow enable rewriting by predicate implications, even inside
-formulae. For example we can use H: p ⊢ q (pred_impl p q) as [rewrite H] to
-change [p ∧ r ⊢ q] to [q ∧ r ⊢ q].
-|*)
-Section rewriting.
-
-Context [Σ: Type].
-Notation pred_impl := (@pred_impl Σ).
-
-Local Ltac instance_t :=
-  rewrite /Proper /respectful /Basics.flip /Basics.impl /pred_impl;
-  autounfold with tla;
-  try solve [ intuition (deex; eauto) ].
-
-Global Instance pred_impl_reflexive : Reflexive pred_impl.
-Proof. compute; intuition auto. Qed.
-
-Global Instance pred_impl_trans : Transitive pred_impl.
-Proof. compute; intuition auto. Qed.
-
-Global Instance implies_impl_proper :
-  Proper (Basics.flip pred_impl ==> pred_impl ==> pred_impl) tla_implies.
-Proof.  instance_t.  Qed.
-
-Global Instance implies_impl_flip_proper :
-  Proper (pred_impl ==> flip pred_impl ==> flip pred_impl) tla_implies.
-Proof.  instance_t.  Qed.
-
-Global Instance and_impl_proper :
-  Proper (pred_impl ==> pred_impl ==> pred_impl) tla_and.
-Proof. instance_t. Qed.
-
-Global Instance and_impl_flip_proper :
-  Proper (flip pred_impl ==> flip pred_impl ==> flip pred_impl) tla_and.
-Proof. instance_t. Qed.
-
-Global Instance and_impl_proper' p :
-  Proper (pred_impl ==> pred_impl) (tla_and p).
-Proof. apply and_impl_proper. reflexivity. Qed.
-
-Global Instance or_impl_proper :
-  Proper (pred_impl ==> pred_impl ==> pred_impl) tla_or.
-Proof. instance_t. Qed.
-
-Global Instance eventually_impl_proper :
-  Proper (pred_impl ==> pred_impl) eventually.
-Proof.  instance_t. Qed.
-
-Global Instance always_impl_proper :
-  Proper (pred_impl ==> pred_impl) always.
-Proof.  instance_t. Qed.
-
-Global Instance later_impl_proper :
-  Proper (pred_impl ==> pred_impl) later.
-Proof.  instance_t. Qed.
-
-Global Instance pred_impl_proper :
-  Proper (Basics.flip pred_impl ==> pred_impl ==> Basics.impl) pred_impl.
-Proof. instance_t. Qed.
-
-Global Instance pred_flip_impl_proper :
-  Proper (pred_impl ==> Basics.flip pred_impl ==> Basics.flip impl) pred_impl.
-Proof. instance_t. Qed.
-
-Global Instance impl_valid :
-  Proper (pred_impl ==> impl) valid.
-Proof. instance_t. Qed.
-
-Global Instance impl_flip_valid :
-  Proper (flip pred_impl ==> flip impl) valid.
-Proof. instance_t. Qed.
-
-End rewriting.
 
 Arguments enabled {Σ}%type_scope a%type_scope.
 Arguments tla_enabled {Σ}%type_scope a%type_scope.
