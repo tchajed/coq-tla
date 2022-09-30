@@ -1,3 +1,10 @@
+(*|
+**Propositional theorems for TLA**
+
+These theorems are straightforward analogues of propositional logic theorems for
+temporal predicates.
+
+|*)
 From TLA Require Export defs automation.
 From TLA Require Import classical.
 

@@ -1,3 +1,12 @@
+(*|
+**TLA modalities**
+
+This file has some basic results about the TLA modalities, especially relating
+them to each other. For example one of the theorems with a slightly involved
+proof is that `□◇ (p ∨ q) = □◇ p ∨ □◇ q`, despite the fact that □ on its own
+does not distribute over ∨.
+
+|*)
 From TLA Require Import defs automation.
 From TLA Require Import classical.
 

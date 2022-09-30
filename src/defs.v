@@ -133,12 +133,6 @@ Notation "□  p" := (always p%L) (at level 51, right associativity) : tla.
 Notation "◇  p" := (eventually p%L) (at level 51, right associativity) : tla.
 
 (*|
-`weak_fairness` is a useful notion for liveness. When `weak_fairness a` holds of a behavior, if at any point the action is always enabled, then it must eventually run.
-|*)
-
-(* these two definitions are here so they can use the notation *)
-
-(*|
 `enabled a` is a state predicate that defines what it means for an action to be
 enabled.
 |*)

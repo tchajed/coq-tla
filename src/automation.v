@@ -1,3 +1,21 @@
+(*|
+
+===========================
+Automation for TLA proofs
+===========================
+
+This file has a variety of automation for TLA (mostly Ltac, but also rewriting
+support). One of the more interesting bits of automation is the `dual` tactic.
+This exploits a fact about TLA that if we take a tautology (a valid TLA formula
+without premises), we can swap □ ↔ ◇ and ∨ ↔ ∧ (leaving negation alone) to get a
+new "dual" tautology. The automation encodes this by switching to proving !p =
+!q, then using a number of theorems to "push" the negation inward, which has the
+side effect of making those swaps.
+
+Since this file is used by the proofs of the logical rules, it assumes only the
+definitions and includes proofs for the necessary logical rules.
+
+|*)
 From Coq.Logic Require Import
   FunctionalExtensionality.
 
@@ -108,6 +126,10 @@ Notation predicate := (predicate Σ).
 Implicit Types (e: exec) (p q: predicate).
 Implicit Types (n m k: nat).
 
+(*|
+This file itself needs some proofs, so they use this basic automation. The file
+exports an `unseal` tactic that does more work towards the end.
+|*)
 Local Ltac unseal :=
   apply predicate_ext => e;
   autounfold with tla;
@@ -314,7 +336,7 @@ Ltac unseal :=
   | |- _ → _ => let H := fresh "H" in intro H
   end;
   try specific_states;
-  (* finishing tactics*)
+  (* finishing tactics *)
   try tauto;
   try solve [ intuition eauto ].
 
@@ -335,17 +357,22 @@ Lemma tla_pose_lemma {Σ} (p1 q1: predicate Σ) :
   (p2 ⊢ q2).
 Proof. unseal. Qed.
 
+(** When proving [p ⊢ q], if we have a lemma of the form [p' ⊢ q'], this
+attempts to add q' to the premise, if it can easily prove [p ⊢ p']. *)
 Ltac tla_pose lem :=
   let H := fresh "Htemp" in
   epose proof lem as H;
   apply (tla_pose_lemma _ _ H); clear H;
   [ tla_prop | try rewrite tla_and_assoc ].
 
+(** Split a proof of [p = q] or [p ⊢ q1 ∧ q2] into two goals. *)
 Ltac tla_split :=
   match goal with
   | |- @eq (predicate _) _ _ => apply entails_to_iff
   | |- pred_impl _ (tla_and _ _) => apply entails_and
   end.
 
+(** Prove the conclusion of the current theorem with the conclusion of [lem],
+much like Coq's [apply]. *)
 Ltac tla_apply lem :=
   eapply entails_trans; [ | apply lem ]; try solve [ tla_prop ].
