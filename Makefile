@@ -5,6 +5,10 @@ DOC_VFILES := $(PROJ_VFILES:src/%.v=docs/%.html)
 
 COQPROJECT_ARGS := $(shell sed -E -e '/^\#/d' -e 's/-arg ([^ ]*)/\1/g' _CoqProject)
 COQPROJECT_Q_ARGS := $(shell grep '^-Q' _CoqProject)
+ALECTRYON_CACHE := .alectryon.cache
+ALECTRYON_FLAGS := $(COQPROJECT_Q_ARGS) \
+	--long-line-threshold 80 \
+	--cache-directory $(ALECTRYON_CACHE) --cache-compression
 
 default: $(PROJ_VFILES:.v=.vo)
 
@@ -28,14 +32,14 @@ docs:
 
 docs/%.html: src/%.v src/%.vo | docs
 	@echo "ALECTRYON $<"
-	@alectryon --long-line-threshold 80 $(COQPROJECT_Q_ARGS) --frontend coq+rst --backend webpage $< -o $@
+	@alectryon $(ALECTRYON_FLAGS) --frontend coq+rst --backend webpage $< -o $@
 
 clean:
 	@echo "CLEAN vo glob aux"
 	@find $(SRC_DIRS) \( -name ".*.aux" -or -name "*.vo*" -or -name "*.glob" \) \
 		-exec rm {} \;
 	@rm -f .lia.cache
-	rm -rf docs
+	rm -rf docs $(ALECTRYON_CACHE)
 	rm -f .coqdeps.d
 
 .PHONY: default clean docs
