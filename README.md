@@ -3,8 +3,8 @@
 [![CI](https://github.com/tchajed/coq-tla/actions/workflows/build.yml/badge.svg)](https://github.com/tchajed/coq-tla/actions/workflows/build.yml)
 
 Embedding TLA in Coq. The goal is to better understand how TLA can be used for
-liveness reasoning especially, by playing around with the proof system and
-trying out small examples with full proofs. Automation is just adequate here to
+liveness reasoning, by playing around with the proof system and
+trying out small examples. Automation is just adequate here to
 get work done, but not suitable for large systems or complex temporal reasoning
 with many hypotheses.
 

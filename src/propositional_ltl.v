@@ -117,6 +117,16 @@ Proof.
   unseal.
 Qed.
 
+Lemma impl_intro p q :
+  (p ⊢ q) →
+  (⊢ p → q).
+Proof. unseal. Qed.
+
+Lemma impl_intro2 p q r :
+  (p ∧ q ⊢ r) →
+  (p ⊢ q → r).
+Proof. unseal. Qed.
+
 End TLA.
 
 Hint Rewrite

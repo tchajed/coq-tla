@@ -551,3 +551,8 @@ Ltac leads_to_etrans :=
 
 Ltac tla_clear p :=
   rewrite -> (any_impl_true p); tla_simp.
+
+Ltac tla_intro :=
+  first [ apply impl_intro | apply impl_intro2 ].
+
+Ltac tla_intros := repeat tla_intro.

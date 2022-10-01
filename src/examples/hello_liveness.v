@@ -1,39 +1,79 @@
+(*|
+================================
+Example: ABC transition system
+================================
+
+We define a simple state machine with a field `x` that goes from `A` to `B` to `C`, and separately a field `happy` that remains constant.
+
+The state machine has a safety property that says `happy` is true, and a liveness property that says `◇ ⌜λ s, s.(x) = C⌝`.
+
+|*)
+
 From TLA Require Import logic.
+
+(*|
+This module contains the trusted (assume correct) definitions for the state machine itself, as well as the desired safety and liveness properties.
+|*)
+Module spec.
+
+  Inductive abc := A | B | C.
+  Record state :=
+    { x: abc; happy: bool; }.
+
+  Definition ab : action state :=
+    λ s s', (s.(x) = A ∧ s'.(x) = B ∧ s'.(happy) = s.(happy)).
+
+  Definition bc : action state :=
+    λ s s', (s.(x) = B ∧ s'.(x) = C ∧ s'.(happy) = s.(happy)).
+
+  Definition init (s: state) :=
+      s.(x) = A ∧ s.(happy) = true.
+
+  (*|
+It is important to allow stuttering (`s = s'`) in this predicate! Otherwise there would be no infinite sequences satisfying `□ ⟨next⟩`, since after two transitions no steps would be possible.
+  |*)
+  Definition next s s' :=
+    ab s s' ∨ bc s s' ∨ s = s'.
+
+  (*|
+The safety property for this example is that happy always remains true.
+  |*)
+  Definition safe : state → Prop :=
+    λ s, s.(happy).
+
+  (*|
+The statement that the state machine satisfies safety follows the very standard TLA formula here, `⌜init⌝ ∧ □ ⟨next⟩ → □ ⌜safe⌝`. This says that if `init` holds in the first state of an execution and every subsequent transition satisfies `next`, then `safe` holds of every state.
+  |*)
+  Definition safety : predicate state :=
+    ⌜init⌝ ∧ □ ⟨next⟩ → □ ⌜safe⌝.
+
+  (*|
+Intuitively the liveness property for this example is that eventually the field `x` will be `C`. Stating this formally is a bit more sophisticated than for safety. We still have ⌜init⌝ ∧ □⟨next⟩ as an assumption (we only consider executions that follow the state machine semantics), but in order for this theorem to hold we need the `ab` and `bc` actions to run "often enough", expressed via weak fairness assumptions. Without these, the theorem would be false, because it would be valid for an execution to consist of infinitely many stuttering steps, starting from a state satisfying `init`.
+|*)
+  Definition liveness : predicate state :=
+    ⌜init⌝ ∧ □ ⟨next⟩ ∧ weak_fairness ab ∧ weak_fairness bc →
+    ◇ ⌜λ s, s.(x) = C⌝.
+
+End spec.
+
+(*|
+
+The remainder of the code is untrusted proof (except for the fact that ⊢ safety
+and ⊢ liveness are stated and proven as theorems).
+
+|*)
+
+Import spec.
 
 Section example.
 
-(*|
-We define a simple state machine with a field `x` that goes from `A` to `B` to `C`, and separately a field `happy` that remains constant.
-
-The state machine has a safety property that says `happy` is true, and a liveness property that eventually `x = C`.
-|*)
-
-Inductive abc := A | B | C.
-Record state :=
-  { x: abc; happy: bool; }.
-
 Implicit Types (s: state).
-
-Definition ab : action state :=
-  λ s s', (s.(x) = A ∧ s'.(x) = B ∧ s'.(happy) = s.(happy)).
-
-Definition bc : action state :=
-  λ s s', (s.(x) = B ∧ s'.(x) = C ∧ s'.(happy) = s.(happy)).
-
-Definition init (s: state) :=
-    s.(x) = A ∧ s.(happy) = true.
-
-(*|
-It is important to allow stuttering (`s = s'`) in this predicate! Otherwise there would be no infinite sequences satisfying `□ ⟨next⟩`, since after two transitions no steps would be possible.
-|*)
-Definition next s s' :=
-  ab s s' ∨ bc s s' ∨ s = s'.
-
 
 (*|
 A little automation will prove all the state-machine specific reasoning required for this example, essentially by brute force.
 |*)
 Hint Unfold init happy next ab bc : stm.
+Hint Unfold safe : stm.
 
 Hint Unfold enabled : stm.
 
@@ -62,9 +102,9 @@ Safety
 The safety property is pretty easy, using `init_invariant`. In fact it's so simple it's already inductive and we don't need to go through a separate invariant.
 |*)
 
-Theorem always_happy :
-  ⌜ init ⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜λ s, s.(happy)⌝.
+Theorem always_happy : ⊢ safety.
 Proof.
+  tla_intro.
   apply init_invariant. (* .unfold *)
   - stm.
   - stm.
@@ -81,7 +121,7 @@ Liveness is more interesting. The high-level strategy is to use the rule `wf1` t
 (*|
 Notice that the state-machine reasoning all happens here, and in the analogous `b_leads_to_c` proof below. We only need to prove one- and two-state properties and the wf1 rules lifts them to a temporal property that uses the weak fairness assumption.
 |*)
-Theorem a_leads_to_b :
+Lemma a_leads_to_b :
   □ ⟨ next ⟩ ∧ weak_fairness ab ⊢
   ⌜λ s, s.(x) = A⌝ ~~> ⌜λ s, s.(x) = B⌝.
 Proof.
@@ -109,7 +149,7 @@ Proof.
   tla_apply a_leads_to_b.
 Qed.
 
-Theorem b_leads_to_c :
+Lemma b_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness bc ⊢
    ⌜λ s, s.(x) = B⌝ ~~> ⌜λ s, s.(x) = C⌝.
 Proof.
@@ -119,7 +159,7 @@ Proof.
   - stm.
 Qed.
 
-Theorem a_leads_to_c :
+Lemma a_leads_to_c :
   □ ⟨ next ⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
   ⌜ λ s, s.(x) = A ⌝ ~~> ⌜ λ s, s.(x) = C ⌝.
 Proof.
@@ -128,10 +168,9 @@ Proof.
   tla_apply b_leads_to_c.
 Qed.
 
-Theorem eventually_c :
-  state_pred init ∧ □ ⟨next⟩ ∧ weak_fairness ab ∧ weak_fairness bc ⊢
-  ◇ ⌜ λ s, s.(x) = C ⌝.
+Theorem eventually_c : ⊢ liveness.
 Proof.
+  tla_intro.
 (*|
 `leads_to_apply p` will switch from proving `◇ q` to `p` and `p ~~> q`.
 |*)
