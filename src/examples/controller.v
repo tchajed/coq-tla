@@ -197,9 +197,9 @@ Liveness
 
 Now we get to the interesting part: a liveness proof showing that both objects
 are eventually created. First, this requires making fairness assumptions like
-[weak_fairness reconcile]. These assumptions ensure we only consider executions
+`weak_fairness reconcile`. These assumptions ensure we only consider executions
 where actions get to run, as long as they're enabled. Next, we exploit
-[weak_fairness] to prove a number of [~~>] ("leads to") theorems that go through
+`weak_fairness` to prove a number of `~~>` ("leads to") theorems that go through
 the steps of the protocol. Finally, we tie everything together to show liveness.
 |*)
 
