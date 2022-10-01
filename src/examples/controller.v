@@ -179,6 +179,8 @@ What we've proven above implies safety.
 
 Definition safe (s: state) := s.(obj2Exists) → s.(obj1Exists).
 
+Hint Unfold safe : stm.
+
 Theorem is_safe :
   ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜safe⌝.
 Proof.
@@ -212,10 +214,17 @@ Proof.
   intuition idtac.
 Qed.
 
+(* this says the message was sent on the network (which is related to the local
+fields s.(sent1Create) and s.(sent2Create) via an invariant) *)
+Definition create_sent (id:nat) : state → Prop :=
+  λ s, CreateReq id ∈ s.(messages).
+
+Hint Unfold create_sent : stm.
+
 Lemma eventually_send1 :
   □ ⟨next⟩ ∧ weak_fairness reconcile ⊢
   ⌜ λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists) ⌝ ~~>
-  ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝.
+  ⌜ create_sent 1 ⌝.
 Proof.
   apply wf1.
   - stm.
@@ -226,8 +235,8 @@ Qed.
 
 Lemma eventually_create1 :
   □ ⟨next⟩ ∧ weak_fairness create1 ⊢
-  ⌜ λ s, CreateReq 1 ∈ s.(messages) ⌝ ~~>
-  ⌜ λ s, s.(obj1Exists) ⌝.
+  ⌜ create_sent 1 ⌝ ~~>
+  ⌜ obj1Exists ⌝.
 Proof.
   apply wf1; stm.
 Qed.
@@ -235,9 +244,9 @@ Qed.
 Lemma init_send_create1 :
   □ ⟨next⟩ ∧ weak_fairness create1 ∧ weak_fairness reconcile ⊢
   ⌜init⌝ ~~>
-  ⌜ λ s, s.(obj1Exists) ⌝.
+  ⌜ obj1Exists ⌝.
 Proof.
-  leads_to_trans ⌜λ s, CreateReq 1 ∈ s.(messages)⌝.
+  leads_to_trans ⌜create_sent 1⌝.
   - leads_to_trans ⌜λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists)⌝.
     { apply impl_drop_hyp.
       apply pred_leads_to.
@@ -251,7 +260,7 @@ Qed.
 Lemma eventually_send2 :
   □ ⟨ next ⟩ ∧ weak_fairness reconcile ⊢
   ⌜ λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists) ∧ ¬ s.(sent2Create) ⌝ ~~>
-  ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝.
+  ⌜ create_sent 2 ⌝.
 Proof.
   apply wf1.
   - stm.
@@ -262,8 +271,8 @@ Qed.
 
 Lemma eventually_create2 :
   □ ⟨next⟩ ∧ weak_fairness create2 ⊢
-  ⌜ λ s, CreateReq 2 ∈ s.(messages) ⌝ ~~>
-  ⌜ λ s, s.(obj2Exists) ⌝.
+  ⌜ create_sent 2 ⌝ ~~>
+  ⌜ obj2Exists ⌝.
 Proof.
   apply wf1; stm.
 Qed.
@@ -284,8 +293,8 @@ request for object 2 and it will eventually be created.
 
 Lemma eventually_send_create2 :
   ⌜init⌝ ∧ □ ⟨next⟩ ∧ weak_fairness reconcile ∧ weak_fairness create2 ⊢
-  ⌜ λ s, s.(obj1Exists) ⌝ ~~>
-  ⌜ λ s, s.(obj2Exists) ⌝.
+  ⌜ obj1Exists ⌝ ~~>
+  ⌜ obj2Exists ⌝.
 Proof.
 (*|
 This proof is actually interesting.
@@ -300,7 +309,7 @@ step is more "inspired": we do the TLA equivalent of a case split on whether or
 not `s.(sent2Create)` is true, *within the `~~>` premise*.
 |*)
 
-  rewrite (tla_and_em (⌜λ s, s.(sent2Create)⌝)
+  rewrite (tla_and_em (⌜sent2Create⌝)
              (⌜λ s, s.(obj1Exists) ∧ ¬ s.(obj2Exists)⌝)).
   rewrite tla_and_distr_l.
   rewrite leads_to_or_split.
@@ -340,7 +349,7 @@ In the second case of the split, we don't have `s.(sent2Create)`, so we'll use
 `eventually_send2` chained with `eventually_create2`.
 |*)
 
-  leads_to_trans ⌜λ s, CreateReq 2 ∈ s.(messages)⌝.
+  leads_to_trans ⌜create_sent 2⌝.
   {
     leads_to_etrans; [ | tla_apply eventually_send2 ].
     apply impl_drop_hyp.
@@ -355,7 +364,7 @@ Lemma init_create2 :
   ◇ ⌜ λ s, s.(obj2Exists) ⌝.
 Proof.
   apply (leads_to_apply ⌜init⌝); [ tla_prop | ].
-  leads_to_trans ⌜λ s, s.(obj1Exists)⌝.
+  leads_to_trans ⌜obj1Exists⌝.
   - tla_apply init_send_create1.
   - tla_apply eventually_send_create2.
 Qed.
