@@ -62,7 +62,7 @@ Implicit Types (s: state) (e: exec) (a: action).
 State machine transitions
 ----------------------------
 
-The two transitions `send1_a` and `send2_a` correspond to lines of code in the (hypothetical) `reconcile` function. This imagined function first checks if it should send a message to create object 1 (the enabling condition of `send1_`), then if `obj1Exists` is true, it can run the `send2_a` action which when enabled sends a message to create object 2.
+The two transitions `send1_a` and `send2_a` correspond to lines of code in the (hypothetical) `reconcile` function. This imagined function first checks if it should send a message to create object 1 (the enabling condition of `send1_a`), then if `obj1Exists` is true, it can run the `send2_a` action which when enabled sends a message to create object 2.
 
 The syntax `s <|sent1Create := true|>` comes from coq-record-update: it changes
 the field `sent1Create1` to `true` and leaves other fields unchanged.
