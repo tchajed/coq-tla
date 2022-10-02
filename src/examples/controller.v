@@ -153,7 +153,7 @@ Ltac stm :=
 Safety
 ------------
 
-We do some safety reasoning. The safety property proven is that of object 2
+We do some safety reasoning. The safety property proven is that if object 2
 exists, then object 1 also exists. This property is not inductive; the exact
 inductive invariant wasn't immediately obvious, so I just started randomly
 proving reasonable-looking invariants until the proof went through.
