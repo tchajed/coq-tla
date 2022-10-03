@@ -16,6 +16,9 @@ From stdpp Require Export base.
 #[export] Set Default Proof Using "Type".
 #[export] Set Default Goal Selector "!".
 
+(* XXX: ssreflect says this will re-enable if b then ... else ... with non-boolean b, but it actually disables the notation entirely  *)
+(* #[export] Close Scope boolean_if_scope. *)
+
 
 (*|
 A TLA formula is defined using `predicate`, which is defined in Coq as a predicate over executions (also known as "behaviors" in TLA). Executions are in turn defined to be an infinite sequence of states, which come from some arbitrary type Σ. Note that throughout the entire theory Σ does not change and remains abstract. In TLA, Σ corresponds to the state of all the variables, which are implicitly all available. |*)
