@@ -126,10 +126,7 @@ Qed.
 
 Theorem eventually_and p1 p2 :
   ◇ (p1 ∧ p2) ⊢ ◇ p1 ∧ ◇ p2.
-Proof.
-  unseal.
-  deex; intuition eauto.
-Qed.
+Proof. unseal. Qed.
 
 (* this is a weakening; the left side says they happen at the same time, while
 the right allows them to happen only separately *)
@@ -216,10 +213,7 @@ Qed.
 
 Theorem always_and_eventually p q :
   □ p ∧ ◇ q ⊢ ◇ (p ∧ q).
-Proof.
-  unseal.
-  intuition (repeat deex; eauto).
-Qed.
+Proof. unseal. Qed.
 
 Theorem always_to_later p :
   □ p ⊢ later p.

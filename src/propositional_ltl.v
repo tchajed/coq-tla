@@ -70,6 +70,44 @@ Theorem false_impl_any p :
   tla_false ⊢ p.
 Proof. unseal. Qed.
 
+Theorem forall_intro {A} (φ: A → predicate) :
+  (∀ x, ⊢ φ x) →
+  ⊢ ∀ x, φ x.
+Proof. unseal. Qed.
+
+Theorem exist_intro {A} (φ: A → predicate) (x: A) :
+  (⊢ φ x) →
+  ⊢ ∃ x, φ x.
+Proof. unseal. Qed.
+
+Theorem exist_and {A} (φ: A → predicate) p :
+  ((∃ x, φ x) ∧ p) == (∃ x, φ x ∧ p).
+Proof. unseal. Qed.
+
+Theorem exist_or {A} `{Inhabited A} (φ: A → predicate) p :
+  ((∃ x, φ x) ∨ p) == (∃ x, φ x ∨ p).
+Proof.
+  unseal; naive_solver.
+  Unshelve.
+  exact inhabitant.
+Qed.
+
+Theorem forall_and {A} `{Inhabited A} (φ: A → predicate) p :
+  ((∀ x, φ x) ∧ p) == (∀ x, φ x ∧ p).
+Proof.
+  dual.
+  rewrite exist_or.
+  setoid_rewrite not_and; auto.
+Qed.
+
+Theorem forall_or {A} (φ: A → predicate) p :
+  ((∀ x, φ x) ∨ p) == (∀ x, φ x ∨ p).
+Proof.
+  dual.
+  rewrite exist_and.
+  setoid_rewrite not_or; auto.
+Qed.
+
 Lemma modus_ponens (p q: predicate) :
   (p ∧ (p → q)) ⊢ q.
 Proof.

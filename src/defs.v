@@ -62,6 +62,11 @@ Definition tla_or p1 p2 : predicate := λ e, p1 e ∨ p2 e.
 Definition tla_and p1 p2 : predicate := λ e, p1 e ∧ p2 e.
 Definition tla_implies p1 p2 : predicate := λ e, p1 e → p2 e.
 
+Definition tla_forall {A: Type} (p: A → predicate) : predicate :=
+  λ e, ∀ x, (p x) e.
+Definition tla_exist {A: Type} (p: A → predicate) : predicate :=
+  λ e, ∃ x, (p x) e.
+
 (*|
 The heart of TLA's assertions are the `always` and `eventually` modalities. A modality is in general a transformation on formulas. `always p` (which will be written □ p) says that `p` holds "from now on". This is expressed using the `drop` function, which shifts a behavior by k steps.
 
@@ -128,6 +133,10 @@ Notation "p  ∨  q" := (tla_or p%L q%L) : tla.
 Notation "p  ∧  q" := (tla_and p%L q%L) : tla.
 Notation "p  ->  q" := (tla_implies p%L q%L) : tla.
 Notation "p  →  q" := (tla_implies p%L q%L) : tla.
+Notation "∀ x .. y , p" :=
+  (tla_forall (λ x, .. (tla_forall (λ y, p%L) ) ..)): tla.
+Notation "∃ x .. y , p" :=
+  (tla_exist (λ x, .. (tla_exist (λ y, p%L) ) ..)): tla.
 
 Notation "□  p" := (always p%L) (at level 51, right associativity) : tla.
 Notation "◇  p" := (eventually p%L) (at level 51, right associativity) : tla.

@@ -19,9 +19,11 @@ definitions and includes proofs for the necessary logical rules.
 From Coq.Logic Require Import
   FunctionalExtensionality.
 
+From stdpp Require Export tactics.
+
 From Coq Require Export Lia.
 
-From TLA Require Import defs.
+From TLA Require Export defs.
 From TLA Require Import classical.
 
 (** This file develops the core automation for proving TLA properties. *)
@@ -36,7 +38,9 @@ Ltac deex :=
   end.
 
 #[export]
-Hint Unfold tla_and tla_or tla_not tla_implies eventually always later : tla.
+Hint Unfold tla_and tla_or tla_not tla_implies tla_forall tla_exist : tla.
+#[export]
+Hint Unfold eventually always later : tla.
 #[export]
 Hint Unfold valid pred_impl : tla.
 
@@ -51,7 +55,8 @@ Context [Σ: Type].
 Notation pred_impl := (@pred_impl Σ).
 
 Local Ltac instance_t :=
-  rewrite /Proper /respectful /Basics.flip /Basics.impl /pred_impl;
+  rewrite /Proper /respectful /pointwise_relation
+    /Basics.flip /Basics.impl /pred_impl;
   autounfold with tla;
   try solve [ intuition (deex; eauto) ].
 
@@ -117,6 +122,26 @@ Global Instance not_apply_proper' :
   Proper (pred_impl ==> eq ==> flip impl) tla_not.
 Proof.  instance_t. Qed.
 
+Global Instance forall_proper {A} :
+  Proper (pointwise_relation A pred_impl ==> pred_impl) tla_forall.
+Proof. instance_t. Qed.
+
+Global Instance forall_proper_eq {A} :
+  Proper (pointwise_relation A eq ==> eq) (@tla_forall Σ A).
+Proof.
+  intros x y Heq.
+  replace y with x; auto.
+  extensionality a; auto.
+Qed.
+
+Global Instance exist_proper_eq {A} :
+  Proper (pointwise_relation A eq ==> eq) (@tla_exist Σ _).
+Proof.
+  intros x y Heq.
+  replace y with x; auto.
+  extensionality a; auto.
+Qed.
+
 Global Instance later_impl_proper :
   Proper (pred_impl ==> pred_impl) later.
 Proof.  instance_t. Qed.
@@ -136,6 +161,7 @@ Proof. instance_t. Qed.
 Global Instance impl_flip_valid :
   Proper (flip pred_impl ==> flip impl) valid.
 Proof. instance_t. Qed.
+
 
 End rewriting.
 
@@ -215,6 +241,20 @@ Lemma not_implies p1 p2 :
   !(p1 → p2) == (p1 ∧ !p2).
 Proof.  unseal.  Qed.
 
+Lemma not_forall {A} (φ: A → predicate) :
+  !(tla_forall φ) == (∃ x, !(φ x)).
+Proof.
+  unseal.
+  rewrite classical.not_forall //.
+Qed.
+
+Lemma not_exist {A} (φ: A → predicate) :
+  !(tla_exist φ) == (∀ x, !(φ x)).
+Proof.
+  unseal.
+  rewrite classical.not_exists //.
+Qed.
+
 Lemma state_pred_e (P: Σ → Prop) e :
   state_pred P e ↔ P (e 0).
 Proof.
@@ -277,7 +317,8 @@ Qed.
 End TLA.
 
 Hint Rewrite not_eventually not_always
-  not_and not_or not_not not_implies : tla.
+  not_and not_or not_not not_implies
+  not_forall not_exist : tla.
 
 Hint Rewrite state_pred_e action_pred_e : tla.
 
@@ -362,7 +403,7 @@ Ltac unseal :=
   try specific_states;
   (* finishing tactics *)
   try tauto;
-  try solve [ intuition eauto ].
+  try solve [ intuition (repeat deex; eauto) ].
 
 (* unfold very little, to only use propositional logic *)
 Ltac tla_prop :=
