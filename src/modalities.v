@@ -355,6 +355,24 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem leads_to_or_left (Γ p q1 q2: predicate) :
+  (Γ ⊢ p ~~> q1) →
+  (Γ ⊢ p ~~> (q1 ∨ q2)).
+Proof.
+  intros H.
+  rewrite -> H.
+  apply leads_to_weaken; [ done | tla_prop ].
+Qed.
+
+Theorem leads_to_or_right (Γ p q1 q2: predicate) :
+  (Γ ⊢ p ~~> q2) →
+  (Γ ⊢ p ~~> (q1 ∨ q2)).
+Proof.
+  intros H.
+  rewrite -> H.
+  apply leads_to_weaken; [ done | tla_prop ].
+Qed.
+
 (*|
 
 ---------------------------------

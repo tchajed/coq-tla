@@ -70,14 +70,32 @@ Theorem false_impl_any p :
   tla_false ⊢ p.
 Proof. unseal. Qed.
 
+Theorem tla_or_introl p q :
+  p ⊢ p ∨ q.
+Proof. unseal. Qed.
+
+Theorem tla_or_intror p q :
+  q ⊢ p ∨ q.
+Proof. unseal. Qed.
+
 Theorem forall_intro {A} (φ: A → predicate) :
   (∀ x, ⊢ φ x) →
   ⊢ ∀ x, φ x.
 Proof. unseal. Qed.
 
-Theorem exist_intro {A} (φ: A → predicate) (x: A) :
-  (⊢ φ x) →
+Theorem forall_impl_intro {A} (φ: A → predicate) Γ :
+  (∀ x, Γ ⊢ φ x) →
+  Γ ⊢ ∀ x, φ x.
+Proof. unseal. Qed.
+
+Theorem exist_intro {A} (φ: A → predicate) :
+  (∃ x, ⊢ φ x) →
   ⊢ ∃ x, φ x.
+Proof. unseal. Qed.
+
+Theorem exist_impl_intro {A} (φ: A → predicate) Γ :
+  (∃ x, Γ ⊢ φ x) →
+  Γ ⊢ ∃ x, φ x.
 Proof. unseal. Qed.
 
 Theorem exist_and {A} (φ: A → predicate) p :
@@ -168,6 +186,12 @@ Lemma impl_intro2 p q r :
   (p ∧ q ⊢ r) →
   (p ⊢ q → r).
 Proof. rewrite tla_and_curry //. Qed.
+
+Lemma impl_or_split p q φ :
+  (p ⊢ φ) →
+  (q ⊢ φ) →
+  (p ∨ q ⊢ φ).
+Proof. unseal. Qed.
 
 End TLA.
 

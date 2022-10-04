@@ -679,16 +679,15 @@ Proof.
                  end) A); [ done | ].
   intros []; simpl.
   - rewrite -> H.
+    apply leads_to_or_right.
     apply leads_to_weaken; [ done | ].
-    tla_right.
-    intros e [Hq | Hr];
-      [ unshelve eexists B, _ | unshelve eexists C, _ ]; auto.
-  - rewrite -> H0.
-    apply leads_to_weaken; [ done | ].
-    tla_left; done.
-  - rewrite -> H1.
-    apply leads_to_weaken; [ done | ].
-    tla_left; done.
+    apply impl_or_split.
+    * apply exist_impl_intro. exists B.
+      apply exist_impl_intro. unshelve eexists _; eauto. done.
+    * apply exist_impl_intro. exists C.
+      apply exist_impl_intro. unshelve eexists _; eauto. done.
+  - apply leads_to_or_left; done.
+  - apply leads_to_or_left; done.
 Qed.
 
 End TLA.
@@ -706,5 +705,10 @@ Ltac tla_clear p :=
 
 Ltac tla_intro :=
   first [ apply impl_intro | apply impl_intro2 ].
+
+Ltac tla_left :=
+  first [ tla_apply tla_or_introl |  apply leads_to_or_left ].
+Ltac tla_right :=
+  first [ tla_apply tla_or_intror |  apply leads_to_or_right ].
 
 Ltac tla_intros := repeat tla_intro.

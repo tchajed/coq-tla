@@ -453,9 +453,6 @@ Ltac tla_split :=
   | |- pred_impl _ (tla_and _ _) => apply entails_and
   end.
 
-Ltac tla_left := apply entails_or_left.
-Ltac tla_right := apply entails_or_right.
-
 (** Prove the conclusion of the current theorem with the conclusion of [lem],
 much like Coq's [apply]. *)
 Ltac tla_apply lem :=
