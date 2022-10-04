@@ -99,11 +99,15 @@ Definition pred_impl (p q: predicate) :=
 (*|
 We assume some Coq axioms so that predicates can be proven equal in the `=` sense if they are logically equivalent, which simplifies working with equivalent predicates a bit.
 |*)
-Lemma predicate_ext p1 p2 : (∀ e, p1 e ↔ p2 e) → p1 = p2.
+Lemma pred_ext {A: Type} (P1 P2: A → Prop) : (∀ x, P1 x ↔ P2 x) → P1 = P2.
 Proof.
   intros H.  extensionality e.  apply propositional_extensionality.
   auto.
 Qed.
+
+(* specialization of [pred_ext] to TLA predicates *)
+Lemma predicate_ext p1 p2 : (∀ e, p1 e ↔ p2 e) → p1 = p2.
+Proof. apply pred_ext. Qed.
 
 Lemma pred_impl_as_valid p q :
   (pred_impl p q) ↔ (valid (tla_implies p q)).

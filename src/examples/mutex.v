@@ -138,6 +138,36 @@ Proof.
   unseal; stm.
 Qed.
 
+Lemma enabled_thread t :
+  enabled (step t) = λ s, s.(pcs) t ≠ pc2.
+Proof.
+  apply pred_ext => s.
+  unfold enabled; split.
+  - autounfold with stm. intros [s' Hstep];
+      (intuition subst);
+      try congruence.
+  - intros.
+    autounfold with stm.
+    destruct s as [l pcs0]; simpl in *.
+    destruct (pcs0 t) eqn:?; [ | | congruence ].
+    * destruct l; simpl; eexists (mkState _ _); eauto.
+    * eexists (mkState _ _); eauto.
+Qed.
+
+Theorem wf_threads_combine :
+  (weak_fairness (step tid0) ∧ weak_fairness (step tid1)) ==
+  weak_fairness (λ s s', step tid0 s s' ∨ step tid1 s s')%type.
+Proof.
+  apply wf_combine.
+  - rewrite /tla_enabled.
+    (* rewrite ?enabled_thread. *)
+    (* first, to have any hope here we'd need to make [wf_combine] internal and
+    carry out this proof under the assumption of `□⟨next⟩`, but also this
+    doesn't seem true at all: it's equivalent to [enabled (step tid0) → ◇
+    enabled (step tid1) → ◇ (step tid0)], but this is obvious false in an
+    execution which is just the initial state and then infinite stuttering *)
+Abort.
+
 Lemma eventually_terminate :
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
 Proof.
