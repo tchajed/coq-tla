@@ -620,6 +620,7 @@ theorem:
 
 
 ::
+
   (f ⊢ p ~~> (q ∨ r)) →
   (f ⊢ q ~~> s) →
   (f ⊢ r ~~> s) →
@@ -628,9 +629,10 @@ theorem:
 The proof uses the simple lattice below:
 
 ::
+
       A
-     /  \
-    B    C
+     / \
+    B   C
 
 The lattice points A, B, and C are interpreted (via the `h` argument to `lattice_leads_to`) as predicates p, q, and r, and the goal is to prove s. The relation on this lattice says B ≺ A and C ≺ A, which is why the leads_to out of p does not have to prove s but proves the intermediate goal q ∨ r. (Notice that the choice of which outgoing edge to use can be non-deterministic; this is an important freedom to give the user.)
 
