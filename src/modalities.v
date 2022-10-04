@@ -73,6 +73,14 @@ Proof.
   apply implies_generalize.
 Qed.
 
+Theorem always_intro_impl p q :
+  (□p ⊢ q) → (□p ⊢ □ q).
+Proof.
+  intros H. apply impl_under_always in H.
+  rewrite <- H.
+  rewrite always_idem //.
+Qed.
+
 Theorem always_and p1 p2 :
   □(p1 ∧ p2) == (□p1 ∧ □ p2).
 Proof.

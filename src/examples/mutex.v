@@ -131,11 +131,16 @@ Proof.
 Qed.
 
 Theorem safety :
-  ⌜init⌝ ∧ □⟨next⟩ ⊢ □⌜safe⌝.
+  ⌜init⌝ ∧ □⟨next⟩ ⊢ □ ⌜safe⌝.
 Proof.
   rewrite -> exclusion_inv_ok.
   apply always_impl_proper.
   unseal; stm.
 Qed.
+
+Lemma eventually_terminate :
+  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
+Proof.
+Abort.
 
 End example.

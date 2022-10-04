@@ -160,10 +160,14 @@ Lemma impl_intro p q :
   (⊢ p → q).
 Proof. unseal. Qed.
 
+Lemma tla_and_curry p q r :
+  (p ∧ q ⊢ r) ↔ (p ⊢ q → r).
+Proof. unseal. Qed.
+
 Lemma impl_intro2 p q r :
   (p ∧ q ⊢ r) →
   (p ⊢ q → r).
-Proof. unseal. Qed.
+Proof. rewrite tla_and_curry //. Qed.
 
 End TLA.
 

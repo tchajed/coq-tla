@@ -539,6 +539,42 @@ Proof.
   - reflexivity.
 Qed.
 
+Theorem eventually_stable (P: Σ → Prop) (next: action Σ) :
+  (∀ s s', P s → next s s' → P s') →
+  □⟨next⟩ ∧ ◇⌜P⌝ ⊢ ◇□ ⌜P⌝.
+Proof.
+  intros Hind.
+  assert (□⟨next⟩ ⊢ □(⌜P⌝ → □⌜P⌝)).
+  { apply always_intro_impl.
+    apply impl_intro2.
+    rewrite tla_and_comm. apply later_induction.
+    unseal. }
+  rewrite tla_and_curry.
+  rewrite -> H.
+  clear.
+  intros e Halways.
+  intros [k HP].
+  exists k.
+  apply Halways; eauto.
+Qed.
+
+Theorem leads_to_stable p (Q: Σ → Prop) (next: action Σ) :
+  (∀ s s', Q s → next s s' → Q s') →
+  □⟨next⟩ ∧ (p ~~> ⌜Q⌝) ⊢ (p ~~> □⌜Q⌝).
+Proof.
+  intros H.
+  apply eventually_stable in H.
+  apply tla_and_curry in H. rewrite tla_and_curry.
+  apply always_intro_impl in H.
+  rewrite -> H.
+  rewrite /leads_to.
+  clear.
+  intros e Halways.
+  intros HpQ.
+  intros k Hp.
+  apply Halways. apply HpQ. auto.
+Qed.
+
 End TLA.
 
 Ltac leads_to_trans q :=
