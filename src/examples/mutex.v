@@ -1,9 +1,3 @@
-From RecordUpdate Require Import RecordUpdate.
-From stdpp Require Import functions.
-
-From TLA Require Import logic.
-
-
 (*|
 
 =============================
@@ -12,26 +6,45 @@ Example: (spinlock) Mutex
 
 This example is a liveness proof for the following simple C program. It encodes the program as a hand-written state machine, with states referring to labeled points.
 
-```
-type Mutex = bool;
-const UNLOCKED = false;
-const LOCKED = true;
+::
 
-void lock(Mutex *m) {
-  // s0
-  for cas(m, UNLOCKED, LOCKED) {}
-}
+  type Mutex = bool;
+  const UNLOCKED = false;
+  const LOCKED = true;
 
-void unlock(Mutex *m) {
-  // s1
-  *m = UNLOCKED;
-  // s2
-}
-```
+  void lock(Mutex *m) {
+    // pc0
+    for cas(m, UNLOCKED, LOCKED) {}
+    // control goes directly to pc1 (see `thread`)
+  }
 
-What we reason about is two threads running lock(m); unlock(m) (assuming m starts out allocated).
+  void unlock(Mutex *m) {
+    // pc1
+    *m = UNLOCKED;
+    // pc2
+  }
+
+  void thread(Mutex *m) {
+    lock(m);
+    unlock(m);
+  }
+
+  void main() {
+    Mutex *m = malloc(sizeof(Mutex));
+    // these two threads are what is modeled
+    spawn(thread, m);
+    spawn(thread, m);
+  }
+
+What we reason about is two threads running `lock(m); unlock(m)` (assuming m starts out allocated).
 
 |*)
+
+From RecordUpdate Require Import RecordUpdate.
+From stdpp Require Import functions.
+
+From TLA Require Import logic.
+
 
 Module spec.
 
