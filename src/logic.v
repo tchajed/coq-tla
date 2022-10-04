@@ -457,6 +457,13 @@ Proof.
   tla_prop.
 Qed.
 
+Theorem leads_to_impl_internal p q :
+  (□ (p → q)) ⊢ p ~~> q.
+Proof.
+  unseal.
+  exists 0; simpl; eauto.
+Qed.
+
 Theorem impl_to_leads_to p q :
   (p ⊢ q) →
   ⊢ p ~~> q.
@@ -575,6 +582,40 @@ Proof.
   intros k Hp.
   apply Halways. apply HpQ. auto.
 Qed.
+
+Section lattice.
+
+Context {S: Type} (R: S → S → Prop) (wf: well_founded R).
+
+Local Infix "≺" := R (at level 50).
+
+Theorem lattice_leads_to (f g: predicate) (h: S → predicate) :
+  (∀ c, f ⊢ h c ~~> (g ∨ ∃ (d: S) (le: d ≺ c), h d)) →
+  f ⊢ (∃ c, h c) ~~> g.
+Proof using wf.
+  intros Hto_le.
+
+  cut (∀ c, f ⊢ h c ~~> g).
+  { intros H. rewrite /tla_exist. intros e Hf k [c Hh].
+    eapply H; eauto. }
+
+  intros c.
+  pose proof (wf c) as Hacc.
+  induction Hacc.
+
+  erewrite <- leads_to_trans;
+  tla_split.
+  { apply Hto_le. }
+  rewrite leads_to_or_split.
+  tla_split.
+  { apply impl_drop_hyp. apply impl_to_leads_to. reflexivity. }
+
+  rewrite /tla_exist => e Hf k.
+  intros (c & Hle & Hc).
+  eapply H0; eauto.
+Qed.
+
+End lattice.
 
 End TLA.
 
