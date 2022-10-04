@@ -480,9 +480,10 @@ Proof.
   unseal.
 Qed.
 
-Lemma enabled_eq (P: Σ → Prop) (f: Σ → Σ) s :
-  enabled (λ s s', P s ∧ s' = f s) s ↔ P s.
+Lemma enabled_eq (P: Σ → Prop) (f: Σ → Σ) :
+  enabled (λ s s', P s ∧ s' = f s) = P.
 Proof.
+  apply pred_ext => s.
   rewrite /enabled.
   intuition (try deex; eauto).
   intuition.
