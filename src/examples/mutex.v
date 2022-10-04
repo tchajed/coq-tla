@@ -49,7 +49,7 @@ From TLA Require Import logic.
 Module spec.
 
   Inductive pc := pc0 | pc1 | pc2.
-  Inductive Tid := tid0 | tid1.
+  Inductive Tid := tidA | tidB.
 
   #[global]
   Instance tid_eqdecision : EqDecision Tid.
@@ -58,7 +58,7 @@ Module spec.
   Defined.
 
   (* the state consists of the state of the mutex, and program counters for two
-  threads, tid0 and tid1 *)
+  threads, tidA and tidB *)
   Record state :=
     mkState { lock: bool; pcs: Tid → pc; }.
 
@@ -86,18 +86,18 @@ Module spec.
     λ s, s = {| lock := false; pcs := λ _, pc0; |}.
 
   Definition next : action state :=
-    λ s s', step tid0 s s' ∨ step tid1 s s' ∨ s' = s.
+    λ s s', step tidA s s' ∨ step tidB s s' ∨ s' = s.
 
   (* safety is mutual exclusion *)
   Definition safe: state → Prop :=
-    λ s, ¬ (s.(pcs) tid0 = pc1 ∧ s.(pcs) tid1 = pc1).
+    λ s, ¬ (s.(pcs) tidA = pc1 ∧ s.(pcs) tidB = pc1).
 
   Definition fair: predicate state :=
-    weak_fairness (step tid0) ∧ weak_fairness (step tid1).
+    weak_fairness (step tidA) ∧ weak_fairness (step tidB).
 
   (* liveness means both threads terminate *)
   Definition terminated: state → Prop :=
-    λ s, s.(pcs) tid0 = pc2 ∧ s.(pcs) tid1 = pc2.
+    λ s, s.(pcs) tidA = pc2 ∧ s.(pcs) tidB = pc2.
 
 End spec.
 
@@ -108,48 +108,7 @@ Section example.
 Implicit Types (s: state) (t: Tid).
 
 Hint Unfold init next step safe fair terminated : stm.
-
-Ltac stm_simp :=
-  autounfold with stm;
-  intros; (intuition (repeat deex; subst; trivial));
-  rewrite ?enabled_eq;
-  repeat deex;
-  (* TODO: why does this infinite loop? *)
-  do 10 (try match goal with
-        | s: state |- _ => destruct s; cbn in *
-        | H: @eq pc _ _ |- _ => inversion H; subst; clear H
-        | H: @eq state (mkState _ _) (mkState _ _) |- _ =>
-            inversion H; subst; clear H
-        end);
-  cbn in *.
-
-Ltac stm :=
-  stm_simp;
-  try solve [ intuition (repeat deex; eauto) ].
-
-Definition exclusion_inv: state → Prop :=
-  λ s, (s.(pcs) tid0 = pc1 → s.(lock) ∧ s.(pcs) tid1 ≠ pc1) ∧
-       (s.(pcs) tid1 = pc1 → s.(lock) ∧ s.(pcs) tid0 ≠ pc1).
-
-Hint Unfold exclusion_inv : stm.
-
 Hint Unfold cas_fail cas_succ unlock : stm.
-
-Lemma exclusion_inv_ok :
-  ⌜init⌝ ∧ □⟨next⟩ ⊢ □⌜exclusion_inv⌝.
-Proof.
-  apply init_invariant.
-  - stm.
-  - stm.
-Qed.
-
-Theorem safety :
-  ⌜init⌝ ∧ □⟨next⟩ ⊢ □ ⌜safe⌝.
-Proof.
-  rewrite -> exclusion_inv_ok.
-  apply always_impl_proper.
-  unseal; stm.
-Qed.
 
 Lemma enabled_thread t :
   enabled (step t) = λ s, s.(pcs) t ≠ pc2.
@@ -167,23 +126,187 @@ Proof.
     * eexists (mkState _ _); eauto.
 Qed.
 
+Ltac stm_simp :=
+  autounfold with stm;
+  intros; (intuition (repeat deex; subst; trivial));
+  rewrite ?enabled_eq ?enabled_thread;
+  repeat deex;
+  (* TODO: why does this infinite loop? *)
+  repeat (match goal with
+        | s: state |- _ => (destruct s; cbn in * )
+        | H: ?x = ?x |- _ => clear H
+        | H: @eq pc _ _ |- _ => solve [ inversion H ]
+        | H: @eq state (mkState _ _) (mkState _ _) |- _ =>
+            inversion H; subst; clear H; cbn in *
+        | H: context[@set state _ _ _ _ _] |- _ =>
+            progress (unfold set in H; simpl in H)
+        | H: @eq bool _ _ |- _ => solve [ inversion H ]
+        | _ => progress (unfold set; simpl)
+        | _ => rewrite fn_lookup_insert
+        | _ => rewrite -> fn_lookup_insert_ne by congruence
+        | _ => progress cbn in *
+        end).
+
+Ltac stm :=
+  stm_simp;
+  try solve [ intuition (repeat deex; eauto) ];
+  try congruence.
+
+Definition exclusion_inv: state → Prop :=
+  λ s, (s.(pcs) tidA = pc1 → s.(lock) ∧ s.(pcs) tidB ≠ pc1) ∧
+       (s.(pcs) tidB = pc1 → s.(lock) ∧ s.(pcs) tidA ≠ pc1).
+
+Hint Unfold exclusion_inv : stm.
+
+Lemma exclusion_inv_ok :
+  ⌜init⌝ ∧ □⟨next⟩ ⊢ □⌜exclusion_inv⌝.
+Proof.
+  apply init_invariant.
+  - stm.
+  - stm.
+Qed.
+
+Theorem safety :
+  ⌜init⌝ ∧ □⟨next⟩ ⊢ □ ⌜safe⌝.
+Proof.
+  rewrite -> exclusion_inv_ok.
+  apply always_impl_proper.
+  unseal; stm.
+Qed.
+
 Theorem wf_threads_combine :
-  (weak_fairness (step tid0) ∧ weak_fairness (step tid1)) ==
-  weak_fairness (λ s s', step tid0 s s' ∨ step tid1 s s')%type.
+  (weak_fairness (step tidA) ∧ weak_fairness (step tidB)) ==
+  weak_fairness (λ s s', step tidA s s' ∨ step tidB s s')%type.
 Proof.
   apply wf_combine.
   - rewrite /tla_enabled.
     (* rewrite ?enabled_thread. *)
     (* first, to have any hope here we'd need to make [wf_combine] internal and
     carry out this proof under the assumption of `□⟨next⟩`, but also this
-    doesn't seem true at all: it's equivalent to [enabled (step tid0) → ◇
-    enabled (step tid1) → ◇ (step tid0)], but this is obvious false in an
+    doesn't seem true at all: it's equivalent to [enabled (step tidA) → ◇
+    enabled (step tidB) → ◇ (step tidA)], but this is obvious false in an
     execution which is just the initial state and then infinite stuttering *)
 Abort.
+
+Inductive L := start | A1 | Afin | AfinB1 | B1 | Bfin | BfinA1.
+
+Definition Llt (l1 l2: L) : Prop :=
+  match l2, l1 with
+  | start, A1 | A1, Afin | Afin, AfinB1 => True
+  | start, B1 | B1, Bfin | Bfin, BfinA1 => True
+  | _, _ => False
+  end.
+
+Theorem Llt_wf : well_founded Llt.
+Proof.
+  prove_wf [AfinB1; Afin; A1; BfinA1; Bfin; B1; start].
+Qed.
+
+Definition h (label: L) : state → Prop :=
+  match label with
+  | start => init
+
+  | A1 => λ s, s.(pcs) tidA = pc1 ∧ s.(pcs) tidB = pc0
+  | Afin => λ s, s.(pcs) tidA = pc2 ∧ s.(pcs) tidB = pc0 ∧ s.(lock) = false
+  | AfinB1 => λ s, s.(pcs) tidA = pc2 ∧ s.(pcs) tidB = pc1
+
+  | B1 => λ s, s.(pcs) tidB = pc1 ∧ s.(pcs) tidA = pc0
+  | Bfin => λ s, s.(pcs) tidB = pc2 ∧ s.(pcs) tidA = pc0 ∧ s.(lock) = false
+  | BfinA1 => λ s, s.(pcs) tidB = pc2 ∧ s.(pcs) tidA = pc1
+  end.
+
+Lemma leads_to_helper (Γ: predicate state) (p q r: state → Prop) :
+  (∀ s, p s → r s) →
+  (Γ ⊢ ⌜p⌝ ~~> ⌜λ s, q s ∨ r s⌝).
+Proof.
+  intros Hpr.
+  apply impl_drop_hyp.
+  apply impl_to_leads_to.
+  apply state_pred_impl.
+  eauto.
+Qed.
+
+Hint Extern 1 (Llt _ _) => exact I : core.
+
+Lemma add_safety :
+  ⌜init⌝ ∧ □⟨next⟩ ⊢
+  ⌜init⌝ ∧ □⟨λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s'⟩.
+Proof.
+  tla_pose (exclusion_inv_ok).
+  rewrite combine_preds //.
+Qed.
+
+Lemma init_to_terminate :
+  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ⌜init⌝ ~~> ⌜terminated⌝.
+Proof.
+  unfold fair.
+  apply (lattice_leads_to Llt_wf h start); [ done | ].
+
+  rewrite <- tla_and_assoc.
+  setoid_rewrite -> add_safety.
+
+  intros []; cbn [h].
+
+  - (* start *)
+    leads_to_trans ⌜λ s, h A1 s ∨ h B1 s⌝; swap 1 2.
+    { apply leads_to_helper.
+      intros s [|]; [ exists A1 | exists B1 ]; eauto. }
+    tla_apply (wf1 _ _
+                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
+                 (step tidA)); stm.
+  - (* A1 *)
+    tla_simp.
+    leads_to_trans ⌜h Afin⌝; swap 1 2.
+    { apply leads_to_helper. exists Afin; eauto. }
+
+    tla_apply (wf1 _ _
+                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
+                 (step tidA)); stm.
+  - (* Afin *)
+    tla_simp.
+    leads_to_trans ⌜h AfinB1⌝; swap 1 2.
+    { apply leads_to_helper. exists AfinB1; eauto. }
+
+    tla_apply (wf1 _ _
+                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
+                 (step tidB)); stm.
+  - (* AfinB1 *)
+    tla_simp.
+
+    tla_apply (wf1 _ _
+                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
+                 (step tidB)); stm.
+
+  - (* B1 *)
+    tla_simp.
+    leads_to_trans ⌜h Bfin⌝; swap 1 2.
+    { apply leads_to_helper. exists Bfin; eauto. }
+
+    tla_apply (wf1 _ _
+                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
+                 (step tidB)); stm.
+  - (* Bfin *)
+    tla_simp.
+    leads_to_trans ⌜h BfinA1⌝; swap 1 2.
+    { apply leads_to_helper. exists BfinA1; eauto. }
+
+    tla_apply (wf1 _ _
+                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
+                 (step tidA)); stm.
+  - (* BfinA1 *)
+    tla_simp.
+
+    tla_apply (wf1 _ _
+                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
+                 (step tidA)); stm.
+
+Qed.
 
 Lemma eventually_terminate :
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
 Proof.
-Abort.
+  eapply leads_to_apply; [ | apply init_to_terminate ].
+  tla_prop.
+Qed.
 
 End example.

@@ -455,5 +455,7 @@ Ltac tla_split :=
 
 (** Prove the conclusion of the current theorem with the conclusion of [lem],
 much like Coq's [apply]. *)
-Ltac tla_apply lem :=
+Tactic Notation "tla_apply" uconstr(lem) :=
   eapply entails_trans; [ | apply lem ]; try solve [ tla_prop ].
+Tactic Notation "tla_eapply" uconstr(lem) :=
+  eapply entails_trans; [ | eapply lem ]; try solve [ tla_prop ].

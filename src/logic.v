@@ -589,7 +589,7 @@ Context {S: Type} {R: S → S → Prop} (wf: well_founded R).
 
 Local Infix "≺" := R (at level 50).
 
-Theorem lattice_leads_to (h: S → predicate) (c: S) (f hc g: predicate) :
+Theorem tla_lattice_leads_to (h: S → predicate) (c: S) (f hc g: predicate) :
   h c = hc →
   (∀ c, f ⊢ h c ~~> (g ∨ ∃ (d: S) (le: d ≺ c), h d)) →
   f ⊢ hc ~~> g.
@@ -609,6 +609,20 @@ Proof using wf.
   rewrite /tla_exist => e Hf k.
   intros (c & Hle & Hc).
   eapply H0; eauto.
+Qed.
+
+(* TODO: try to make the goal a lattice element *)
+Theorem lattice_leads_to (h: S → Σ → Prop) (c0: S) (f: predicate) (hc0 g: Σ → Prop) :
+  h c0 = hc0 →
+  (∀ c, f ⊢ ⌜h c⌝ ~~> ⌜λ s, g s ∨ ∃ (d: S), d ≺ c ∧ h d s⌝) →
+  f ⊢ ⌜hc0⌝ ~~> ⌜g⌝.
+Proof using wf.
+  intros <- H.
+  apply (tla_lattice_leads_to (λ l, ⌜h l⌝) c0); [ done | ].
+  intros l.
+  rewrite -> (H l).
+  apply leads_to_weaken; [ done | ].
+  unseal.
 Qed.
 
 End lattice.
@@ -673,7 +687,7 @@ Lemma leads_to_fork (f p q r s: predicate) :
   (f ⊢ p ~~> s).
 Proof.
   intros.
-  apply (lattice_leads_to abc_lt_wf
+  apply (tla_lattice_leads_to abc_lt_wf
            (λ x, match x with
                  | A => p | B => q | C => r
                  end) A); [ done | ].
@@ -712,3 +726,21 @@ Ltac tla_right :=
   first [ tla_apply tla_or_intror |  apply leads_to_or_right ].
 
 Ltac tla_intros := repeat tla_intro.
+
+Ltac prove_acc_goal :=
+  try assumption;
+  apply Acc_intro; intros []; simpl; inversion 1; auto.
+
+Ltac prove_wf xs :=
+  lazymatch goal with
+  | |- well_founded ?lt =>
+    let rec go xs :=
+      match xs with
+      | nil => idtac
+      | cons ?x ?xs =>
+          assert (Acc lt x) by prove_acc_goal;
+          go xs
+      end in
+    go xs;
+    try solve [ intros []; assumption ]
+  end.
