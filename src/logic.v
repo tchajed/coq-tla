@@ -293,9 +293,9 @@ Proof.
   apply action_to_enabled.
 Qed.
 
-Lemma dr_and_not_action a p :
-  (tla_enabled a ⊢ □ p ∨ ◇⟨a⟩) →
-  tla_enabled a ∧ □ !⟨a⟩ ⊢ □ p.
+Lemma or_apply_not r q p :
+  (p ⊢ □ r ∨ ◇q) →
+  p ∧ □ !q ⊢ □ r.
 Proof.
   intros Hdr.
   rewrite -> Hdr; clear Hdr.
@@ -308,13 +308,13 @@ Proof.
     exfalso; eapply Hnota; eauto.
 Qed.
 
-Lemma dr_and_not_action_always a p :
-  (tla_enabled a ⊢ □ p ∨ ◇⟨a⟩) →
-  □ tla_enabled a ∧ □ !⟨a⟩ ⊢ □ p.
+Lemma or_apply_not' r q p :
+  (p ⊢ □ r ∨ ◇q) →
+  □ p ∧ □ !q ⊢ □ r.
 Proof.
   intros Hdr.
-  rewrite -> (always_weaken (tla_enabled a)).
-  apply dr_and_not_action; auto.
+  rewrite -> (always_weaken p).
+  apply or_apply_not; auto.
 Qed.
 
 Lemma or_implies_split p q r :
@@ -333,12 +333,12 @@ Lemma wf_combine_impl (a b: action Σ) :
 Proof.
   intros Hdr1 Hdr2.
   apply or_implies_split; apply eventually_impl_proper; rewrite always_and.
-  + tla_pose (dr_and_not_action_always _ _ Hdr1).
+  + tla_pose (or_apply_not' _ _ _ Hdr1).
     rewrite -> not_enabled_to_action.
 
     (* TODO: why does tla_prop not work here? *)
     unseal.
-  + tla_pose (dr_and_not_action_always _ _ Hdr2).
+  + tla_pose (or_apply_not' _ _ _ Hdr2).
     rewrite -> not_enabled_to_action.
 
     unseal.
@@ -359,7 +359,7 @@ Proof.
   pose proof (Hab 0) as Hab0;
     rewrite drop_0 in Hab0;
     destruct Hab0 as [Ha | Hb].
-  + pose proof (dr_and_not_action _ _ Hdr1 (drop k e) ltac:(unseal)).
+  + pose proof (or_apply_not _ _ _ Hdr1 (drop k e) ltac:(unseal)).
     left.
     exists k.
     rewrite always_and.
@@ -367,7 +367,7 @@ Proof.
     intros k'; setoid_rewrite drop_drop.
     destruct (Hab k') as [Ha'|Hb']; eauto.
     { exfalso; eapply H; eauto. }
-  + pose proof (dr_and_not_action _ _ Hdr2 (drop k e) ltac:(unseal)).
+  + pose proof (or_apply_not _ _ _ Hdr2 (drop k e) ltac:(unseal)).
     right.
     exists k.
     rewrite always_and.
