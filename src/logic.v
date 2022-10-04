@@ -585,21 +585,17 @@ Qed.
 
 Section lattice.
 
-Context {S: Type} (R: S → S → Prop) (wf: well_founded R).
+Context {S: Type} {R: S → S → Prop} (wf: well_founded R).
 
 Local Infix "≺" := R (at level 50).
 
-Theorem lattice_leads_to (f g: predicate) (h: S → predicate) :
+Theorem lattice_leads_to (h: S → predicate) (c: S) (f hc g: predicate) :
+  h c = hc →
   (∀ c, f ⊢ h c ~~> (g ∨ ∃ (d: S) (le: d ≺ c), h d)) →
-  f ⊢ (∃ c, h c) ~~> g.
+  f ⊢ hc ~~> g.
 Proof using wf.
-  intros Hto_le.
+  intros <- Hto_le.
 
-  cut (∀ c, f ⊢ h c ~~> g).
-  { intros H. rewrite /tla_exist. intros e Hf k [c Hh].
-    eapply H; eauto. }
-
-  intros c.
   pose proof (wf c) as Hacc.
   induction Hacc.
 
@@ -616,6 +612,82 @@ Proof using wf.
 Qed.
 
 End lattice.
+
+(*|
+
+We give a simple illustration of the lattice rule to prove the following
+theorem:
+
+
+::
+  (f ⊢ p ~~> (q ∨ r)) →
+  (f ⊢ q ~~> s) →
+  (f ⊢ r ~~> s) →
+  (f ⊢ p ~~> s)
+
+The proof uses the simple lattice below:
+
+::
+      A
+     /  \
+    B    C
+
+The lattice points A, B, and C are interpreted (via the `h` argument to `lattice_leads_to`) as predicates p, q, and r, and the goal is to prove s. The relation on this lattice says B ≺ A and C ≺ A, which is why the leads_to out of p does not have to prove s but proves the intermediate goal q ∨ r. (Notice that the choice of which outgoing edge to use can be non-deterministic; this is an important freedom to give the user.)
+
+Now notice that first of all this ≺ is well-founded: there are no
+loops (which would represent circular reasoning). Second, notice that the
+assumption `p ~~> (q ∨ r)` respects the ordering: it goes from `h A` to either
+`h B` or `h C`, both of which are "smaller" in the lattice.
+
+|*)
+
+Inductive abc := A | B | C.
+
+Definition abc_lt (x y: abc) :=
+  (* notice the reverse order in the match: we want [abc_lt x y] when [y] is
+  allowed to be used in the proof of [x] *)
+  match y, x with
+  | A, B | A, C => True
+  | _, _ => False
+  end.
+
+Ltac prove_acc :=
+  try assumption;
+  apply Acc_intro; intros []; simpl; inversion 1; auto.
+
+Theorem abc_lt_wf : well_founded abc_lt.
+Proof.
+  (* we carefully prove these bottom up *)
+  assert (Acc abc_lt B) by prove_acc.
+  assert (Acc abc_lt C) by prove_acc.
+  assert (Acc abc_lt A) by prove_acc.
+  by intros [].
+Qed.
+
+Lemma leads_to_fork (f p q r s: predicate) :
+  (f ⊢ p ~~> (q ∨ r)) →
+  (f ⊢ q ~~> s) →
+  (f ⊢ r ~~> s) →
+  (f ⊢ p ~~> s).
+Proof.
+  intros.
+  apply (lattice_leads_to abc_lt_wf
+           (λ x, match x with
+                 | A => p | B => q | C => r
+                 end) A); [ done | ].
+  intros []; simpl.
+  - rewrite -> H.
+    apply leads_to_weaken; [ done | ].
+    tla_right.
+    intros e [Hq | Hr];
+      [ unshelve eexists B, _ | unshelve eexists C, _ ]; auto.
+  - rewrite -> H0.
+    apply leads_to_weaken; [ done | ].
+    tla_left; done.
+  - rewrite -> H1.
+    apply leads_to_weaken; [ done | ].
+    tla_left; done.
+Qed.
 
 End TLA.
 

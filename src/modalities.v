@@ -344,6 +344,17 @@ Proof.
   dual always_eventually_always.
 Qed.
 
+Theorem leads_to_weaken (p1 p2 q1 q2: predicate) :
+  (p2 ⊢ p1) →
+  (q1 ⊢ q2) →
+  p1 ~~> q1 ⊢ p2 ~~> q2.
+Proof.
+  intros H1 H2.
+  rewrite /leads_to.
+  rewrite -> H1. rewrite <- H2.
+  reflexivity.
+Qed.
+
 (*|
 
 ---------------------------------

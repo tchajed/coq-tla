@@ -298,6 +298,22 @@ Proof.
   rewrite -entails_and_iff //.
 Qed.
 
+Theorem entails_or_left p q1 q2 :
+  (p ⊢ q1) →
+  (p ⊢ q1 ∨ q2).
+Proof.
+  intros ->.
+  autounfold with tla; eauto.
+Qed.
+
+Theorem entails_or_right p q1 q2 :
+  (p ⊢ q2) →
+  (p ⊢ q1 ∨ q2).
+Proof.
+  intros ->.
+  autounfold with tla; eauto.
+Qed.
+
 Theorem entails_trans p q r :
   (p ⊢ q) →
   (q ⊢ r) →
@@ -436,6 +452,9 @@ Ltac tla_split :=
   | |- @eq (predicate _) _ _ => apply entails_to_iff
   | |- pred_impl _ (tla_and _ _) => apply entails_and
   end.
+
+Ltac tla_left := apply entails_or_left.
+Ltac tla_right := apply entails_or_right.
 
 (** Prove the conclusion of the current theorem with the conclusion of [lem],
 much like Coq's [apply]. *)
