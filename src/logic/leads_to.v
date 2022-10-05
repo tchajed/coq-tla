@@ -302,7 +302,7 @@ Proof.
   by intros [].
 Qed.
 
-Lemma leads_to_fork (f p q r s: predicate) :
+Lemma leads_to_fork2 (q r f p s: predicate) :
   (f ⊢ p ~~> (q ∨ r)) →
   (f ⊢ q ~~> s) →
   (f ⊢ r ~~> s) →
@@ -327,6 +327,55 @@ Proof.
   - rewrite -> H1.
     apply leads_to_weaken; [ done | ].
     apply exist_impl_intro. exists G. unseal.
+Qed.
+
+Theorem leads_to_fork {A: Type} (h: A → Σ → Prop)
+  (f: predicate) (p q: Σ → Prop) :
+  (f ⊢ ⌜p⌝ ~~> ⌜λ s, ∃ x, h x s⌝) →
+  (∀ (x: A), f ⊢ ⌜h x⌝ ~~> ⌜q⌝) →
+  (f ⊢ ⌜p⌝ ~~> ⌜q⌝).
+Proof.
+  intros Hph Hhq.
+
+  (* [inl false] is the initial state, [inl true] is the final state, and [inr
+  x] is in between *)
+  set (S := (bool + A)%type).
+  set (R (x y: S) :=
+         match y, x with
+         | inl false, inr _ => True
+         | inr _, inl true => True
+         | _, _ => False
+         end).
+  assert (well_founded R) as Hwf.
+  { assert (Acc R (inl true)).
+    { constructor; inversion 1. }
+    assert (∀ x, Acc R (inr x)).
+    { intros; constructor. intros []; simpl; try inversion 1.
+      destruct b; [ eauto | inversion 1 ]. }
+    assert (Acc R (inl false)).
+    { constructor. intros []; inversion 1; auto. }
+    intros []; auto. destruct b; auto.
+  }
+  set (h' (l: S) := match l with
+                    | inl false => p
+                    | inl true => q
+                    | inr x => h x
+                    end).
+
+  apply (lattice_leads_to Hwf h' (inl false) (inl true)); [ done | done | ].
+  intros l Hne.
+
+  destruct l.
+  - destruct b; try congruence; simpl.
+    rewrite -> Hph.
+    apply leads_to_weaken; [ done | ].
+    unseal.
+    intros [x Hx].
+    exists (inr x); auto.
+  - simpl.
+    rewrite -> (Hhq a).
+    apply leads_to_weaken; [ done | ].
+    unseal.
 Qed.
 
 End TLA.

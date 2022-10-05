@@ -188,6 +188,8 @@ Proof.
     execution which is just the initial state and then infinite stuttering *)
 Abort.
 
+(* TODO: document these two proofs *)
+
 Inductive L := start | A1 | Afin | AfinB1 | B1 | Bfin | BfinA1 | goal.
 
 Definition Llt (l1 l2: L) : Prop :=
@@ -283,6 +285,32 @@ Proof.
   - (* BfinA1 *)
     leads_to_trans ⌜terminated⌝; swap 1 2.
     { apply leads_to_helper => s. exists goal; eauto. }
+    tla_apply (wf1 (step tidA)); stm.
+Qed.
+
+Lemma init_to_terminate' :
+  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ⌜init⌝ ~~> ⌜terminated⌝.
+Proof.
+  unfold fair.
+  rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
+  apply (leads_to_fork2
+           ⌜λ s, s.(pcs) tidA = pc1 ∧ s.(pcs) tidB = pc0⌝
+           ⌜λ s, s.(pcs) tidA = pc0 ∧ s.(pcs) tidB = pc1⌝).
+  - rewrite combine_or_preds.
+    tla_apply (wf1 (step tidA)); stm.
+  - leads_to_trans ⌜λ s, s.(pcs) tidA = pc2 ∧
+                         s.(pcs) tidB = pc0 ∧
+                         s.(lock) = false⌝.
+    { tla_apply (wf1 (step tidA)); stm. }
+    leads_to_trans ⌜ λ s, s.(pcs) tidA = pc2 ∧ s.(pcs) tidB = pc1⌝.
+    { tla_apply (wf1 (step tidB)); stm. }
+    tla_apply (wf1 (step tidB)); stm.
+  - leads_to_trans ⌜λ s, s.(pcs) tidB = pc2 ∧
+                         s.(pcs) tidA = pc0 ∧
+                         s.(lock) = false⌝.
+    { tla_apply (wf1 (step tidB)); stm. }
+    leads_to_trans ⌜ λ s, s.(pcs) tidB = pc2 ∧ s.(pcs) tidA = pc1⌝.
+    { tla_apply (wf1 (step tidA)); stm. }
     tla_apply (wf1 (step tidA)); stm.
 Qed.
 
