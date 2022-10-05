@@ -1,3 +1,14 @@
+(*|
+
+========================
+Weak fairness
+========================
+
+This file proves two big results about weak fairness. First, a key rule called "wf1" allows to prove that `p ~~> q` using the weak fairness of some action. Second, `wf_combine` gives a condition under which two weak fairness assumptions are equivalent to weak fairness of the composite action; that is, `WF(a1) ∧ WF(a2) == WF(a1 ∨ a2)` (with a slight abuse of notation in `a1 ∨ a2`, which needs to be `λ s s', a1 s s' ∨ a2 s s'`).
+
+These both require non-trivial proofs.
+
+|*)
 From TLA Require Import defs automation.
 From TLA Require Import propositional_ltl modalities.
 From TLA Require Import classical.

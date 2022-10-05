@@ -1,3 +1,20 @@
+(*|
+
+================
+The TLA logic
+================
+
+This file just re-exports files that make up the entire theory.
+
+The most interesting ones are safety_, wf_ (for theory around weak fairness), and
+leads_to_.
+
+.. _safety: https://tchajed.github.io/coq-tla/logic/safety.html
+.. _wf: https://tchajed.github.io/coq-tla/logic/wf.html
+.. _leads_to: https://tchajed.github.io/coq-tla/logic/leads_to.html
+
+|*)
+
 From TLA Require Export defs automation.
 From TLA Require Export propositional_ltl modalities.
 From TLA.logic Require Export preds safety wf leads_to.

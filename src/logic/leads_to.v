@@ -1,6 +1,25 @@
+(*|
+
+=========================
+Reasoning about leads-to
+=========================
+
+The connective `p ~~> q`, defined to be `□(p → ◇q)`, is pervasive in liveness
+reasoning. This file proves a few basic results about leads to (for example,
+that it is transitive), as well as a more sophisticated result that shows how to
+combine a well-founded "lattice" of leads-to facts, which is crucial for
+reasoning about diverging facts that eventually converge to guarantee some
+result.
+
+Some of these rules are specialized to state predicates, because we believe that
+it will often be sufficient to only use the form `⌜P⌝ ~~> ⌜Q⌝` and not use the
+full generality of temporal predicates.
+
+|*)
 From TLA Require Import defs automation.
 From TLA Require Import propositional_ltl modalities.
 From TLA Require Import classical.
+From TLA.logic Require Import safety.
 
 Section TLA.
 
@@ -191,7 +210,8 @@ Proof using wf.
 Qed.
 
 (* a variant of the rule where the goal is also part of the lattice *)
-Theorem tla_lattice_leads_to (h: S → predicate) (c0 g: S) (f hc0 hg: predicate) :
+Theorem tla_lattice_leads_to (h: S → predicate) (c0 g: S)
+  (f hc0 hg: predicate) :
   h c0 = hc0 → h g = hg →
   (∀ c, c ≠ g → f ⊢ h c ~~> (∃ (d: S) (le: d = g ∨ d ≺ c), h d)) →
   f ⊢ hc0 ~~> hg.

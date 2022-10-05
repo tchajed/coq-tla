@@ -298,34 +298,6 @@ Proof.
   unseal.
 Qed.
 
-(* the induction principle from the TLA paper *)
-Theorem later_induction (n inv: predicate) :
-  (inv ∧ n ⊢ later inv) →
-  (inv ∧ □n ⊢ □inv).
-Proof.
-  unseal.
-  destruct H0 as [Hinit Hn].
-  induction k.
-  - rewrite drop_0 //.
-  - change (S k) with (1 + k).
-    rewrite -drop_drop.
-    apply H; eauto.
-Qed.
-
-(* This is a more general induction principle _internal_ to the logic. It's
-different from `later_induction` because it requires the implication only for
-the "current" execution. *)
-Theorem later_induction_internal (n inv: predicate) :
-  ⊢ □(inv ∧ n → later inv) → (inv ∧ □n → □inv).
-Proof.
-  unseal.
-  destruct H0 as [Hinit Hn].
-  induction k.
-  - rewrite drop_0 //.
-  - change (S k) with (1 + k).
-    apply H; eauto.
-Qed.
-
 Theorem always_eventually_always (p: predicate) :
   □◇□ p == ◇□ p.
 Proof.

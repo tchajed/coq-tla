@@ -1,6 +1,15 @@
+(*|
+
+========================
+Proving safety in TLA
+========================
+
+Safety is actually extremely simple in TLA: there's basically one rule, and this file has a few convenient variants.
+
+|*)
+
 From TLA Require Import defs automation.
-From TLA Require Import propositional_ltl modalities.
-From TLA Require Import classical.
+From TLA Require Import modalities.
 
 Section TLA.
 
@@ -10,6 +19,35 @@ Notation exec := (exec Σ).
 Notation predicate := (predicate Σ).
 
 Implicit Types (e: exec) (p q: predicate) (a: action Σ).
+
+(* the induction principle from the TLA paper *)
+Theorem later_induction (n inv: predicate) :
+  (inv ∧ n ⊢ later inv) →
+  (inv ∧ □n ⊢ □inv).
+Proof.
+  unseal.
+  destruct H0 as [Hinit Hn].
+  induction k.
+  - rewrite drop_0 //.
+  - change (S k) with (1 + k).
+    rewrite -drop_drop.
+    apply H; eauto.
+Qed.
+
+(* This is a more general induction principle _internal_ to the logic. It's
+different from `later_induction` because it requires the implication only for
+the "current" execution. *)
+Theorem later_induction_internal (n inv: predicate) :
+  ⊢ □(inv ∧ n → later inv) → (inv ∧ □n → □inv).
+Proof.
+  unseal.
+  destruct H0 as [Hinit Hn].
+  induction k.
+  - rewrite drop_0 //.
+  - change (S k) with (1 + k).
+    apply H; eauto.
+Qed.
+
 
 Theorem tla_init_safety (inv init next safe : predicate) :
   (init ⊢ inv) →
