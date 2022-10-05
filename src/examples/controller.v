@@ -38,7 +38,7 @@ Record state := mkState {
   sent1Create: bool;
   sent2Create: bool;
 
-  (* remote cluster state (not directly readable) *)
+  (* remote cluster state (magically directly readable, for now) *)
   obj1Exists: bool;
   obj2Exists: bool;
 

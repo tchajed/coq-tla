@@ -88,9 +88,17 @@ Theorem forall_impl_intro {A} (φ: A → predicate) Γ :
   Γ ⊢ ∀ x, φ x.
 Proof. unseal. Qed.
 
+Theorem forall_apply {A} (φ: A → predicate) (x0: A) :
+  (∀ x, φ x) ⊢ φ x0.
+Proof. unseal. Qed.
+
 Theorem exist_intro {A} (φ: A → predicate) :
   (∃ x, ⊢ φ x) →
   ⊢ ∃ x, φ x.
+Proof. unseal. Qed.
+
+Theorem exist_impl {A} (φ: A → predicate) (x0: A) :
+  φ x0 ⊢ ∃ x, φ x.
 Proof. unseal. Qed.
 
 Theorem exist_impl_intro {A} (φ: A → predicate) Γ :

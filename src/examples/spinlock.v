@@ -1,7 +1,7 @@
 (*|
 
 =============================
-Example: (spinlock) Mutex
+Example: Simple spinlock
 =============================
 
 This example is a liveness proof for the following simple C program. It encodes the program as a hand-written state machine, with states referring to labeled points.
