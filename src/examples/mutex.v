@@ -241,11 +241,14 @@ Lemma init_to_terminate :
 Proof.
   unfold fair.
   apply (lattice_leads_to Llt_wf h start); [ done | ].
+  intros l.
 
   rewrite <- tla_and_assoc.
   setoid_rewrite -> add_safety.
+  tla_simp.
 
-  intros []; cbn [h].
+  (* split the proof into one case per label *)
+  destruct l; cbn [h].
 
   - (* start *)
     leads_to_trans ⌜λ s, h A1 s ∨ h B1 s⌝; swap 1 2.
@@ -255,7 +258,6 @@ Proof.
                  (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
                  (step tidA)); stm.
   - (* A1 *)
-    tla_simp.
     leads_to_trans ⌜h Afin⌝; swap 1 2.
     { apply leads_to_helper. exists Afin; eauto. }
 
@@ -263,7 +265,6 @@ Proof.
                  (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
                  (step tidA)); stm.
   - (* Afin *)
-    tla_simp.
     leads_to_trans ⌜h AfinB1⌝; swap 1 2.
     { apply leads_to_helper. exists AfinB1; eauto. }
 
@@ -271,14 +272,11 @@ Proof.
                  (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
                  (step tidB)); stm.
   - (* AfinB1 *)
-    tla_simp.
-
     tla_apply (wf1 _ _
                  (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
                  (step tidB)); stm.
 
   - (* B1 *)
-    tla_simp.
     leads_to_trans ⌜h Bfin⌝; swap 1 2.
     { apply leads_to_helper. exists Bfin; eauto. }
 
@@ -286,7 +284,6 @@ Proof.
                  (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
                  (step tidB)); stm.
   - (* Bfin *)
-    tla_simp.
     leads_to_trans ⌜h BfinA1⌝; swap 1 2.
     { apply leads_to_helper. exists BfinA1; eauto. }
 
@@ -294,8 +291,6 @@ Proof.
                  (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
                  (step tidA)); stm.
   - (* BfinA1 *)
-    tla_simp.
-
     tla_apply (wf1 _ _
                  (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
                  (step tidA)); stm.
