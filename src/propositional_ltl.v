@@ -193,6 +193,17 @@ Lemma impl_or_split p q φ :
   (p ∨ q ⊢ φ).
 Proof. unseal. Qed.
 
+Theorem impl_drop_hyp p q :
+  (⊢ q) →
+  p ⊢ q.
+Proof. unseal. Qed.
+
+(* a very crude way to drop a hypothesis *)
+Theorem impl_drop_one p q r :
+  (p ⊢ q) →
+  p ∧ r ⊢ q.
+Proof. unseal. Qed.
+
 End TLA.
 
 Hint Rewrite
