@@ -297,10 +297,8 @@ Proof.
     { apply impl_drop_hyp.
       apply pred_leads_to.
       stm. }
-    tla_pose eventually_send1.
-    tla_prop.
-  - tla_pose eventually_create1.
-    tla_prop.
+    tla_apply eventually_send1.
+  - tla_apply eventually_create1.
 Qed.
 
 Lemma eventually_send2 :

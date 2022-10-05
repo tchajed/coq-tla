@@ -453,9 +453,19 @@ Ltac tla_split :=
   | |- pred_impl _ (tla_and _ _) => apply entails_and
   end.
 
+(** Helper to prove an implication by finding the conclusion's conjunctions in
+the premise. Solves the goal or fails. *)
+Ltac tla_assumption :=
+  match goal with
+  | |- pred_impl _ _ =>
+      unfold tla_and, tla_implies; intros e; intros;
+      destruct_and?; split_and?;
+      eassumption
+  end.
+
 (** Prove the conclusion of the current theorem with the conclusion of [lem],
 much like Coq's [apply]. *)
 Tactic Notation "tla_apply" uconstr(lem) :=
-  eapply entails_trans; [ | apply lem ]; try solve [ tla_prop ].
+  eapply entails_trans; [ | apply lem ]; try tla_assumption.
 Tactic Notation "tla_eapply" uconstr(lem) :=
-  eapply entails_trans; [ | eapply lem ]; try solve [ tla_prop ].
+  eapply entails_trans; [ | eapply lem ]; try tla_assumption.

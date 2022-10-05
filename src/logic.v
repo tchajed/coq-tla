@@ -217,11 +217,11 @@ gives a stronger premise for [Haq], allowing to use some state-specific fact to
 establish a more specific postcondition [q] than [a] might have in general.
 |*)
 
-Lemma wf1 (p q: Σ → Prop) (next a: action Σ) :
+Lemma wf1 (a: action Σ) (next: action Σ) (p q: Σ → Prop)  :
   ∀ (Hpuntilq: ∀ s s', p s → next s s' → p s' ∨ q s')
     (Haq: ∀ s s', p s → next s s' → a s s' → q s')
     (Henable: ∀ s, p s → enabled a s),
-  (⊢ □ ⟨next⟩ ∧ weak_fairness a → state_pred p ~~> state_pred q).
+  (⊢ □ ⟨next⟩ ∧ weak_fairness a → ⌜p⌝ ~~> ⌜q⌝).
 Proof.
   intros.
   apply tla_wf1; unseal.
@@ -612,7 +612,8 @@ Proof using wf.
 Qed.
 
 (* TODO: try to make the goal a lattice element *)
-Theorem lattice_leads_to (h: S → Σ → Prop) (c0: S) (f: predicate) (hc0 g: Σ → Prop) :
+Theorem lattice_leads_to (h: S → Σ → Prop) (c0: S)
+  (f: predicate) (hc0 g: Σ → Prop) :
   h c0 = hc0 →
   (∀ c, f ⊢ ⌜h c⌝ ~~> ⌜λ s, g s ∨ ∃ (d: S), d ≺ c ∧ h d s⌝) →
   f ⊢ ⌜hc0⌝ ~~> ⌜g⌝.

@@ -221,8 +221,7 @@ Lemma leads_to_helper (Γ: predicate state) (p q r: state → Prop) :
 Proof.
   intros Hpr.
   apply impl_drop_hyp.
-  apply impl_to_leads_to.
-  apply state_pred_impl.
+  apply pred_leads_to.
   eauto.
 Qed.
 
@@ -243,9 +242,7 @@ Proof.
   apply (lattice_leads_to Llt_wf h start); [ done | ].
   intros l.
 
-  rewrite <- tla_and_assoc.
-  setoid_rewrite -> add_safety.
-  tla_simp.
+  rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
 
   (* split the proof into one case per label *)
   destruct l; cbn [h].
@@ -254,47 +251,32 @@ Proof.
     leads_to_trans ⌜λ s, h A1 s ∨ h B1 s⌝; swap 1 2.
     { apply leads_to_helper.
       intros s [|]; [ exists A1 | exists B1 ]; eauto. }
-    tla_apply (wf1 _ _
-                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
-                 (step tidA)); stm.
+    tla_apply (wf1 (step tidA)); stm.
   - (* A1 *)
     leads_to_trans ⌜h Afin⌝; swap 1 2.
     { apply leads_to_helper. exists Afin; eauto. }
 
-    tla_apply (wf1 _ _
-                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
-                 (step tidA)); stm.
+    tla_apply (wf1 (step tidA)); stm.
   - (* Afin *)
     leads_to_trans ⌜h AfinB1⌝; swap 1 2.
     { apply leads_to_helper. exists AfinB1; eauto. }
 
-    tla_apply (wf1 _ _
-                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
-                 (step tidB)); stm.
+    tla_apply (wf1 (step tidB)); stm.
   - (* AfinB1 *)
-    tla_apply (wf1 _ _
-                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
-                 (step tidB)); stm.
+    tla_apply (wf1 (step tidB)); stm.
 
   - (* B1 *)
     leads_to_trans ⌜h Bfin⌝; swap 1 2.
     { apply leads_to_helper. exists Bfin; eauto. }
 
-    tla_apply (wf1 _ _
-                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
-                 (step tidB)); stm.
+    tla_apply (wf1 (step tidB)); stm.
   - (* Bfin *)
     leads_to_trans ⌜h BfinA1⌝; swap 1 2.
     { apply leads_to_helper. exists BfinA1; eauto. }
 
-    tla_apply (wf1 _ _
-                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
-                 (step tidA)); stm.
+    tla_apply (wf1 (step tidA)); stm.
   - (* BfinA1 *)
-    tla_apply (wf1 _ _
-                 (λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s')
-                 (step tidA)); stm.
-
+    tla_apply (wf1 (step tidA)); stm.
 Qed.
 
 Lemma eventually_terminate :
