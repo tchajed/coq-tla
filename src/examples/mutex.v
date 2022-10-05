@@ -188,18 +188,19 @@ Proof.
     execution which is just the initial state and then infinite stuttering *)
 Abort.
 
-Inductive L := start | A1 | Afin | AfinB1 | B1 | Bfin | BfinA1.
+Inductive L := start | A1 | Afin | AfinB1 | B1 | Bfin | BfinA1 | goal.
 
 Definition Llt (l1 l2: L) : Prop :=
   match l2, l1 with
   | start, A1 | A1, Afin | Afin, AfinB1 => True
   | start, B1 | B1, Bfin | Bfin, BfinA1 => True
+  | AfinB1, goal | BfinA1, goal => True
   | _, _ => False
   end.
 
 Theorem Llt_wf : well_founded Llt.
 Proof.
-  prove_wf [AfinB1; Afin; A1; BfinA1; Bfin; B1; start].
+  prove_wf [goal; AfinB1; Afin; A1; BfinA1; Bfin; B1; start].
 Qed.
 
 Definition h (label: L) : state → Prop :=
@@ -213,11 +214,13 @@ Definition h (label: L) : state → Prop :=
   | B1 => λ s, s.(pcs) tidB = pc1 ∧ s.(pcs) tidA = pc0
   | Bfin => λ s, s.(pcs) tidB = pc2 ∧ s.(pcs) tidA = pc0 ∧ s.(lock) = false
   | BfinA1 => λ s, s.(pcs) tidB = pc2 ∧ s.(pcs) tidA = pc1
+
+  | goal => terminated
   end.
 
-Lemma leads_to_helper (Γ: predicate state) (p q r: state → Prop) :
-  (∀ s, p s → r s) →
-  (Γ ⊢ ⌜p⌝ ~~> ⌜λ s, q s ∨ r s⌝).
+Lemma leads_to_helper (Γ: predicate state) (p q: state → Prop) :
+  (∀ s, p s → q s) →
+  (Γ ⊢ ⌜p⌝ ~~> ⌜λ s, q s⌝).
 Proof.
   intros Hpr.
   apply impl_drop_hyp.
@@ -239,35 +242,37 @@ Lemma init_to_terminate :
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ⌜init⌝ ~~> ⌜terminated⌝.
 Proof.
   unfold fair.
-  apply (lattice_leads_to Llt_wf h start); [ done | ].
-  intros l.
+  apply (lattice_leads_to Llt_wf h start goal); [ done | done | ].
+  intros l Hne.
 
   rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
 
   (* split the proof into one case per label *)
-  destruct l; cbn [h].
+  destruct l; cbn [h]; try congruence.
 
   - (* start *)
     leads_to_trans ⌜λ s, h A1 s ∨ h B1 s⌝; swap 1 2.
-    { apply leads_to_helper.
-      intros s [|]; [ exists A1 | exists B1 ]; eauto. }
+    { apply leads_to_helper => s.
+      intros [|]; [ exists A1 | exists B1 ]; eauto. }
     tla_apply (wf1 (step tidA)); stm.
   - (* A1 *)
     leads_to_trans ⌜h Afin⌝; swap 1 2.
-    { apply leads_to_helper. exists Afin; eauto. }
+    { apply leads_to_helper => s. exists Afin; eauto. }
 
     tla_apply (wf1 (step tidA)); stm.
   - (* Afin *)
     leads_to_trans ⌜h AfinB1⌝; swap 1 2.
-    { apply leads_to_helper. exists AfinB1; eauto. }
+    { apply leads_to_helper => s. exists AfinB1; eauto. }
 
     tla_apply (wf1 (step tidB)); stm.
   - (* AfinB1 *)
+    leads_to_trans ⌜terminated⌝; swap 1 2.
+    { apply leads_to_helper => s. exists goal; eauto. }
     tla_apply (wf1 (step tidB)); stm.
 
   - (* B1 *)
     leads_to_trans ⌜h Bfin⌝; swap 1 2.
-    { apply leads_to_helper. exists Bfin; eauto. }
+    { apply leads_to_helper => s. exists Bfin; eauto. }
 
     tla_apply (wf1 (step tidB)); stm.
   - (* Bfin *)
@@ -276,6 +281,8 @@ Proof.
 
     tla_apply (wf1 (step tidA)); stm.
   - (* BfinA1 *)
+    leads_to_trans ⌜terminated⌝; swap 1 2.
+    { apply leads_to_helper => s. exists goal; eauto. }
     tla_apply (wf1 (step tidA)); stm.
 Qed.
 

@@ -589,14 +589,14 @@ Context {S: Type} {R: S → S → Prop} (wf: well_founded R).
 
 Local Infix "≺" := R (at level 50).
 
-Theorem tla_lattice_leads_to (h: S → predicate) (c: S) (f hc g: predicate) :
-  h c = hc →
+(* the rule as it appears in the paper *)
+Theorem tla_paper_lattice_leads_to (h: S → predicate) (f g: predicate) :
   (∀ c, f ⊢ h c ~~> (g ∨ ∃ (d: S) (le: d ≺ c), h d)) →
-  f ⊢ hc ~~> g.
+  ∀ c0, f ⊢ h c0 ~~> g.
 Proof using wf.
-  intros <- Hto_le.
+  intros Hto_le c0.
 
-  pose proof (wf c) as Hacc.
+  pose proof (wf c0) as Hacc.
   induction Hacc.
 
   erewrite <- leads_to_trans;
@@ -611,17 +611,38 @@ Proof using wf.
   eapply H0; eauto.
 Qed.
 
-(* TODO: try to make the goal a lattice element *)
-Theorem lattice_leads_to (h: S → Σ → Prop) (c0: S)
-  (f: predicate) (hc0 g: Σ → Prop) :
-  h c0 = hc0 →
-  (∀ c, f ⊢ ⌜h c⌝ ~~> ⌜λ s, g s ∨ ∃ (d: S), d ≺ c ∧ h d s⌝) →
-  f ⊢ ⌜hc0⌝ ~~> ⌜g⌝.
+(* a variant of the rule where the goal is also part of the lattice *)
+Theorem tla_lattice_leads_to (h: S → predicate) (c0 g: S) (f hc0 hg: predicate) :
+  h c0 = hc0 → h g = hg →
+  (∀ c, c ≠ g → f ⊢ h c ~~> (∃ (d: S) (le: d = g ∨ d ≺ c), h d)) →
+  f ⊢ hc0 ~~> hg.
 Proof using wf.
-  intros <- H.
-  apply (tla_lattice_leads_to (λ l, ⌜h l⌝) c0); [ done | ].
+  intros <- <- Hto_le.
+  apply tla_paper_lattice_leads_to.
   intros l.
-  rewrite -> (H l).
+
+  destruct (classical.excluded_middle (l = g)); subst.
+  { apply impl_drop_hyp.
+    apply impl_to_leads_to.
+    tla_prop. }
+
+  rewrite -> (Hto_le l) by auto.
+  apply leads_to_weaken; [ done | ].
+
+  unseal.
+  naive_solver.
+Qed.
+
+Theorem lattice_leads_to (h: S → Σ → Prop) (c0 g: S)
+  (f: predicate) (hc0 hg: Σ → Prop) :
+  h c0 = hc0 → h g = hg →
+  (∀ c, c ≠ g → f ⊢ ⌜h c⌝ ~~> ⌜λ s, ∃ (d: S), (d = g ∨ d ≺ c) ∧ h d s⌝) →
+  f ⊢ ⌜hc0⌝ ~~> ⌜hg⌝.
+Proof using wf.
+  intros <- <- H.
+  apply (tla_lattice_leads_to (λ l, ⌜h l⌝) c0 g); [ done | done | ].
+  intros l Hnotg.
+  rewrite -> (H l) by auto.
   apply leads_to_weaken; [ done | ].
   unseal.
 Qed.
@@ -648,23 +669,23 @@ The proof uses the simple lattice below:
       A
      / \
     B   C
+    \   /
+      G
 
-The lattice points A, B, and C are interpreted (via the `h` argument to `lattice_leads_to`) as predicates p, q, and r, and the goal is to prove s. The relation on this lattice says B ≺ A and C ≺ A, which is why the leads_to out of p does not have to prove s but proves the intermediate goal q ∨ r. (Notice that the choice of which outgoing edge to use can be non-deterministic; this is an important freedom to give the user.)
+The lattice points A, B, C, and G are interpreted (via the `h` argument to `lattice_leads_to`) as predicates p, q, r, and s, where s is the special goal that has nothing after it. The relation on this lattice says B ≺ A, C ≺ A, G ≺ B, and G ≺ C (one for each edge). Notice that A has two "outgoing edges" - this means we prove p ~~> (q ∨ r), and it is this non-deterministic choice that makes the rule powerful.
 
-Now notice that first of all this ≺ is well-founded: there are no
-loops (which would represent circular reasoning). Second, notice that the
-assumption `p ~~> (q ∨ r)` respects the ordering: it goes from `h A` to either
-`h B` or `h C`, both of which are "smaller" in the lattice.
+First, notice that this ≺ is well-founded: there are no loops (which would represent circular reasoning). Second, notice that the assumption `p ~~> (q ∨ r)` respects the ordering: it goes from `h A` to either `h B` or `h C`, both of which are "smaller" in the lattice.
 
 |*)
 
-Inductive abc := A | B | C.
+Inductive abc := A | B | C | G.
 
 Definition abc_lt (x y: abc) :=
   (* notice the reverse order in the match: we want [abc_lt x y] when [y] is
   allowed to be used in the proof of [x] *)
   match y, x with
   | A, B | A, C => True
+  | B, G | C, G => True
   | _, _ => False
   end.
 
@@ -675,6 +696,7 @@ Ltac prove_acc :=
 Theorem abc_lt_wf : well_founded abc_lt.
 Proof.
   (* we carefully prove these bottom up *)
+  assert (Acc abc_lt G) by prove_acc.
   assert (Acc abc_lt B) by prove_acc.
   assert (Acc abc_lt C) by prove_acc.
   assert (Acc abc_lt A) by prove_acc.
@@ -690,19 +712,22 @@ Proof.
   intros.
   apply (tla_lattice_leads_to abc_lt_wf
            (λ x, match x with
-                 | A => p | B => q | C => r
-                 end) A); [ done | ].
-  intros []; simpl.
+                 | A => p | B => q | C => r | G => s
+                 end) A G); [ done | done | ].
+  intros [] Hne; simpl; try congruence.
   - rewrite -> H.
-    apply leads_to_or_right.
     apply leads_to_weaken; [ done | ].
     apply impl_or_split.
     * apply exist_impl_intro. exists B.
       apply exist_impl_intro. unshelve eexists _; eauto. done.
     * apply exist_impl_intro. exists C.
       apply exist_impl_intro. unshelve eexists _; eauto. done.
-  - apply leads_to_or_left; done.
-  - apply leads_to_or_left; done.
+  - rewrite -> H0.
+    apply leads_to_weaken; [ done | ].
+    apply exist_impl_intro. exists G. unseal.
+  - rewrite -> H1.
+    apply leads_to_weaken; [ done | ].
+    apply exist_impl_intro. exists G. unseal.
 Qed.
 
 End TLA.
