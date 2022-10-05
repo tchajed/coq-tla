@@ -327,6 +327,14 @@ Proof.
   reflexivity.
 Qed.
 
+#[global]
+Instance leads_to_impl_proper :
+  Proper (flip pred_impl ==> pred_impl ==> pred_impl) (leads_to (Σ := Σ)).
+Proof.
+  intros p1 q1 Himpl p2 q2 Himpl2.
+  apply leads_to_weaken; auto.
+Qed.
+
 Theorem leads_to_or_left (Γ p q1 q2: predicate) :
   (Γ ⊢ p ~~> q1) →
   (Γ ⊢ p ~~> (q1 ∨ q2)).

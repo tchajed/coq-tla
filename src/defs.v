@@ -133,7 +133,7 @@ Bind Scope tla with predicate.
 Notation "⊢  p" := (valid p%L) (at level 99, p at level 200).
 (* this is just to force parsing in tla scope *)
 Notation "p == q" := (@eq (predicate _) p%L q%L) (at level 70, only parsing).
-Notation "p  ⊢  q" := (pred_impl p%L q%L) (at level 100).
+Notation "p ⊢ q" := (pred_impl p%L q%L) (at level 100, format "'[hv' p  '/' ⊢  q ']'").
 
 Notation "!  p" := (tla_not p%L) (at level 51, right associativity) : tla.
 Notation "p  ∨  q" := (tla_or p%L q%L) : tla.

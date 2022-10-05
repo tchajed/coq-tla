@@ -190,10 +190,17 @@ Local Infix "≺" := R (at level 50).
 (* the rule as it appears in the paper *)
 Theorem tla_paper_lattice_leads_to (h: S → predicate) (f g: predicate) :
   (∀ c, f ⊢ h c ~~> (g ∨ ∃ (d: S) (le: d ≺ c), h d)) →
-  ∀ c0, f ⊢ h c0 ~~> g.
+  f ⊢ (∃ c0, h c0) ~~> g.
 Proof using wf.
-  intros Hto_le c0.
+  intros Hto_le.
 
+  cut (∀ c0, f ⊢ h c0 ~~> g).
+  { intros Hfc0.
+    rewrite /leads_to /tla_exist.
+    intros e Hf k [c0 Hh].
+    eapply Hfc0; eauto. }
+
+  intros c0.
   pose proof (wf c0) as Hacc.
   induction Hacc.
 
@@ -217,6 +224,9 @@ Theorem tla_lattice_leads_to (h: S → predicate) (c0 g: S)
   f ⊢ hc0 ~~> hg.
 Proof using wf.
   intros <- <- Hto_le.
+  rewrite <- (leads_to_trans _ (∃ c0, h c0)); tla_split.
+  { apply impl_drop_hyp. apply impl_to_leads_to. unseal. }
+
   apply tla_paper_lattice_leads_to.
   intros l.
 
@@ -239,6 +249,28 @@ Theorem lattice_leads_to (h: S → Σ → Prop) (c0 g: S)
   f ⊢ ⌜hc0⌝ ~~> ⌜hg⌝.
 Proof using wf.
   intros <- <- H.
+  apply (tla_lattice_leads_to (λ l, ⌜h l⌝) c0 g); [ done | done | ].
+  intros l Hnotg.
+  rewrite -> (H l) by auto.
+  apply leads_to_weaken; [ done | ].
+  unseal.
+Qed.
+
+Theorem lattice_leads_to_ex (h: S → Σ → Prop) (g: S)
+  (f: predicate) (hc0 hg: Σ → Prop) :
+  h g = hg →
+  (∀ c, c ≠ g → f ⊢ ⌜h c⌝ ~~> ⌜λ s, ∃ (d: S), (d = g ∨ d ≺ c) ∧ h d s⌝) →
+  f ⊢ (∃ c0, ⌜h c0⌝) ~~> ⌜hg⌝.
+Proof using wf.
+  intros <- H.
+
+  cut (∀ c0, f ⊢ ⌜h c0⌝ ~~> ⌜h g⌝).
+  { intros Hfc0.
+    rewrite /leads_to /tla_exist.
+    intros e Hf k [c0 Hh].
+    eapply Hfc0; eauto. }
+
+  intros c0.
   apply (tla_lattice_leads_to (λ l, ⌜h l⌝) c0 g); [ done | done | ].
   intros l Hnotg.
   rewrite -> (H l) by auto.

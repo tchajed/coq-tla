@@ -24,10 +24,12 @@ Module spec.
   Implicit Types (pc: Pc) (tid: Tid).
 
   #[global]
-  Instance tid_eqdecision : EqDecision Tid.
-  Proof.
-    solve_decision.
-  Defined.
+  Instance pc_dec : EqDecision Pc.
+  Proof. solve_decision. Defined.
+
+  #[global]
+  Instance tid_dec : EqDecision Tid.
+  Proof. solve_decision. Defined.
 
   #[global]
   Instance tid_countable : Countable Tid := _.
@@ -112,7 +114,8 @@ Ltac lookup_simp :=
     | H: _ |- _ => rewrite -> lookup_insert_ne in H by congruence
     | _ => rewrite lookup_insert
     | _ => rewrite -> lookup_insert_ne by congruence
-    end.
+    end;
+  try congruence.
 
 Ltac stm_simp :=
   autounfold with stm;
@@ -155,12 +158,10 @@ Proof.
     stm.
     { intuition stm.
       destruct (decide (tid0 = tid)); lookup_simp.
-      * congruence.
-      * eauto. }
+      eauto. }
     intuition stm.
     * destruct (decide (tid0 = tid)); lookup_simp; eauto.
       destruct (decide (tid = tid')); lookup_simp; eauto.
-      congruence.
     * destruct (decide (tid0 = tid)); lookup_simp; eauto.
       destruct (decide (tid = tid')); lookup_simp; eauto.
       exfalso; eauto.
@@ -194,6 +195,52 @@ Why does this program terminate?
 
 |*)
 
+Definition num_threads_waiting (pcs: gmap Tid Pc) : nat :=
+  map_fold
+    (λ _tid pc n, if decide (pc = pc0) is left _
+                  then 1 + n else n)
+    0 pcs.
+
+(* exactly n threads are waiting for the lock, and the lock is free *)
+Definition threads_waiting (n: nat) : state → Prop :=
+  λ s, num_threads_waiting s.(pcs) = n ∧
+      (∀ tid pc, s.(pcs) !! tid = Some pc → pc ≠ pc1) ∧
+      s.(lock) = false.
+
+Theorem init_to_waiting :
+  ⌜init⌝ ⊢ ∃ n, ⌜threads_waiting n⌝.
+Proof.
+  unseal. stm.
+  unfold threads_waiting.
+  eexists; intuition eauto.
+  stm.
+  assert (pc1 = pc0) by eauto; congruence.
+Qed.
+
+Lemma no_threads_waiting (pcs: gmap Tid Pc) :
+  num_threads_waiting pcs = 0 →
+  ∀ tid pc, pcs !! tid = Some pc → pc ≠ pc0.
+Proof.
+  rewrite /num_threads_waiting.
+  apply (map_fold_ind
+           (λ n pcs, n = 0 →
+                     ∀ tid pc, pcs !! tid = Some pc → pc ≠ pc0)).
+  - intros. set_solver.
+  - intros.
+    destruct (decide (x = pc0)); subst; [ lia | ].
+    destruct (decide (tid = i)); lookup_simp; eauto.
+Qed.
+
+Theorem none_waiting_to_terminated :
+  ⌜threads_waiting 0⌝ ⊢ ⌜terminated⌝.
+Proof.
+  unseal.
+  unfold threads_waiting; stm.
+  assert (pc ≠ pc1) by eauto.
+  assert (pc ≠ pc0) by (eapply no_threads_waiting; eauto).
+  destruct pc; congruence.
+Qed.
+
 Lemma eventually_terminate :
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
 Proof.
@@ -206,6 +253,14 @@ Proof.
     (* apply's unification heuristics don't work here *)
     refine (forall_apply _ _). }
 
+  leads_to_etrans;
+    [ apply impl_drop_hyp; apply impl_to_leads_to;
+      apply init_to_waiting
+    | ].
+  leads_to_etrans;
+    [| apply impl_drop_hyp; apply impl_to_leads_to;
+       apply none_waiting_to_terminated
+     ].
 Abort.
 
 End example.
