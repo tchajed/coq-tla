@@ -258,7 +258,7 @@ Proof using wf.
 Qed.
 
 Theorem lattice_leads_to_ex (h: S → Σ → Prop) (g: S)
-  (f: predicate) (hc0 hg: Σ → Prop) :
+  (f: predicate) (hg: Σ → Prop) :
   h g = hg →
   (∀ c, c ≠ g → f ⊢ ⌜h c⌝ ~~> ⌜λ s, ∃ (d: S), (d = g ∨ d ≺ c) ∧ h d s⌝) →
   f ⊢ (∃ c0, ⌜h c0⌝) ~~> ⌜hg⌝.

@@ -195,7 +195,7 @@ Why does this program terminate?
 
 |*)
 
-Theorem gset_wf :
+Theorem gset_subset_wf :
   well_founded  ((⊂) : gset Tid → gset Tid → Prop).
 Proof. apply set_wf. Qed.
 
@@ -438,8 +438,6 @@ Lemma eventually_terminate :
 Proof.
   apply (leads_to_apply ⌜init⌝); [ tla_assumption | ].
 
-  rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
-
   assert (∀ tid, (fair ⊢ weak_fairness (step tid))%L) as Hfair.
   { intros tid. unfold fair.
     (* apply's unification heuristics don't work here *)
@@ -454,6 +452,15 @@ Proof.
        apply h_0_to_terminated
      ].
 
-Abort.
+  apply (lattice_leads_to_ex gset_subset_wf h ∅); [ done | ].
+  intros waiting Hnotempty.
+
+  assert (exists t, t ∈ waiting) as [t Hwaiting].
+  { apply set_choose_L in Hnotempty; naive_solver. }
+
+  leads_to_etrans; [ eapply h_decrease; eauto | ].
+  apply pred_leads_to => s.
+  naive_solver.
+Qed.
 
 End example.
