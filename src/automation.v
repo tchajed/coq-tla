@@ -16,12 +16,9 @@ Since this file is used by the proofs of the logical rules, it assumes only the
 definitions and includes proofs for the necessary logical rules.
 
 |*)
-From Coq.Logic Require Import
-  FunctionalExtensionality.
+From Coq Require Export Lia.
 
 From stdpp Require Export tactics.
-
-From Coq Require Export Lia.
 
 From TLA Require Export defs.
 From TLA Require Import classical.
