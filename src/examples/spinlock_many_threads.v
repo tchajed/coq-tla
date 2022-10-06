@@ -296,6 +296,116 @@ Proof.
   - exfalso; eauto.
 Qed.
 
+Lemma h_leads_to_locked waiting t :
+  t ∈ waiting →
+  ⌜ init ⌝ ∧ □ ⟨next⟩ ∧ fair
+  ⊢ ⌜ h waiting ⌝ ~~>
+    ⌜λ s, ∃ (x : Tid) (_ : x ∈ waiting),
+      waiting_set (pcs s) = waiting ∖ {[x]} ∧
+      pcs s !! x = Some pc1 ∧
+      lock s = true ⌝.
+Proof.
+  intros Hel.
+  tla_apply (wf1 (step t)).
+  { tla_split; [ tla_assumption | tla_apply fair_step ]. }
+  - unfold h.
+    intros s s' [Hwaitset Hno_lock] Hnext.
+    destruct Hnext as [[tid Hstep] | ->]; [ | eauto ].
+    pose proof (step_not_locked Hstep Hno_lock) as Hcas.
+
+    stm.
+    right.
+    exists tid. split.
+    { unfold waiting_set.
+      rewrite elem_of_dom.
+      exists pc0.
+      rewrite map_filter_lookup_Some //. }
+    rewrite waiting_set_remove //.
+    rewrite lookup_insert //.
+  - unfold h.
+    (* drop next assumptions, it's implied by [step t] *)
+    intros s s' [Hwait Hno_lock] _ Hstep.
+    pose proof (step_not_locked Hstep Hno_lock) as Hcas.
+    stm.
+    unshelve eexists t, _; auto.
+    rewrite waiting_set_remove //.
+    rewrite lookup_insert //.
+  - unfold h, waiting_set, not_locked; stm.
+    rewrite elem_of_dom in Hel.
+    rewrite filter_is_Some in Hel.
+    naive_solver.
+Qed.
+
+Lemma unlock_to_h waiting t s s' :
+  unlock t s s' →
+  t ∈ waiting →
+  waiting_set s.(pcs) = waiting ∖ {[t]} →
+  s.(pcs) !! t = Some pc1 →
+  s.(lock) = true →
+  exclusion_inv s →
+  ∃ (waiting' : gset Tid) (_ : waiting' ⊂ waiting), h waiting' s'.
+Proof.
+  unfold unlock.
+  intros [_ Hs'] Hwaiting Hwait Ht Hlock Hinv.
+  destruct s as [l pcs]; destruct s' as [l' pcs']; simpl in *.
+  inversion Hs'; subst; clear Hs'.
+
+  exists (waiting ∖ {[t]}). unshelve eexists.
+  { set_solver+ Hwaiting. }
+  unfold h.
+  split.
+  { rewrite /= waiting_set_remove //.
+    set_solver+ Hwait. }
+  unfold not_locked; simpl.
+  split; [ | done ].
+  intros.
+  destruct (decide (t = tid)); stm.
+Qed.
+
+Lemma locked_step {tid s s' t} :
+  step tid s s' →
+  exclusion_inv s →
+  s.(pcs) !! t = Some pc1 →
+  s.(lock) = true →
+  (s' = s ∧ tid ≠ t) ∨ (tid = t ∧ unlock t s s').
+Proof.
+  stm.
+  - destruct (decide (t = tid)); subst; eauto.
+    congruence.
+  - destruct (decide (t = tid)); subst; eauto.
+    left.
+    exfalso; eauto.
+Qed.
+
+Lemma locked_to_smaller_h waiting :
+  ⌜ init ⌝ ∧ □ ⟨next⟩ ∧ fair
+  ⊢ (∃ t' (_ : t' ∈ waiting),
+        ⌜λ s,
+          waiting_set (pcs s) = waiting ∖ {[t']} ∧
+          pcs s !! t' = Some pc1 ∧
+          lock s = true ⌝) ~~>
+     ⌜ λ s, ∃ (waiting' : gset Tid) (_ : waiting' ⊂ waiting), h waiting' s ⌝.
+Proof.
+  rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
+  apply leads_to_exist_intro => t.
+  apply leads_to_exist_intro => Hwaiting.
+  tla_apply (wf1 (step t)).
+  { tla_split; [ tla_assumption | tla_apply fair_step ]. }
+  - intros s s' (Hwait & Ht & Hlock) (Hnext & Hinv & Hinv').
+    destruct Hnext as [[tid Hstep] | ->]; [ | by eauto ].
+    eapply locked_step in Hstep; eauto.
+    destruct Hstep as [ ? | [-> Hunlock] ]; [ naive_solver | ].
+    right.
+
+    eapply unlock_to_h in Hunlock; eauto.
+  - intros s s' (Hwait & Ht & Hlock) (Hnext & Hinv & Hinv') Hstep.
+    eapply locked_step in Hstep; eauto.
+    destruct Hstep as [ ? | [_ Hunlock] ]; [ naive_solver | ].
+    eapply unlock_to_h in Hunlock; eauto.
+  - stm.
+    eexists; eauto.
+Qed.
+
 Lemma h_decrease (waiting: gset Tid) (t: Tid) :
   t ∈ waiting →
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢
@@ -303,7 +413,6 @@ Lemma h_decrease (waiting: gset Tid) (t: Tid) :
     ⌜λ s, ∃ waiting' (_: waiting' ⊂ waiting), h waiting' s⌝.
 Proof.
   intros Hel.
-  (* rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp. *)
 
   (* need to go through an intermediate state where lock is held by someone *)
   leads_to_trans (∃ t' (_: t' ∈ waiting), ⌜λ s,
@@ -316,45 +425,13 @@ Proof.
 In this branch we need to go from the wait set `waiting` to a set with one thread `t ∈ waiting` removed and the lock held; this is exactly what `cas_succ` does. Removing one thread results in a strictly smaller waiting set.
 |*)
     setoid_rewrite -> exist_state_pred. rewrite -> exist_state_pred.
-    tla_apply (wf1 (step t)).
-    { tla_split; [ tla_assumption | tla_apply fair_step ]. }
-    * unfold h.
-      intros s s' [Hwaitset Hno_lock] Hnext.
-      destruct Hnext as [[tid Hstep] | ->]; [ | eauto ].
-      pose proof (step_not_locked Hstep Hno_lock) as Hcas.
-
-      stm.
-      right.
-      exists tid. split.
-      { unfold waiting_set.
-        rewrite elem_of_dom.
-        exists pc0.
-        rewrite map_filter_lookup_Some //. }
-      rewrite waiting_set_remove //.
-      rewrite lookup_insert //.
-    * unfold h.
-      (* drop next assumptions, it's implied by [step t] *)
-      intros s s' [Hwait Hno_lock] _ Hstep.
-      pose proof (step_not_locked Hstep Hno_lock) as Hcas.
-      stm.
-      unshelve eexists t, _; auto.
-      rewrite waiting_set_remove //.
-      rewrite lookup_insert //.
-    * unfold h, waiting_set, not_locked; stm.
-      rewrite elem_of_dom in Hel.
-      rewrite filter_is_Some in Hel.
-      naive_solver.
+    eapply h_leads_to_locked; eauto.
   -
 (*|
 Over in the other branch we need to show that from the smaller wait set, we can get back to `h`, which additionally requires that the lock be free. This will happen easily due to an `unlock t` action, which is the only thing enabled.
 |*)
-    clear t Hel.
-    apply leads_to_exist_intro => t.
-    apply leads_to_exist_intro => Hwaiting.
-    tla_apply (wf1 (step t)).
-    { tla_split; [ tla_assumption | tla_apply fair_step ]. }
-
-Abort.
+    apply locked_to_smaller_h.
+Qed.
 
 Lemma eventually_terminate :
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
