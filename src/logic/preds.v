@@ -108,6 +108,13 @@ Proof.
   unseal.
 Qed.
 
+Lemma exist_state_pred {A} (P: A → Σ → Prop) :
+  (∃ x, ⌜P x⌝) == ⌜λ s, ∃ x, P x s⌝.
+Proof. unseal. Qed.
+
+Lemma forall_state_pred {A} (P: A → Σ → Prop) :
+  (∀ x, ⌜P x⌝) == ⌜λ s, ∀ x, P x s⌝.
+Proof. unseal. Qed.
 
 End TLA.
 

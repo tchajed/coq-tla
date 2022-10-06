@@ -195,56 +195,73 @@ Why does this program terminate?
 
 |*)
 
-Definition done_after (n: nat) (pcs: gmap Tid Pc) :=
-  ∀ tid, n ≤ tid → ∀ pc, pcs !! tid = Some pc → pc = pc2.
+Theorem gset_wf :
+  well_founded  ((⊂) : gset Tid → gset Tid → Prop).
+Proof. apply set_wf. Qed.
 
-Definition h (n: nat) : state → Prop :=
-  λ s, done_after n s.(pcs) ∧
-       (∀ tid pc, s.(pcs) !! tid = Some pc → pc ≠ pc1) ∧
-       s.(lock) = false.
+Definition waiting_set (pcs: gmap Tid Pc) : gset Tid :=
+  dom (filter (λ '(tid, pc), pc = pc0) pcs).
 
-Hint Unfold h done_after : stm.
+Definition not_locked : state → Prop :=
+  λ s,
+    (∀ tid pc, s.(pcs) !! tid = Some pc → pc ≠ pc1) ∧
+    s.(lock) = false.
+
+Definition h (done_tids: gset Tid) : state → Prop :=
+  λ s, waiting_set s.(pcs) = done_tids ∧ not_locked s.
+
+Hint Unfold h waiting_set not_locked : stm.
 
 Theorem init_to_h :
-  ⌜init⌝ ⊢ ∃ n, ⌜h n⌝.
+  ⌜init⌝ ⊢ ∃ waiting, ⌜h waiting⌝.
 Proof.
-  unseal. stm. unfold h, done_after; simpl.
-  (* TODO: pick the maximum allocated thread id *)
-Admitted.
-
-Theorem h_0_to_terminated :
-  ⌜h 0⌝ ⊢ ⌜terminated⌝.
-Proof.
-  unseal.
-  unfold h, done_after; stm.
-  (* actually done_after 0 is sufficient *)
-  clear H.
-  eapply H1; [ | eauto ].
-  lia.
+  unseal. stm. eexists; intuition eauto.
+  subst; eauto.
+  apply H1 in H; congruence.
 Qed.
 
-Lemma h_decrease (n: nat) :
-  0 < n →
-  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ⌜h n⌝ ~~> ⌜h (n-1)⌝.
+Theorem h_0_to_terminated :
+  ⌜h ∅⌝ ⊢ ⌜terminated⌝.
 Proof.
-  intros Hnz.
-  rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
+  (* actually waiting_set s.(pcs) = ∅ is sufficient *)
+  unseal. stm.
+  apply dom_empty_iff_L in H1.
 
-  rewrite (tla_and_em (⌜λ s, s.(pcs) !! (n-1) = None⌝) ⌜h n⌝).
-  rewrite tla_and_distr_l; tla_simp.
-  rewrite leads_to_or_split; tla_split.
+  destruct pc; auto; exfalso; eauto.
 
-  - apply pred_leads_to.
-    stm.
-    destruct (decide (tid = n - 1)); subst.
-    { congruence. }
-    eapply H; [ | eauto ]. lia.
+  (* contradicts waiting_set empty *)
+  pose proof
+    (map_filter_empty_not_lookup _ _ tid pc0 H1) as Hnotsome.
+  simpl in Hnotsome.
+  intuition auto.
+Qed.
 
-  - tla_apply (wf1 (step (n-1))).
-    { tla_split; [ tla_assumption | ].
-      transitivity fair; [ tla_assumption | ].
-      unfold fair.
-      refine (forall_apply _ _). }
+Lemma fair_step (tid: nat) :
+  fair ⊢ weak_fairness (step tid).
+Proof.
+  unfold fair.
+  (* apply doesn't work due to the wrong unification heuristics *)
+  refine (forall_apply _ _).
+Qed.
+
+Lemma h_decrease (waiting: gset Tid) (t: Tid) :
+  t ∈ waiting →
+  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢
+  ⌜h waiting⌝ ~~>
+    ⌜λ s, ∃ waiting' (_: waiting' ⊂ waiting), h waiting' s⌝.
+Proof.
+  intros Hel.
+  (* rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp. *)
+
+  (* need to go through an intermediate state where lock is held by someone *)
+  leads_to_trans (∃ t' (_: t' ∈ waiting), ⌜λ s,
+      waiting_set s.(pcs) = waiting ∖ {[t']} ∧
+      s.(pcs) !! t' = Some pc1 ∧
+      s.(lock) = true⌝)%L.
+
+  - setoid_rewrite -> exist_state_pred. rewrite -> exist_state_pred.
+    tla_apply (wf1 (step t)).
+    { tla_split; [ tla_assumption | tla_apply fair_step ]. }
 
 Abort.
 
