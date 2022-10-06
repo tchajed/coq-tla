@@ -118,7 +118,7 @@ Ltac lookup_simp :=
   try congruence.
 
 Ltac stm_simp :=
-  autounfold with stm;
+  autounfold with stm in *;
   intros; (intuition (repeat deex; subst; trivial));
   rewrite ?enabled_eq ?enabled_thread;
   repeat deex;
@@ -210,12 +210,13 @@ Definition not_locked : state → Prop :=
 Definition h (done_tids: gset Tid) : state → Prop :=
   λ s, waiting_set s.(pcs) = done_tids ∧ not_locked s.
 
-Hint Unfold h waiting_set not_locked : stm.
+Hint Unfold h : stm.
 
 Theorem init_to_h :
   ⌜init⌝ ⊢ ∃ waiting, ⌜h waiting⌝.
 Proof.
   unseal. stm. eexists; intuition eauto.
+  unfold not_locked; intuition.
   subst; eauto.
   apply H1 in H; congruence.
 Qed.
@@ -224,7 +225,7 @@ Theorem h_0_to_terminated :
   ⌜h ∅⌝ ⊢ ⌜terminated⌝.
 Proof.
   (* actually waiting_set s.(pcs) = ∅ is sufficient *)
-  unseal. stm.
+  unseal. unfold h, waiting_set, not_locked; stm.
   apply dom_empty_iff_L in H1.
 
   destruct pc; auto; exfalso; eauto.
@@ -244,6 +245,57 @@ Proof.
   refine (forall_apply _ _).
 Qed.
 
+Lemma gset_ext {A: Type} `{Countable A} (s1 s2: gset A) :
+  (∀ x, x ∈ s1 ↔ x ∈ s2) →
+  s1 = s2.
+Proof.
+  intros.
+  apply leibniz_equiv.
+  apply set_equiv.
+  auto.
+Qed.
+
+Lemma filter_is_Some {K: Type} `{Countable K} {V: Type}
+  (P: (K * V) → Prop) `{∀ x, Decision (P x)} (m: gmap K V) k :
+  is_Some (filter P m !! k) ↔ (∃ v, m !! k = Some v ∧ P (k,v)).
+Proof.
+  split; (intuition auto); repeat deex.
+  - destruct H1 as [v Hlookup].
+    rewrite map_filter_lookup_Some in Hlookup.
+    eauto.
+  - rewrite map_filter_lookup. rewrite /is_Some.
+    exists v.
+    rewrite H1 /=.
+    rewrite option_guard_True //.
+Qed.
+
+Lemma waiting_set_remove pcs tid pc' :
+  pc' ≠ pc0 →
+  waiting_set (<[tid:=pc']> pcs) = waiting_set pcs ∖ {[tid]}.
+Proof.
+  intros Hnot0.
+  unfold waiting_set.
+  rename tid into tid0.
+  apply gset_ext => tid.
+  rewrite elem_of_dom elem_of_difference elem_of_dom.
+  rewrite elem_of_singleton.
+  rewrite !filter_is_Some.
+  destruct (decide (tid = tid0)); subst.
+  - rewrite lookup_insert; naive_solver.
+  - rewrite -> lookup_insert_ne by congruence.
+    naive_solver.
+Qed.
+
+Lemma step_not_locked {t s s'} :
+  step t s s' →
+  not_locked s →
+  cas_succ t s s'.
+Proof.
+  unfold not_locked; stm.
+  - exfalso; eauto.
+  - exfalso; eauto.
+Qed.
+
 Lemma h_decrease (waiting: gset Tid) (t: Tid) :
   t ∈ waiting →
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢
@@ -259,7 +311,46 @@ Proof.
       s.(pcs) !! t' = Some pc1 ∧
       s.(lock) = true⌝)%L.
 
-  - setoid_rewrite -> exist_state_pred. rewrite -> exist_state_pred.
+  -
+(*|
+In this branch we need to go from the wait set `waiting` to a set with one thread `t ∈ waiting` removed and the lock held; this is exactly what `cas_succ` does. Removing one thread results in a strictly smaller waiting set.
+|*)
+    setoid_rewrite -> exist_state_pred. rewrite -> exist_state_pred.
+    tla_apply (wf1 (step t)).
+    { tla_split; [ tla_assumption | tla_apply fair_step ]. }
+    * unfold h.
+      intros s s' [Hwaitset Hno_lock] Hnext.
+      destruct Hnext as [[tid Hstep] | ->]; [ | eauto ].
+      pose proof (step_not_locked Hstep Hno_lock) as Hcas.
+
+      stm.
+      right.
+      exists tid. split.
+      { unfold waiting_set.
+        rewrite elem_of_dom.
+        exists pc0.
+        rewrite map_filter_lookup_Some //. }
+      rewrite waiting_set_remove //.
+      rewrite lookup_insert //.
+    * unfold h.
+      (* drop next assumptions, it's implied by [step t] *)
+      intros s s' [Hwait Hno_lock] _ Hstep.
+      pose proof (step_not_locked Hstep Hno_lock) as Hcas.
+      stm.
+      unshelve eexists t, _; auto.
+      rewrite waiting_set_remove //.
+      rewrite lookup_insert //.
+    * unfold h, waiting_set, not_locked; stm.
+      rewrite elem_of_dom in Hel.
+      rewrite filter_is_Some in Hel.
+      naive_solver.
+  -
+(*|
+Over in the other branch we need to show that from the smaller wait set, we can get back to `h`, which additionally requires that the lock be free. This will happen easily due to an `unlock t` action, which is the only thing enabled.
+|*)
+    clear t Hel.
+    apply leads_to_exist_intro => t.
+    apply leads_to_exist_intro => Hwaiting.
     tla_apply (wf1 (step t)).
     { tla_split; [ tla_assumption | tla_apply fair_step ]. }
 
