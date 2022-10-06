@@ -110,3 +110,5 @@ Qed.
 
 
 End TLA.
+
+Hint Rewrite not_state_pred combine_state_preds : tla.

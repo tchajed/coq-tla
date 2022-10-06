@@ -292,16 +292,6 @@ Definition h (label: L) : state → Prop :=
   | goal => terminated
   end.
 
-Lemma leads_to_helper (Γ: predicate state) (p q: state → Prop) :
-  (∀ s, p s → q s) →
-  (Γ ⊢ ⌜p⌝ ~~> ⌜λ s, q s⌝).
-Proof.
-  intros Hpr.
-  apply impl_drop_hyp.
-  apply pred_leads_to.
-  eauto.
-Qed.
-
 Hint Extern 1 (Llt _ _) => exact I : core.
 
 Lemma init_to_terminate_lattice_proof :
@@ -318,37 +308,37 @@ Proof.
 
   - (* start *)
     leads_to_trans ⌜λ s, h A1 s ∨ h B1 s⌝; swap 1 2.
-    { apply leads_to_helper => s.
+    { apply pred_leads_to => s.
       intros [|]; [ exists A1 | exists B1 ]; eauto. }
     tla_apply (wf1 (step tidA)); stm.
   - (* A1 *)
     leads_to_trans ⌜h Afin⌝; swap 1 2.
-    { apply leads_to_helper => s. exists Afin; eauto. }
+    { apply pred_leads_to => s. exists Afin; eauto. }
 
     tla_apply (wf1 (step tidA)); stm.
   - (* Afin *)
     leads_to_trans ⌜h AfinB1⌝; swap 1 2.
-    { apply leads_to_helper => s. exists AfinB1; eauto. }
+    { apply pred_leads_to => s. exists AfinB1; eauto. }
 
     tla_apply (wf1 (step tidB)); stm.
   - (* AfinB1 *)
     leads_to_trans ⌜terminated⌝; swap 1 2.
-    { apply leads_to_helper => s. exists goal; eauto. }
+    { apply pred_leads_to => s. exists goal; eauto. }
     tla_apply (wf1 (step tidB)); stm.
 
   - (* B1 *)
     leads_to_trans ⌜h Bfin⌝; swap 1 2.
-    { apply leads_to_helper => s. exists Bfin; eauto. }
+    { apply pred_leads_to => s. exists Bfin; eauto. }
 
     tla_apply (wf1 (step tidB)); stm.
   - (* Bfin *)
     leads_to_trans ⌜h BfinA1⌝; swap 1 2.
-    { apply leads_to_helper. exists BfinA1; eauto. }
+    { apply pred_leads_to. exists BfinA1; eauto. }
 
     tla_apply (wf1 (step tidA)); stm.
   - (* BfinA1 *)
     leads_to_trans ⌜terminated⌝; swap 1 2.
-    { apply leads_to_helper => s. exists goal; eauto. }
+    { apply pred_leads_to => s. exists goal; eauto. }
     tla_apply (wf1 (step tidA)); stm.
 Qed.
 

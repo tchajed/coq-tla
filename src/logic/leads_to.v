@@ -96,11 +96,12 @@ Proof.
   apply impl_to_leads_to.
 Qed.
 
-Theorem pred_leads_to (P Q: Σ → Prop) :
+Theorem pred_leads_to (P Q: Σ → Prop) Γ :
   (∀ s, P s → Q s) →
-  ⊢ ⌜P⌝ ~~> ⌜Q⌝.
+  Γ ⊢ ⌜P⌝ ~~> ⌜Q⌝.
 Proof.
   intros.
+  apply impl_drop_hyp.
   apply impl_to_leads_to.
   unseal.
 Qed.

@@ -195,51 +195,58 @@ Why does this program terminate?
 
 |*)
 
-Definition num_threads_waiting (pcs: gmap Tid Pc) : nat :=
-  map_fold
-    (λ _tid pc n, if decide (pc = pc0) is left _
-                  then 1 + n else n)
-    0 pcs.
+Definition done_after (n: nat) (pcs: gmap Tid Pc) :=
+  ∀ tid, n ≤ tid → ∀ pc, pcs !! tid = Some pc → pc = pc2.
 
-(* exactly n threads are waiting for the lock, and the lock is free *)
-Definition threads_waiting (n: nat) : state → Prop :=
-  λ s, num_threads_waiting s.(pcs) = n ∧
-      (∀ tid pc, s.(pcs) !! tid = Some pc → pc ≠ pc1) ∧
-      s.(lock) = false.
+Definition h (n: nat) : state → Prop :=
+  λ s, done_after n s.(pcs) ∧
+       (∀ tid pc, s.(pcs) !! tid = Some pc → pc ≠ pc1) ∧
+       s.(lock) = false.
 
-Theorem init_to_waiting :
-  ⌜init⌝ ⊢ ∃ n, ⌜threads_waiting n⌝.
+Hint Unfold h done_after : stm.
+
+Theorem init_to_h :
+  ⌜init⌝ ⊢ ∃ n, ⌜h n⌝.
 Proof.
-  unseal. stm.
-  unfold threads_waiting.
-  eexists; intuition eauto.
-  stm.
-  assert (pc1 = pc0) by eauto; congruence.
-Qed.
+  unseal. stm. unfold h, done_after; simpl.
+  (* TODO: pick the maximum allocated thread id *)
+Admitted.
 
-Lemma no_threads_waiting (pcs: gmap Tid Pc) :
-  num_threads_waiting pcs = 0 →
-  ∀ tid pc, pcs !! tid = Some pc → pc ≠ pc0.
-Proof.
-  rewrite /num_threads_waiting.
-  apply (map_fold_ind
-           (λ n pcs, n = 0 →
-                     ∀ tid pc, pcs !! tid = Some pc → pc ≠ pc0)).
-  - intros. set_solver.
-  - intros.
-    destruct (decide (x = pc0)); subst; [ lia | ].
-    destruct (decide (tid = i)); lookup_simp; eauto.
-Qed.
-
-Theorem none_waiting_to_terminated :
-  ⌜threads_waiting 0⌝ ⊢ ⌜terminated⌝.
+Theorem h_0_to_terminated :
+  ⌜h 0⌝ ⊢ ⌜terminated⌝.
 Proof.
   unseal.
-  unfold threads_waiting; stm.
-  assert (pc ≠ pc1) by eauto.
-  assert (pc ≠ pc0) by (eapply no_threads_waiting; eauto).
-  destruct pc; congruence.
+  unfold h, done_after; stm.
+  (* actually done_after 0 is sufficient *)
+  clear H.
+  eapply H1; [ | eauto ].
+  lia.
 Qed.
+
+Lemma h_decrease (n: nat) :
+  0 < n →
+  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ⌜h n⌝ ~~> ⌜h (n-1)⌝.
+Proof.
+  intros Hnz.
+  rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
+
+  rewrite (tla_and_em (⌜λ s, s.(pcs) !! (n-1) = None⌝) ⌜h n⌝).
+  rewrite tla_and_distr_l; tla_simp.
+  rewrite leads_to_or_split; tla_split.
+
+  - apply pred_leads_to.
+    stm.
+    destruct (decide (tid = n - 1)); subst.
+    { congruence. }
+    eapply H; [ | eauto ]. lia.
+
+  - tla_apply (wf1 (step (n-1))).
+    { tla_split; [ tla_assumption | ].
+      transitivity fair; [ tla_assumption | ].
+      unfold fair.
+      refine (forall_apply _ _). }
+
+Abort.
 
 Lemma eventually_terminate :
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
@@ -255,12 +262,13 @@ Proof.
 
   leads_to_etrans;
     [ apply impl_drop_hyp; apply impl_to_leads_to;
-      apply init_to_waiting
+      apply init_to_h
     | ].
   leads_to_etrans;
     [| apply impl_drop_hyp; apply impl_to_leads_to;
-       apply none_waiting_to_terminated
+       apply h_0_to_terminated
      ].
+
 Abort.
 
 End example.

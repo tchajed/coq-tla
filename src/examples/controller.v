@@ -294,8 +294,7 @@ Lemma init_send_create1 :
 Proof.
   leads_to_trans ⌜create_sent 1⌝.
   - leads_to_trans ⌜λ s, ¬ s.(sent1Create) ∧ ¬ s.(obj1Exists)⌝.
-    { apply impl_drop_hyp.
-      apply pred_leads_to.
+    { apply pred_leads_to.
       stm. }
     tla_apply eventually_send1.
   - tla_apply eventually_create1.
@@ -382,7 +381,6 @@ safely assume them in the premise of the `~~>`.
 manipulation.
 |*)
     leads_to_etrans; [ | tla_apply eventually_create2 ].
-    apply impl_drop_hyp.
     rewrite combine_state_preds.
     apply pred_leads_to; stm.
 
@@ -396,7 +394,6 @@ In the second case of the split, we don't have `s.(sent2Create)`, so we'll use
   leads_to_trans ⌜create_sent 2⌝.
   {
     leads_to_etrans; [ | tla_apply eventually_send2 ].
-    apply impl_drop_hyp.
     apply pred_leads_to; stm. }
   tla_apply eventually_create2.
 Qed.
