@@ -1,7 +1,7 @@
 (*|
 
 ====================================================
-Example: Spinlock with arbitrary number of threads
+Example: Spinlock with n threads
 ====================================================
 
 This example is analogous to the spinlock_, but with an arbitrary number of threads rather than just two.
@@ -14,6 +14,18 @@ From RecordUpdate Require Import RecordUpdate.
 From stdpp Require Import gmap.
 
 From TLA Require Import logic.
+
+(*|
+====================
+System description
+====================
+
+This example models n threads acquiring then releasing a spinlock. See spinlock_
+for a description of what each thread does; in brief, they go from `pc0` to
+`pc1` when they acquire the lock (and remain in `pc0` otherwise), and then from
+`pc1` to `pc2` when they unlock.
+
+|*)
 
 Module spec.
 
@@ -34,9 +46,11 @@ Module spec.
   #[global]
   Instance tid_countable : Countable Tid := _.
 
-  (* The state consists of the state of the mutex, and a program counter for
-  each thread. The initial domain of the pcs map determines the number of
-  threads.  *)
+(*|
+The state consists of the state of the mutex, and a program counter for
+each thread. The initial domain of the pcs map determines the number of
+threads.
+|*)
   Record state :=
     mkState { lock: bool; pcs: gmap Tid Pc; }.
 
@@ -61,22 +75,32 @@ Module spec.
       λ s s', cas_fail t0 s s' ∨ cas_succ t0 s s' ∨ unlock t0 s s'.
 
   Definition init: state → Prop :=
-    λ s, s.(lock) = false ∧ ∀ tid pc, s.(pcs) !! tid = Some pc → pc = pc0.
+    λ s, s.(lock) = false ∧
+        (* all of the allocated threads are at the beginning of the spin loop *)
+         ∀ tid pc, s.(pcs) !! tid = Some pc → pc = pc0.
 
   Definition next : action state :=
     λ s s', (∃ tid, step tid s s') ∨ s' = s.
 
-  (* safety is mutual exclusion *)
+(*|
+**Safety** is mutual exclusion.
+|*)
   Definition safe: state → Prop :=
     λ s, ∀ tid tid',
     s.(pcs) !! tid = Some pc1 →
     s.(pcs) !! tid' = Some pc1 →
     tid = tid'.
 
+(*|
+We assume fairness for each thread independently. (The unallocated threads are
+never enabled so weak fairness is trivial.) Notice that this is a whole set of assumptions made simultaneously under a [∀] which is in TLA, not a Coq forall.
+|*)
   Definition fair: predicate state :=
     ∀ tid, weak_fairness (step tid).
 
-  (* liveness means all threads have terminated *)
+(*|
+**Liveness** means all threads have terminated.
+|*)
   Definition terminated: state → Prop :=
     λ s, ∀ tid pc, s.(pcs) !! tid = Some pc → pc = pc2.
 
@@ -92,7 +116,8 @@ Hint Unfold init next step safe fair terminated : stm.
 Hint Unfold cas_fail cas_succ unlock : stm.
 
 Lemma enabled_thread t :
-  enabled (step t) = λ s, ∃ pc, s.(pcs) !! t = Some pc ∧ pc ≠ pc2.
+  enabled (step t) =
+  λ s, ∃ pc, s.(pcs) !! t = Some pc ∧ pc ≠ pc2.
 Proof.
   apply pred_ext => s.
   unfold enabled; split.
@@ -191,10 +216,12 @@ Qed.
 Proving termination
 ---------------------
 
-Why does this program terminate?
+Why does this program terminate? We make an argument using the lattice rule. The lattice will have a node for each set of threads currently waiting, and it will be ordered by strict subset. We further restrict the interpretation of each node to require that no thread holds the lock; the locked states don't need to be considered in the lattice, since if a node holds the lock it will immediately release it with no intervening steps. Thus we will have to argue that if some set `waiting` thread IDs are at the beginning of the loop and the lock is free, eventually a (strictly) smaller set `waiting'` will be waiting with the lock again free.
 
 |*)
 
+(** The fact that this strict subset on finite sets is well-founded is proven in
+std++ (in a highly generic way). *)
 Theorem gset_subset_wf :
   well_founded  ((⊂) : gset Tid → gset Tid → Prop).
 Proof. apply set_wf. Qed.
@@ -207,8 +234,11 @@ Definition not_locked : state → Prop :=
     (∀ tid pc, s.(pcs) !! tid = Some pc → pc ≠ pc1) ∧
     s.(lock) = false.
 
-Definition h (done_tids: gset Tid) : state → Prop :=
-  λ s, waiting_set s.(pcs) = done_tids ∧ not_locked s.
+(*|
+This is the interpretation of each lattice element.
+|*)
+Definition h (waiting: gset Tid) : state → Prop :=
+  λ s, waiting_set s.(pcs) = waiting ∧ not_locked s.
 
 Hint Unfold h : stm.
 
@@ -296,6 +326,9 @@ Proof.
   - exfalso; eauto.
 Qed.
 
+(*|
+This is the first key lemma: whenever `h` holds, some thread acquire the lock and decreases the set of waiting threads.
+|*)
 Lemma h_leads_to_locked waiting t :
   t ∈ waiting →
   ⌜ init ⌝ ∧ □ ⟨next⟩ ∧ fair
@@ -377,6 +410,9 @@ Proof.
     exfalso; eauto.
 Qed.
 
+(*|
+This is the second key lemma: if some thread holds the lock, it will eventually free it and restore the `h` predicate that forms the lattice.
+|*)
 Lemma locked_to_smaller_h waiting :
   ⌜ init ⌝ ∧ □ ⟨next⟩ ∧ fair
   ⊢ (∃ t' (_ : t' ∈ waiting),
@@ -406,6 +442,9 @@ Proof.
     eexists; eauto.
 Qed.
 
+(*|
+Next, we simply group these two lemmas via simple transitivity into the statement that is the core of the lattice argument.
+|*)
 Lemma h_decrease (waiting: gset Tid) (t: Tid) :
   t ∈ waiting →
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢
@@ -432,6 +471,10 @@ Over in the other branch we need to show that from the smaller wait set, we can 
 |*)
     apply locked_to_smaller_h.
 Qed.
+
+(*|
+Putting everything together, `eventually_terminate` first shows that in the initial state there exists some waiting set to start the lattice proof off, then shows that if waiting goes to `∅` indeed all threads have terminated, and then uses `h_decrease` to show that each non-goal node leads to a strictly smaller node.
+|*)
 
 Lemma eventually_terminate :
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
