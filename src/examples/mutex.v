@@ -73,23 +73,23 @@ Module spec.
   Definition thread_step_def (t: Tid) σ pc σ' pc' :=
     match pc with
     | pc.lock_cas =>
-        (* cas success *)
-        (σ.(lock) = false ∧
-        σ' = σ<|lock := true|> ∧
-        pc' = pc.unlock_store) ∨
-        (* cas fail *)
-        (σ.(lock) = true ∧
-        σ' = σ ∧
-        pc' = pc.futex_wait)
+        if σ.(lock) then
+          (* cas fail *)
+          σ' = σ ∧
+          pc' = pc.futex_wait
+        else
+          (* cas success *)
+          σ' = σ<|lock := true|> ∧
+          pc' = pc.unlock_store
     | pc.futex_wait =>
-        (* futex fail *)
-        (σ.(lock) = false ∧
-        σ' = σ ∧
-        pc' = pc.lock_cas) ∨
-        (* futex goes into waiting *)
-        (σ.(lock) = true ∧
-        σ' = σ<|queue ::= cons t|> ∧
-        pc' = pc.kernel_wait)
+        if σ.(lock) then
+          (* futex goes into waiting *)
+          σ' = σ<|queue ::= cons t|> ∧
+          pc' = pc.kernel_wait
+        else
+          (* futex_wait fails *)
+          σ' = σ ∧
+          pc' = pc.lock_cas
     | pc.kernel_wait =>
         (* without this enabling condition the thread cannot step while waiting
         in the kernel *)
@@ -171,7 +171,24 @@ Qed.
 Lemma thread_step_eq t σ pc σ' pc' :
   thread_step t (σ, pc) (σ', pc') ↔ thread_step_def t σ pc σ' pc'.
 Proof. reflexivity. Qed.
+
 Opaque thread_step.
+
+Ltac destruct_step :=
+  lazymatch goal with
+  | H: thread_step _ (?σ, ?pc) (?σ', ?pc') |- _ =>
+      rewrite thread_step_eq /thread_step_def in H;
+      destruct pc; simpl in H;
+      [ let Heql := fresh "Heql" in
+        destruct σ.(lock) eqn:Heql; simpl in H, Heql; subst
+      | let Heql := fresh "Heql" in
+        destruct σ.(lock) eqn:Heql; simpl in H, Heql; subst
+      | (* kernel_wait *)
+      | (* unlock_store *)
+      | (* unlock_wake *)
+      | exfalso; eauto (* finished *)
+      ]
+  end.
 
 (* sanity check on semantics *)
 Lemma thread_step_deterministic t ρ :
@@ -183,7 +200,7 @@ Proof.
   destruct ρ as [[l q] pc].
   intros [[l' q'] pc'] [[l'' q''] pc''].
   rewrite ?thread_step_eq.
-  destruct pc; simpl;
+  destruct pc; [ destruct l | destruct l | ..]; simpl;
     rewrite ?state_inv;
     try intuition congruence.
 Qed.
@@ -202,14 +219,13 @@ Proof.
   unfold enabled.
   split.
   - intros [[σ' pc'] Hstep].
-    rewrite thread_step_eq in Hstep.
-    destruct pc; simpl in *; try (intuition congruence).
+    destruct_step; try intuition congruence.
   - intros [? ?].
     apply exist_prod.
     setoid_rewrite thread_step_eq.
-    destruct pc; simpl; intuition eauto.
-    * destruct (lock σ); eauto 8.
-    * destruct (lock σ); eauto 8.
+    destruct σ as [l q]; simpl in *.
+    destruct pc; [ destruct l | destruct l | .. ];
+      simpl; intuition eauto.
 Qed.
 
 Lemma thread_step_enabled_s t ρ :
@@ -354,26 +370,17 @@ Proof.
 
     apply exclusion_inv' => t' t'' /= Ht' Ht''.
     destruct Hinv as [Hlocked Hsafe]; unfold safe in *; simpl in *.
-    rewrite thread_step_eq /thread_step_def in Hstep.
     destruct (decide (t' = t'')); subst.
     { split; first done.
-      destruct (decide (t = t'')); lookup_simp.
-      - invc Ht'.
-        destruct pc''; intuition (subst; eauto; try congruence).
-      - invc Ht'.
-        destruct pc''; intuition (subst; eauto; try congruence). }
+      destruct (decide (t = t'')); destruct_step; stm. }
 
     destruct (decide (t = t''));
       destruct (decide (t = t'));
       subst; lookup_simp; eauto;
       assert (σ.(lock) = true) by eauto.
-    { invc Ht''.
-      destruct pc''; intuition (subst; eauto);
-        try congruence. }
-    { invc Ht''.
-      destruct pc''; intuition (subst; eauto);
-        try congruence. }
-    split; eauto.
+    { destruct_step; stm. }
+    { destruct_step; stm. }
+    { split; eauto. }
 Qed.
 
 Theorem safety :
