@@ -29,8 +29,10 @@ __ https://github.com/tchajed/futex-tutorial
   lock(m)
   unlock(m)
 
+The inductive `pc.t` below encodes the control flow of the program. We also need an additional boolean `σ.(lock)` to track the mutex itself and a queue `σ.(queue)` to track the list of threads waiting on the futex, which is needed to accurately give the semantics of which thread is woken up by `futex_wake`.
 
 |*)
+
 From RecordUpdate Require Import RecordUpdate.
 From stdpp Require Import gmap.
 
