@@ -168,7 +168,7 @@ Qed.
 Theorem safety :
   ⌜init⌝ ∧ □⟨next⟩ ⊢ □ ⌜safe⌝.
 Proof.
-  rewrite -> exclusion_inv_ok.
+  rewrite exclusion_inv_ok.
   apply always_impl_proper.
   unseal; stm.
 Qed.

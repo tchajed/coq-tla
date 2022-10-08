@@ -7,6 +7,8 @@ proof is that `□◇ (p ∨ q) = □◇ p ∨ □◇ q`, despite the fact that 
 does not distribute over ∨.
 
 |*)
+
+From Coq Require Import Setoid.
 From TLA Require Import defs automation.
 From TLA Require Import classical.
 
@@ -276,7 +278,7 @@ Qed.
 Theorem later_always p :
   □ p ⊢ later (□ p).
 Proof.
-  rewrite -> always_unroll at 1.
+  rewrite {1}always_unroll.
   unseal.
 Qed.
 
@@ -323,8 +325,7 @@ Theorem leads_to_weaken (p1 p2 q1 q2: predicate) :
 Proof.
   intros H1 H2.
   rewrite /leads_to.
-  rewrite -> H1. rewrite <- H2.
-  reflexivity.
+  rewrite H1 -H2 //.
 Qed.
 
 #[global]

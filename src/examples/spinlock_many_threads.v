@@ -195,7 +195,7 @@ Qed.
 Theorem safety :
   ⌜init⌝ ∧ □⟨next⟩ ⊢ □ ⌜safe⌝.
 Proof.
-  rewrite -> exclusion_inv_ok.
+  rewrite exclusion_inv_ok.
   apply always_impl_proper.
   unseal; stm.
 Qed.
@@ -422,7 +422,7 @@ Lemma locked_to_smaller_h waiting :
           lock s = true ⌝) ~~>
      ⌜ λ s, ∃ (waiting' : gset Tid) (_ : waiting' ⊂ waiting), h waiting' s ⌝.
 Proof.
-  rewrite <- tla_and_assoc. rewrite -> add_safety. tla_simp.
+  rewrite <- tla_and_assoc. rewrite add_safety. tla_simp.
   apply leads_to_exist_intro => t.
   apply leads_to_exist_intro => Hwaiting.
   tla_apply (wf1 (step t)).
@@ -463,7 +463,7 @@ Proof.
 (*|
 In this branch we need to go from the wait set `waiting` to a set with one thread `t ∈ waiting` removed and the lock held; this is exactly what `cas_succ` does. Removing one thread results in a strictly smaller waiting set.
 |*)
-    setoid_rewrite -> exist_state_pred. rewrite -> exist_state_pred.
+    setoid_rewrite exist_state_pred. rewrite exist_state_pred.
     eapply h_leads_to_locked; eauto.
   -
 (*|

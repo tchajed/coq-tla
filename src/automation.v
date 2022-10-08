@@ -52,7 +52,7 @@ Context [Σ: Type].
 Notation pred_impl := (@pred_impl Σ).
 
 Local Ltac instance_t :=
-  rewrite /Proper /respectful /pointwise_relation
+  rewrite /Proper /subrelation /respectful /pointwise_relation
     /Basics.flip /Basics.impl /pred_impl;
   autounfold with tla;
   try solve [ intuition (deex; eauto) ].
@@ -62,6 +62,15 @@ Proof. compute; intuition auto. Qed.
 
 Global Instance pred_impl_trans : Transitive pred_impl.
 Proof. compute; intuition auto. Qed.
+
+Global Instance pred_rewrite : RewriteRelation pred_impl.
+Proof. Qed.
+
+Global Instance pred_sub_eq : subrelation eq pred_impl.
+Proof. instance_t. Qed.
+
+Global Instance flip_pred_sub_eq : subrelation eq (flip pred_impl).
+Proof. instance_t. Qed.
 
 Global Instance implies_impl_proper :
   Proper (Basics.flip pred_impl ==> pred_impl ==> pred_impl) tla_implies.

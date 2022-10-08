@@ -230,7 +230,7 @@ Hint Unfold safe : stm.
 Theorem is_safe :
   ⌜init⌝ ∧ □ ⟨next⟩ ⊢ □ ⌜safe⌝.
 Proof.
-  rewrite -> create_invariant.
+  rewrite create_invariant.
   apply always_impl_proper.
   unseal.
   stm.
@@ -436,10 +436,10 @@ modalities, so it isn't easily automated, either).
 |*)
   tla_clear ⌜init⌝. tla_clear (□⟨next⟩)%L.
   rewrite tla_and_comm.
-  rewrite -> always_and_eventually.
+  rewrite always_and_eventually.
   rewrite combine_state_preds.
   apply eventually_impl_proper.
-  apply state_pred_impl.
+  apply state_pred_impl => s.
   stm.
 Qed.
 

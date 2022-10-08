@@ -115,7 +115,8 @@ Proof.
   (drop k e)] which is needed as a starting point. Then it leaves two
   possibilities: either [p] always holds, or [◇ q] (loosely speaking). The
   latter case is exactly the goal so it goes through immediately. *)
-  edestruct (until_next p q next e Hpuntilq Hnext); [ eassumption | | by auto ].
+  edestruct (until_next p q next e Hpuntilq Hnext);
+    [ eassumption | | by auto ].
 
   (* in the former case we'll show that weak fairness gives us either that [a]
   is never enabled (false, because p implies it is enabled), or that [a]

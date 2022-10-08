@@ -145,7 +145,7 @@ Theorem eventually_b :
   ◇ ⌜λ s, s.(x) = B⌝.
 Proof.
   apply (leads_to_apply ⌜ λ s, s.(x) = A ⌝).
-  { rewrite -> init_a; tla_prop. }
+  { rewrite init_a; tla_prop. }
   tla_apply a_leads_to_b.
 Qed.
 
@@ -175,7 +175,7 @@ Proof.
 `leads_to_apply p` will switch from proving `◇ q` to `p` and `p ~~> q`.
 |*)
   apply (leads_to_apply ⌜λ s, s.(x) = A⌝).
-  { rewrite -> init_a; tla_prop. }
+  { rewrite init_a; tla_prop. }
   tla_apply a_leads_to_c.
 Qed.
 
