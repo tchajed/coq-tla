@@ -166,37 +166,6 @@ Proof.
   eauto.
 Qed.
 
-Lemma wf1_ex {A: Type} (acts: A → action Σ) (next: action Σ) (p q: Σ → Prop)  :
-  ∀ (Hpuntilq: ∀ s s', p s → next s s' → p s' ∨ q s')
-    (Ha: ∀ s, p s → ∃ (a:A), enabled (acts a) s ∧ ∀ s', acts a s s' → q s'),
-  (⊢ □ ⟨next⟩ ∧ (∀ x, weak_fairness (acts x)) → ⌜p⌝ ~~> ⌜q⌝).
-Proof.
-  intros.
-  intros e.
-  setoid_rewrite weak_fairness_alt1.
-  intros [Hnext Hwf_alt].
-  intros k Hp.
-
-  (* [until_next] produces three goals. The first is simply the proof of [p
-  (drop k e)] which is needed as a starting point. Then it leaves two
-  possibilities: either [p] always holds, or [◇ q] (loosely speaking). The
-  latter case is exactly the goal so it goes through immediately. *)
-
-  assert (⊢ ⌜p⌝ ∧ ⟨next⟩ → later ⌜p⌝ ∨ later ⌜q⌝) as Hpuntilq'.
-  { unseal. }
-  edestruct (until_next ⌜p⌝ ⌜q⌝ next e Hpuntilq' Hnext); [ eassumption | | by auto ].
-
-  (*
-  destruct (Hwf_alt k) as [k' [Hnotenabled | Ha]].
-  { (* impossible, we have p everywhere after k *)
-    contradiction Hnotenabled.
-    apply Henable; eauto. }
-
-  exists (S k').
-  change (S k' + k) with (1 + (k' + k)). rewrite -drop_drop.
-*)
-Abort.
-
 Theorem enabled_or a1 a2 :
   ∀ s, enabled (λ s s', a1 s s' ∨ a2 s s') s ↔ (enabled a1 s ∨ enabled a2 s).
 Proof.
