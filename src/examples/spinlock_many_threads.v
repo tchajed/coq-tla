@@ -420,7 +420,8 @@ Lemma locked_to_smaller_h waiting :
           waiting_set (pcs s) = waiting ∖ {[t']} ∧
           pcs s !! t' = Some pc1 ∧
           lock s = true ⌝) ~~>
-     ⌜ λ s, ∃ (waiting' : gset Tid) (_ : waiting' ⊂ waiting), h waiting' s ⌝.
+     ⌜ λ s, ∃ (waiting' : gset Tid),
+              waiting' ⊂ waiting ∧ h waiting' s ⌝.
 Proof.
   rewrite <- tla_and_assoc. rewrite add_safety. tla_simp.
   apply leads_to_exist_intro => t.
@@ -433,11 +434,11 @@ Proof.
     destruct Hstep as [ ? | [-> Hunlock] ]; [ naive_solver | ].
     right.
 
-    eapply unlock_to_h in Hunlock; eauto.
+    eapply unlock_to_h in Hunlock; naive_solver.
   - intros s s' (Hwait & Ht & Hlock) (Hnext & Hinv & Hinv') Hstep.
     eapply locked_step in Hstep; eauto.
     destruct Hstep as [ ? | [_ Hunlock] ]; [ naive_solver | ].
-    eapply unlock_to_h in Hunlock; eauto.
+    eapply unlock_to_h in Hunlock; naive_solver.
   - stm.
     eexists; eauto.
 Qed.
@@ -449,7 +450,7 @@ Lemma h_decrease (waiting: gset Tid) (t: Tid) :
   t ∈ waiting →
   ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢
   ⌜h waiting⌝ ~~>
-    ⌜λ s, ∃ waiting' (_: waiting' ⊂ waiting), h waiting' s⌝.
+    ⌜λ s, ∃ waiting', waiting' ⊂ waiting ∧ h waiting' s⌝.
 Proof.
   intros Hel.
 
