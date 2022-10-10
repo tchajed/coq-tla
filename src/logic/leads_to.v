@@ -362,6 +362,17 @@ Proof.
     apply exist_impl_intro. exists G. unseal.
 Qed.
 
+Lemma leads_to_detour (q p s Γ : predicate) :
+  (Γ ⊢ p ~~> (q ∨ s)) →
+  (Γ ⊢ q ~~> s) →
+  (Γ ⊢ p ~~> s).
+Proof.
+  intros.
+  apply (leads_to_fork2 q s); auto.
+  apply impl_drop_hyp.
+  apply leads_to_refl.
+Qed.
+
 Lemma leads_to_exist_intro {A} (Γ: predicate) (φ: A → predicate) q :
   (∀ x, Γ ⊢ φ x ~~> q) →
   (Γ ⊢ (∃ x, φ x) ~~> q).

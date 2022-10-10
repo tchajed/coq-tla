@@ -84,7 +84,7 @@ Module spec.
     | pc.futex_wait =>
         if σ.(lock) then
           (* futex goes into waiting *)
-          σ' = σ<|queue ::= cons t|> ∧
+          σ' = σ<|queue ::= λ q, q ++ [t]|> ∧
           pc' = pc.kernel_wait
         else
           (* futex_wait fails *)
@@ -313,7 +313,7 @@ Ltac stm_simp :=
         | H: ?P → _, H': ?P |- _ => lazymatch type of P with
                                     | Prop => specialize (H H')
                                     end
-        | H: context[@set state _ _ _ _ _] |- _ =>
+        | H: context[set _ _] |- _ =>
             progress (unfold set in H; simpl in H)
         | H: @eq bool _ _ |- _ => solve [ inversion H ]
         | _ => progress (unfold set; simpl)
@@ -329,8 +329,6 @@ Ltac stm :=
       (split; [ solve [ intuition eauto ] | ])
     | (split; [ | solve [ intuition eauto ] ])
     ].
-
-Hint Unfold exclusion_inv : stm.
 
 Lemma insert_lookup_dec {tp: gmap Tid pc.t} :
   ∀ t t' pc',
@@ -361,7 +359,8 @@ Proof.
   unfold spec.
   tla_clear fair.
   apply init_invariant.
-  - stm; intuition auto.
+  - unfold exclusion_inv.
+    stm; intuition auto.
     { pose proof (H1 _ _ H); congruence. }
     { pose proof (H1 _ _ H); congruence. }
   - intros [σ tp] [σ' tp']; simpl.
@@ -390,7 +389,7 @@ Qed.
 Theorem safety :
   spec ⊢ □ ⌜safe⌝.
 Proof.
-  rewrite -> exclusion_inv_ok.
+  rewrite exclusion_inv_ok /exclusion_inv.
   apply always_impl_proper.
   unseal; stm.
 Qed.
@@ -415,12 +414,116 @@ Proof.
     unfold lock_held in *; simpl in *.
     destruct_step;
       repeat (stm_simp
-              || lazymatch goal with
-                  | H: context[set] |- _ => rewrite /set /= in H
-                end
               ||  match goal with
                   | t: Tid |- _ => exists t; lookup_simp; by eauto
                   end).
+Qed.
+
+Lemma fair_step (tid: nat) :
+  fair ⊢ weak_fairness (step tid).
+Proof.
+  unfold fair.
+  (* apply doesn't work due to the wrong unification heuristics *)
+  refine (forall_apply _ _).
+Qed.
+
+(* TODO: we need to also know t will never be signalled again (in ts' or
+otherwise). Get this fact by first adding some ghost state tracking all the
+signalled threads, then state an invariant that the threads in both lists
+together are unique.  *)
+
+Lemma queue_gets_popped t ts :
+  spec ⊢
+  ⌜λ s, s.(state).(queue) = t :: ts ∧
+        s.(state).(lock) = true⌝ ~~>
+  ⌜λ s, ∃ ts', s.(state).(queue) = ts ++ ts'⌝.
+Proof.
+  leads_to_trans (∃ t', ⌜λ s,
+        (∃ ts', s.(state).(queue) = t :: ts ++ ts') ∧
+        s.(state).(lock) = true ∧
+        lock_held s t'⌝)%L.
+  - rewrite exist_state_pred.
+    apply (leads_to_assume (⌜locked_inv⌝)); [ tla_apply locked_inv_ok | ].
+    rewrite combine_state_preds.
+    apply pred_leads_to => s [[Hq Hl] Hinv].
+    destruct Hinv as [t' ?]; eauto.
+    exists t'; intuition eauto.
+    exists nil; rewrite app_nil_r //.
+  - apply leads_to_exist_intro => t'.
+    tla_pose exclusion_inv_ok; tla_simp.
+    rewrite (tla_and_comm fair).
+    rewrite -(tla_and_assoc _ _ fair).
+    rewrite combine_preds.
+    unfold lock_held.
+
+(*|
+This "detour" is actually really interesting: you might think that simple transitivity is enough, because if t' has the lock, it will release the lock, then signal to t (transitivity is needed because this is two steps from thread t'). However, this is _not_ the case. It is possible for t' to release the lock, and then for some other thread to happen to do a CAS, acquire the lock, unlock it, and then send the signal to t; the original t' will now signal some other thread. This is unusual because t' is trying to signal something to t but some unrelated thread swoops in and does it instead, many steps later.
+|*)
+    apply (leads_to_detour ⌜λ s,
+      ((∃ ts' : list Tid, s.(state).(queue) = t :: ts ++ ts')
+       ∧ s.(tp) !! t' = Some pc.unlock_wake)⌝).
+
+    { rewrite combine_or_preds.
+      tla_apply (wf1 (step t')).
+      { tla_split; [ tla_assumption | tla_apply fair_step ]. }
+      - intros [σ tp] [σ' tp'] => /= [Hinv Hnext].
+        destruct Hnext  as (Hnext & Hexclusion & _).
+        destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
+        destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
+        stm_simp.
+
+        destruct_step; stm_simp;
+          try (assert (t' ≠ t'') as Hneq by congruence);
+          try solve [ eauto 6 ].
+        + left; intuition eauto.
+          eexists (_ ++ [t'']).
+          rewrite !app_assoc //.
+        + assert (t' = t''); subst.
+          { apply Hexclusion; eauto. }
+          right; stm_simp; eauto.
+      - intros [[q l] tp] [σ' tp'] => /= Hp.
+        destruct_and!; subst; repeat deex.
+        (* drop next *)
+        intros _ Hstep.
+        rewrite /step /= in Hstep.
+        repeat deex.
+        assert (pc = pc.unlock_store) by congruence; subst.
+        stm_simp.
+        rewrite thread_step_eq /= in H0.
+        stm.
+      - intros [[q l] tp] ?. rewrite step_enabled.
+        stm.
+        eexists; split; first by eauto.
+        intuition congruence. }
+
+    { tla_apply (wf1 (step t')).
+      { tla_split; [ tla_assumption | tla_apply fair_step ]. }
+      - intros [σ tp] [σ' tp'] => /= [Hinv Hnext].
+        destruct Hnext  as (Hnext & Hexclusion & _).
+        destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
+        destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
+        stm_simp.
+
+        destruct_step; stm_simp;
+          try (assert (t' ≠ t'') as Hneq by congruence);
+          try solve [ eauto 6 ].
+        + left; intuition eauto.
+          eexists (_ ++ [t'']).
+          rewrite !app_assoc //.
+      - intros [[q l] tp] [σ' tp'] => /= Hp.
+        destruct_and!; subst; repeat deex.
+        (* drop next *)
+        intros _ Hstep.
+        rewrite /step /= in Hstep.
+        repeat deex.
+        assert (pc = pc.unlock_wake) by congruence; subst.
+        stm_simp.
+        rewrite thread_step_eq /= in H1.
+        stm.
+      - intros [[q l] tp] ?. rewrite step_enabled.
+        stm.
+        eexists; split; first by eauto.
+        intuition congruence. }
 Qed.
 
 End example.
