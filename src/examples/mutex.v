@@ -110,8 +110,8 @@ Module spec.
 
   Record Config :=
     mkConfig { state: State;
-                (* program counter for each thread (or None if thread never
-                existed) *)
+                (* "thread pool": represented by a program counter for each
+                thread id (or None if this tid never existed) *)
                 tp: gmap Tid pc.t; }.
 
   #[global]
@@ -156,7 +156,7 @@ Import spec.
 
 Section example.
 
-Implicit Types (σ: State) (s: Config) (t: Tid).
+Implicit Types (σ: State) (s: Config) (tid t: Tid).
 Implicit Types (ρ: State * pc.t).
 Implicit Types (l: bool) (q: list Tid).
 
@@ -309,6 +309,10 @@ Ltac stm_simp :=
         | H: @eq _ (mkConfig _ _) (mkConfig _ _) |- _ =>
             invc H; cbn in *
         | H: Some _ = Some _ |- _ => invc H
+        | H: ?x = ?x → _ |- _ => specialize (H eq_refl)
+        | H: ?P → _, H': ?P |- _ => lazymatch type of P with
+                                    | Prop => specialize (H H')
+                                    end
         | H: context[@set state _ _ _ _ _] |- _ =>
             progress (unfold set in H; simpl in H)
         | H: @eq bool _ _ |- _ => solve [ inversion H ]
@@ -389,6 +393,34 @@ Proof.
   rewrite -> exclusion_inv_ok.
   apply always_impl_proper.
   unseal; stm.
+Qed.
+
+Definition lock_held (s: Config) (t: Tid) :=
+  s.(tp) !! t = Some pc.unlock_store.
+
+Definition locked_inv : Config → Prop :=
+  λ s, s.(state).(lock) = true →
+       ∃ t, lock_held s t.
+
+Lemma locked_inv_ok :
+  spec ⊢ □⌜locked_inv⌝.
+Proof.
+  unfold spec.
+  tla_clear fair.
+  apply init_invariant.
+  - unfold locked_inv; stm.
+  - unfold locked_inv; intros [σ tp] [σ' tp'] Hinv Hnext.
+    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    unfold lock_held in *; simpl in *.
+    destruct_step;
+      repeat (stm_simp
+              || lazymatch goal with
+                  | H: context[set] |- _ => rewrite /set /= in H
+                end
+              ||  match goal with
+                  | t: Tid |- _ => exists t; lookup_simp; by eauto
+                  end).
 Qed.
 
 End example.
