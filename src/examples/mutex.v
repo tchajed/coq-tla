@@ -652,27 +652,126 @@ This "detour" is actually really interesting: you might think that simple transi
         intuition congruence. }
 Qed.
 
-Definition sleep_set s : gset _ :=
-  dom (filter (λ '(tid, pc),
-           pc = pc.futex_wait ∨
-           pc = pc.kernel_wait) s.(tp)).
+Definition pc_set pc0 (tp: gmap Tid pc.t) : gset _ :=
+  dom (filter (λ '(tid, pc), pc = pc0) tp).
 
-Definition waiting_set s : gset _ :=
-  dom (filter (λ '(tid, pc),
-           pc = pc.lock_cas) s.(tp)).
+Definition lattice_lt : relation (gset Tid * gset Tid * gset Tid) :=
+  slexprod _ (gset Tid) (slexprod (gset Tid) (gset Tid) (⊂) (⊂)) (⊂).
 
-Definition lattice_lt : relation (gset Tid * gset Tid) :=
-  slexprod (gset Tid) (gset Tid) (⊂) (⊂).
+Infix "≺" := lattice_lt (at level 50).
 
 Lemma lattice_lt_wf : well_founded lattice_lt.
+Proof. repeat apply wf_slexprod; apply set_wf. Qed.
+
+Definition thread_sets (a: gset Tid * gset Tid * gset Tid) : Config → Prop :=
+  λ s, let '(FW, KW, CAS) := a in
+       FW = pc_set pc.futex_wait s.(tp) ∧
+       KW = pc_set pc.kernel_wait s.(tp) ∧
+       CAS = pc_set pc.lock_cas s.(tp).
+
+Definition h (a: gset Tid * gset Tid * gset Tid) : Config → Prop :=
+  λ s, thread_sets a s ∧
+       s.(state).(lock) = false.
+
+(* TODO: remove duplicate from spinlock_many_threads *)
+Lemma gset_ext {A: Type} `{Countable A} (s1 s2: gset A) :
+  (∀ x, x ∈ s1 ↔ x ∈ s2) →
+  s1 = s2.
 Proof.
-  apply wf_slexprod; apply set_wf.
+  intros.
+  apply leibniz_equiv.
+  apply set_equiv.
+  auto.
 Qed.
 
-Definition h (a: gset Tid * gset Tid) : Config → Prop :=
-  λ s, let '(sleeping, waiting) := a in
-       sleeping = sleep_set s ∧
-       waiting = waiting_set s ∧
-       s.(state).(lock) = true.
+(* TODO: remove duplicate from spinlock_many_threads *)
+Lemma filter_is_Some {K: Type} `{Countable K} {V: Type}
+  (P: (K * V) → Prop) `{∀ x, Decision (P x)} (m: gmap K V) k :
+  is_Some (filter P m !! k) ↔ (∃ v, m !! k = Some v ∧ P (k,v)).
+Proof.
+  split; (intuition auto); repeat deex.
+  - destruct H1 as [v Hlookup].
+    rewrite map_filter_lookup_Some in Hlookup.
+    eauto.
+  - rewrite map_filter_lookup. rewrite /is_Some.
+    exists v.
+    rewrite H1 /=.
+    rewrite option_guard_True //.
+Qed.
+
+(* TODO: almost identical theorem in spinlock_many_threads *)
+Lemma pc_set_insert_other t pc0 tp pc' :
+  pc' ≠ pc0 →
+  pc_set pc0 (<[t := pc']> tp) = pc_set pc0 tp ∖ {[t]}.
+Proof.
+  intros.
+  unfold pc_set.
+  apply gset_ext => t'.
+  rewrite elem_of_dom elem_of_difference elem_of_dom.
+  rewrite elem_of_singleton.
+  rewrite !filter_is_Some.
+  destruct (decide (t = t')); subst.
+  - rewrite lookup_insert; naive_solver.
+  - rewrite -> lookup_insert_ne by congruence.
+    naive_solver.
+Qed.
+
+Lemma pc_set_insert_same t pc0 tp :
+  pc_set pc0 (<[t := pc0]> tp) = pc_set pc0 tp ∪ {[t]}.
+Proof.
+  unfold pc_set.
+  apply gset_ext => t'.
+  rewrite elem_of_dom elem_of_union elem_of_dom.
+  rewrite elem_of_singleton.
+  rewrite !filter_is_Some.
+  split.
+  - intros; repeat deex.
+    destruct (decide (t = t')); lookup_simp; eauto.
+  - intros; intuition (subst; eauto; repeat deex); lookup_simp; eauto.
+    destruct (decide (t = t')); lookup_simp; eauto.
+Qed.
+
+Lemma pc_set_remove_not_present t pc0 pc tp :
+  tp !! t = Some pc →
+  pc ≠ pc0 →
+  pc_set pc0 tp ∖ {[t]} = pc_set pc0 tp.
+Proof.
+  intros.
+  assert (t ∉ pc_set pc0 tp).
+  { unfold pc_set.
+    rewrite elem_of_dom.
+    rewrite filter_is_Some.
+    intros [v [Hlookup ?]]; subst.
+    congruence.
+  }
+  set_solver.
+Qed.
+
+Hint Rewrite pc_set_insert_same : pc.
+Hint Rewrite pc_set_insert_other using congruence : pc.
+Hint Rewrite pc_set_remove_not_present using (auto; congruence) : pc.
+
+Lemma decreases_FW FW KW CAS t :
+  t ∈ FW →
+  spec ⊢
+  ⌜thread_sets (FW, KW, CAS)⌝ ~~>
+  ⌜λ s, ∃ FW' KW' CAS', (FW', KW', CAS') ≺ (FW, KW, CAS) ∧
+                        thread_sets (FW', KW', CAS') s⌝.
+Proof.
+  intros Hel.
+  tla_apply (wf1 (step t)).
+  - unfold spec. tla_split; [ tla_assumption | tla_apply fair_step ].
+  - rewrite /h /thread_sets.
+    move => [σ tp] [σ' tp'] /= [? Hunlocked] Hnext. destruct_and!; subst.
+    destruct Hnext as [ [t' Hstep] | Heq]; [ | stm_simp; by eauto ].
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    destruct_step; stm_simp;
+      autorewrite with pc;
+      repeat erewrite pc_set_remove_not_present by eauto;
+      eauto.
+    + right.
+      do 3 eexists; intuition eauto.
+Abort.
+
 
 End example.
