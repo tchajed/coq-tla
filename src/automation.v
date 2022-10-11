@@ -450,7 +450,7 @@ Ltac tla_pose lem :=
   let H := fresh "Htemp" in
   epose proof lem as H;
   apply (tla_pose_lemma _ _ H); clear H;
-  [ tla_prop | try rewrite tla_and_assoc ].
+  [ tla_prop | tla_simp ].
 
 (** Split a proof of [p = q] or [p ⊢ q1 ∧ q2] into two goals. *)
 Ltac tla_split :=

@@ -213,6 +213,7 @@ Theorem create_invariant :
 Proof.
   tla_pose messages_sent.
   tla_pose obj1_invariant.
+  rewrite -(tla_and_assoc (□⟨next⟩)).
   rewrite !combine_preds.
   apply init_invariant.
   - stm.
