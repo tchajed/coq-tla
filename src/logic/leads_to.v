@@ -65,6 +65,17 @@ Proof.
   rewrite H1 -H2 //.
 Qed.
 
+Theorem leads_to_weaken_internal (p1 q1 p2 q2: predicate) :
+  □(p2 → p1) ∧ □(q1 → q2) ⊢ p1 ~~> q1 → p2 ~~> q2.
+Proof.
+  intros e [Hp Hq] Hpq.
+  unseal.
+  apply Hp in H.
+  destruct (Hpq k) as [k' Hqk]; auto; rewrite drop_drop in Hqk.
+  apply Hq in Hqk.
+  eauto.
+Qed.
+
 #[global]
 Instance leads_to_impl_proper :
   Proper (flip pred_impl ==> pred_impl ==> pred_impl) (leads_to (Σ := Σ)).
