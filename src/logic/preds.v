@@ -23,8 +23,8 @@ Proof.
   - specialize (H k). intuition auto.
 Qed.
 
-Theorem add_safety (init: predicate) (next: action) (fair: predicate)
-  (inv: Σ → Prop) (φ: predicate) :
+Theorem add_safety {init: predicate} {next: action} {fair: predicate}
+  {inv: Σ → Prop} {φ: predicate} :
   (init ∧ □⟨next⟩ ∧ fair ⊢ □⌜inv⌝) →
   (init ∧ □⟨λ s s', next s s' ∧ inv s ∧ inv s'⟩ ∧ fair ⊢ φ) →
   (init ∧ □⟨next⟩ ∧ fair ⊢ φ).

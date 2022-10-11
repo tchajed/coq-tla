@@ -154,7 +154,7 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma leads_to_assume (q p r φ: predicate) :
+Lemma leads_to_assume (q: predicate) {p r φ: predicate} :
   (* side condition *)
   (r ⊢ □ q) →
   (* continue proof with q in the leads_to premise *)

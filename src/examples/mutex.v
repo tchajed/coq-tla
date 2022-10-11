@@ -448,7 +448,14 @@ Lemma NoDup_app1 {A} (l: list A) (x: A) :
 Proof.
   rewrite NoDup_app.
   pose proof (NoDup_singleton x).
-  split; (intuition auto); set_solver.
+  (intuition auto); set_solver.
+Qed.
+
+Lemma NoDup_app1_fwd {A} (l: list A) (x: A) :
+  NoDup l → x ∉ l →
+  NoDup (l ++ [x]).
+Proof.
+  rewrite NoDup_app1 //.
 Qed.
 
 Lemma NoDup_pop (l: list Tid) :
@@ -458,47 +465,12 @@ Proof.
   inversion 1; subst; auto.
 Qed.
 
-Hint Resolve NoDup_nil_2 NoDup_pop : core.
-
-Hint Extern 2 (_ ∉ _) => set_solver : core.
-Hint Extern 2 (_ ∈ _) => set_solver : core.
-
-Lemma nodup_helper_inv_ok :
-  spec ⊢ □⌜nodup_helper_inv⌝.
+Lemma elem_of_pop t (l: list Tid) :
+  t ∈ pop l →
+  t ∈ l.
 Proof.
-  unfold spec.
-  tla_clear fair.
-  apply init_invariant.
-  - unfold nodup_helper_inv, nodup_inv; stm.
-    set_solver+.
-  - unfold nodup_helper_inv, nodup_inv; intros [σ tp] [σ' tp'] Hinv Hnext.
-    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    destruct_step; stm; intros;
-      try (destruct (decide (t = t0)); lookup_simp; eauto;
-          let n := numgoals in guard n <= 1).
-    + apply H0 in H1; congruence.
-    + apply H0 in H1; congruence.
-    + assert (t ∉ q0).
-      { intros Hel. apply H0 in Hel; congruence. }
-      rewrite NoDup_app1; split; first eauto.
-      intros.
-      destruct (decide (t = t0)); lookup_simp; eauto.
-    + apply H0 in H1; congruence.
-    + apply H0 in H1; congruence.
-    + assert (t0 ∈ q0) as Hel.
-      { destruct q0; simpl; set_solver. }
-      destruct (decide (t = t0)); lookup_simp; eauto.
-      { apply H0 in Hel; congruence. }
-Qed.
-
-Lemma nodup_inv_ok :
-  spec ⊢ □⌜nodup_inv⌝.
-Proof.
-  tla_pose nodup_helper_inv_ok.
-  tla_clear spec.
-  apply always_impl_proper.
-  apply state_pred_impl; unfold nodup_helper_inv; naive_solver.
+  unfold pop.
+  destruct l; set_solver.
 Qed.
 
 Lemma NoDup_cons_inv t ts :
@@ -518,6 +490,58 @@ Proof.
   rewrite NoDup_cons_inv; intuition auto.
 Qed.
 
+(* limit these hints to just this NoDup theorem *)
+Section nodup.
+
+#[local]
+Hint Resolve NoDup_nil_2 NoDup_pop NoDup_app1_fwd elem_of_pop : core.
+
+#[local]
+Hint Extern 2 (_ ∉ _) => set_solver : core.
+#[local]
+Hint Extern 2 (_ ∈ _) => set_solver : core.
+
+Lemma nodup_helper_inv_ok :
+  spec ⊢ □⌜nodup_helper_inv⌝.
+Proof.
+  unfold spec.
+  tla_clear fair.
+  apply init_invariant.
+  - unfold nodup_helper_inv, nodup_inv; stm.
+    set_solver+.
+  - unfold nodup_helper_inv, nodup_inv.
+    intros [σ tp] [σ' tp'] [Hnodup Hwait] Hnext.
+    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    destruct_step; stm; intros;
+      try (destruct (decide (t0 = t)); lookup_simp; eauto;
+          let n := numgoals in guard n <= 1);
+      try match goal with
+          | H: ?t ∈ q0 |- _ => apply Hwait in H; congruence
+          end.
+    + assert (t ∈ q0) as Hel by auto.
+      apply Hwait in Hel; congruence.
+Qed.
+End nodup.
+
+Lemma nodup_inv_ok :
+  spec ⊢ □⌜nodup_inv⌝.
+Proof.
+  tla_pose nodup_helper_inv_ok.
+  tla_clear spec.
+  apply always_impl_proper.
+  apply state_pred_impl; unfold nodup_helper_inv; naive_solver.
+Qed.
+
+Lemma queue_invs :
+  spec ⊢ □⌜λ s, exclusion_inv s ∧ nodup_inv s⌝.
+Proof.
+  tla_pose exclusion_inv_ok.
+  tla_pose nodup_inv_ok.
+  tla_clear spec.
+  rewrite -always_and; tla_simp.
+Qed.
+
 Lemma queue_gets_popped t ts :
   spec ⊢
   ⌜λ s, s.(state).(queue) = t :: ts ∧
@@ -530,8 +554,8 @@ Proof.
         s.(state).(lock) = true ∧
         lock_held s t'⌝)%L.
   - rewrite exist_state_pred.
-    apply (leads_to_assume (⌜locked_inv⌝)); [ tla_apply locked_inv_ok | ].
-    apply (leads_to_assume (⌜nodup_inv⌝)); [ tla_apply nodup_inv_ok | ].
+    apply (leads_to_assume _ locked_inv_ok).
+    apply (leads_to_assume _ nodup_inv_ok).
     tla_simp.
     apply pred_leads_to => s [[[Hq Hl] Hinv] Hnodup].
     destruct s as [[l q] ?]; simpl in *; subst.
@@ -541,13 +565,7 @@ Proof.
     rewrite /nodup_inv /= in Hnodup.
     apply NoDup_cons_inv in Hnodup; intuition auto.
   - apply leads_to_exist_intro => t'.
-    tla_pose exclusion_inv_ok.
-    tla_pose nodup_inv_ok.
-    rewrite -always_and. rewrite combine_state_preds.
-    unfold spec; tla_simp.
-    rewrite (tla_and_comm fair).
-    rewrite -(tla_and_assoc _ _ fair).
-    rewrite combine_preds.
+    apply (add_safety queue_invs).
     unfold lock_held.
 
 (*|
