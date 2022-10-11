@@ -488,11 +488,11 @@ Proof.
     refine (forall_apply _ _). }
 
   leads_to_etrans;
-    [ apply impl_drop_hyp; apply impl_to_leads_to;
+    [ tla_clear; apply impl_to_leads_to;
       apply init_to_h
     | ].
   leads_to_etrans;
-    [| apply impl_drop_hyp; apply impl_to_leads_to;
+    [| tla_clear; apply impl_to_leads_to;
        apply h_0_to_terminated
      ].
 

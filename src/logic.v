@@ -19,7 +19,10 @@ From TLA Require Export defs automation.
 From TLA Require Export propositional_ltl modalities.
 From TLA.logic Require Export preds safety wf leads_to.
 
-Ltac tla_clear p :=
+Tactic Notation "tla_clear" :=
+  apply impl_drop_hyp.
+
+Tactic Notation "tla_clear" constr(p) :=
   rewrite -> (any_impl_true p); tla_simp.
 
 Ltac tla_intro :=
