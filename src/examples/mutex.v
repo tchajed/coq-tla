@@ -480,7 +480,7 @@ This "detour" is actually really interesting: you might think that simple transi
           rewrite !app_assoc //.
         + assert (t' = t''); subst.
           { apply Hexclusion; eauto. }
-          right; stm_simp; eauto.
+          right; stm.
       - intros [[q l] tp] [σ' tp'] => /= Hp.
         destruct_and!; subst; repeat deex.
         (* drop next *)
@@ -514,10 +514,8 @@ This "detour" is actually really interesting: you might think that simple transi
         destruct_and!; subst; repeat deex.
         (* drop next *)
         intros _ Hstep.
-        rewrite /step /= in Hstep.
-        repeat deex.
+        rewrite /step /= in Hstep; stm_simp.
         assert (pc = pc.unlock_wake) by congruence; subst.
-        stm_simp.
         rewrite thread_step_eq /= in H1.
         stm.
       - intros [[q l] tp] ?. rewrite step_enabled.
