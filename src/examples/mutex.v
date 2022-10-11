@@ -36,6 +36,9 @@ The inductive `pc.t` below encodes the control flow of the program. We also need
 From RecordUpdate Require Import RecordUpdate.
 From stdpp Require Import gmap.
 
+From Coq.Relations Require Import Relation_Operators.
+From Coq.Wellfounded Require Import Lexicographic_Product.
+
 From TLA Require Import logic.
 
 Module spec.
@@ -44,6 +47,10 @@ Module spec.
     Inductive t :=
       lock_cas | futex_wait | kernel_wait |
       unlock_store | unlock_wake | finished.
+
+    #[global]
+    Instance eq_dec : EqDecision t.
+    Proof. solve_decision. Qed.
 
     Notation start := lock_cas (only parsing).
 
@@ -644,5 +651,28 @@ This "detour" is actually really interesting: you might think that simple transi
         eexists; split; first by eauto.
         intuition congruence. }
 Qed.
+
+Definition sleep_set s : gset _ :=
+  dom (filter (λ '(tid, pc),
+           pc = pc.futex_wait ∨
+           pc = pc.kernel_wait) s.(tp)).
+
+Definition waiting_set s : gset _ :=
+  dom (filter (λ '(tid, pc),
+           pc = pc.lock_cas) s.(tp)).
+
+Definition lattice_lt : relation (gset Tid * gset Tid) :=
+  slexprod (gset Tid) (gset Tid) (⊂) (⊂).
+
+Lemma lattice_lt_wf : well_founded lattice_lt.
+Proof.
+  apply wf_slexprod; apply set_wf.
+Qed.
+
+Definition h (a: gset Tid * gset Tid) : Config → Prop :=
+  λ s, let '(sleeping, waiting) := a in
+       sleeping = sleep_set s ∧
+       waiting = waiting_set s ∧
+       s.(state).(lock) = true.
 
 End example.
