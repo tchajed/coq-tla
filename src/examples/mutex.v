@@ -515,7 +515,7 @@ Lemma NoDup_head_not_in t ts :
   NoDup (t :: ts) →
   t ∉ ts.
 Proof.
-  rewrite NoDup_cons_inv; intuition.
+  rewrite NoDup_cons_inv; intuition auto.
 Qed.
 
 Lemma queue_gets_popped t ts :

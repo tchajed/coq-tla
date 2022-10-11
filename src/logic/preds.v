@@ -7,19 +7,35 @@ Section TLA.
 Context [Σ: Type].
 
 Notation exec := (exec Σ).
+Notation action := (action Σ).
 Notation predicate := (predicate Σ).
 
-Implicit Types (e: exec) (p q: predicate) (a: action Σ).
+Implicit Types (e: exec) (p q: predicate) (a: action).
 
 (* combining predicates and actions *)
 
-Lemma combine_preds (next: Σ → Σ → Prop) (P: Σ → Prop) :
+Lemma combine_preds (next: action) (P: Σ → Prop) :
   (□ ⟨ next ⟩ ∧ □ ⌜ P ⌝) == □ ⟨ λ s s', next s s' ∧ P s ∧ P s' ⟩.
 Proof.
   unseal.
   intuition eauto.
   - specialize (H k). intuition auto.
   - specialize (H k). intuition auto.
+Qed.
+
+Theorem add_safety (init: predicate) (next: action) (fair: predicate)
+  (inv: Σ → Prop) (φ: predicate) :
+  (init ∧ □⟨next⟩ ∧ fair ⊢ □⌜inv⌝) →
+  (init ∧ □⟨λ s s', next s s' ∧ inv s ∧ inv s'⟩ ∧ fair ⊢ φ) →
+  (init ∧ □⟨next⟩ ∧ fair ⊢ φ).
+Proof.
+  intros Hinv Hφ.
+  tla_pose Hinv.
+  (* this is the nasty associative-commutative rewriting this theorem avoids *)
+  rewrite (tla_and_comm fair).
+  rewrite -(tla_and_assoc (□⟨next⟩)).
+  rewrite combine_preds.
+  auto.
 Qed.
 
 Lemma combine_state_preds (P Q: Σ → Prop) :
@@ -34,7 +50,7 @@ Proof.
   unseal.
 Qed.
 
-Lemma combine_or_actions (a1 a2: action Σ) :
+Lemma combine_or_actions a1 a2 :
   (⟨a1⟩ ∨ ⟨a2⟩) == ⟨λ s s', a1 s s' ∨ a2 s s'⟩.
 Proof.
   unseal.
@@ -101,7 +117,7 @@ Proof.
   intuition.
 Qed.
 
-Lemma action_preserves_inv (P: Σ → Prop) (a: action Σ) :
+Lemma action_preserves_inv (P: Σ → Prop) a :
     (∀ s s', P s → a s s' → P s') →
     state_pred P ∧ ⟨a⟩ ⊢ later (state_pred P).
 Proof.

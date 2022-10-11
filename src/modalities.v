@@ -318,42 +318,6 @@ Proof.
   dual always_eventually_always.
 Qed.
 
-Theorem leads_to_weaken (p1 p2 q1 q2: predicate) :
-  (p2 ⊢ p1) →
-  (q1 ⊢ q2) →
-  p1 ~~> q1 ⊢ p2 ~~> q2.
-Proof.
-  intros H1 H2.
-  rewrite /leads_to.
-  rewrite H1 -H2 //.
-Qed.
-
-#[global]
-Instance leads_to_impl_proper :
-  Proper (flip pred_impl ==> pred_impl ==> pred_impl) (leads_to (Σ := Σ)).
-Proof.
-  intros p1 q1 Himpl p2 q2 Himpl2.
-  apply leads_to_weaken; auto.
-Qed.
-
-Theorem leads_to_or_left (Γ p q1 q2: predicate) :
-  (Γ ⊢ p ~~> q1) →
-  (Γ ⊢ p ~~> (q1 ∨ q2)).
-Proof.
-  intros H.
-  rewrite -> H.
-  apply leads_to_weaken; [ done | tla_prop ].
-Qed.
-
-Theorem leads_to_or_right (Γ p q1 q2: predicate) :
-  (Γ ⊢ p ~~> q2) →
-  (Γ ⊢ p ~~> (q1 ∨ q2)).
-Proof.
-  intros H.
-  rewrite -> H.
-  apply leads_to_weaken; [ done | tla_prop ].
-Qed.
-
 (*|
 
 ---------------------------------

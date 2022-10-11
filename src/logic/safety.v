@@ -16,9 +16,10 @@ Section TLA.
 Context [Σ: Type].
 
 Notation exec := (exec Σ).
+Notation action := (action Σ).
 Notation predicate := (predicate Σ).
 
-Implicit Types (e: exec) (p q: predicate) (a: action Σ).
+Implicit Types (e: exec) (p q: predicate) (a: action).
 
 (* the induction principle from the TLA paper *)
 Theorem later_induction (n inv: predicate) :
@@ -62,7 +63,7 @@ Proof.
   auto.
 Qed.
 
-Theorem init_safety (inv init: Σ → Prop) (next: action Σ) (safe : Σ → Prop) :
+Theorem init_safety (inv init: Σ → Prop) (next: action) (safe : Σ → Prop) :
   (∀ s, init s → inv s) →
   (∀ s s', inv s → next s s' → inv s') →
   (∀ s, inv s → safe s) →
@@ -72,7 +73,7 @@ Proof.
   apply (tla_init_safety (state_pred inv)); unseal.
 Qed.
 
-Theorem init_invariant (init: Σ → Prop) (next: action Σ) (inv: Σ → Prop) :
+Theorem init_invariant (init: Σ → Prop) (next: action) (inv: Σ → Prop) :
   (∀ s, init s → inv s) →
   (∀ s s', inv s → next s s' → inv s') →
   state_pred init ∧ □ ⟨next⟩ ⊢ □ state_pred inv.
@@ -80,6 +81,5 @@ Proof.
   intros Hinit Hinv.
   apply (init_safety inv); auto.
 Qed.
-
 
 End TLA.
