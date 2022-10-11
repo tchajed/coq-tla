@@ -428,7 +428,10 @@ Proof.
 Qed.
 
 Definition nodup_inv s :=
-  NoDup s.(state).(queue) ∧
+  NoDup s.(state).(queue).
+
+Definition nodup_helper_inv s :=
+  nodup_inv s ∧
   (∀ t, t ∈ s.(state).(queue) →
         s.(tp) !! t = Some pc.kernel_wait).
 
@@ -460,15 +463,15 @@ Hint Resolve NoDup_nil_2 NoDup_pop : core.
 Hint Extern 2 (_ ∉ _) => set_solver : core.
 Hint Extern 2 (_ ∈ _) => set_solver : core.
 
-Lemma nodup_inv_ok :
-  spec ⊢ □⌜nodup_inv⌝.
+Lemma nodup_helper_inv_ok :
+  spec ⊢ □⌜nodup_helper_inv⌝.
 Proof.
   unfold spec.
   tla_clear fair.
   apply init_invariant.
-  - unfold nodup_inv; stm.
+  - unfold nodup_helper_inv, nodup_inv; stm.
     set_solver+.
-  - unfold nodup_inv; intros [σ tp] [σ' tp'] Hinv Hnext.
+  - unfold nodup_helper_inv, nodup_inv; intros [σ tp] [σ' tp'] Hinv Hnext.
     destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
     destruct_step; stm; intros;
@@ -489,34 +492,54 @@ Proof.
       { apply H0 in Hel; congruence. }
 Qed.
 
-Lemma NoDup_head_not_in t ts ts' :
-  NoDup (t :: ts ++ ts') →
-  t ∉ ts'.
+Lemma nodup_inv_ok :
+  spec ⊢ □⌜nodup_inv⌝.
 Proof.
-  change (t :: ts ++ ts') with ((t :: ts) ++ ts').
-  rewrite NoDup_app.
-  set_solver.
+  tla_pose nodup_helper_inv_ok.
+  tla_clear spec.
+  apply always_impl_proper.
+  apply state_pred_impl; unfold nodup_helper_inv; naive_solver.
+Qed.
+
+Lemma NoDup_cons_inv t ts :
+  NoDup (t :: ts) ↔
+  t ∉ ts ∧ NoDup ts.
+Proof.
+  split.
+  - inversion 1; subst; auto.
+  - intros.
+    constructor; intuition auto.
+Qed.
+
+Lemma NoDup_head_not_in t ts :
+  NoDup (t :: ts) →
+  t ∉ ts.
+Proof.
+  rewrite NoDup_cons_inv; intuition.
 Qed.
 
 Lemma queue_gets_popped t ts :
   spec ⊢
   ⌜λ s, s.(state).(queue) = t :: ts ∧
         s.(state).(lock) = true⌝ ~~>
-  ⌜λ s, ∃ ts', s.(state).(queue) = ts ++ ts' ∧
-               t ∉ ts'⌝.
+  ⌜λ s, (∃ ts', s.(state).(queue) = ts ++ ts') ∧
+        t ∉ s.(state).(queue)⌝.
 Proof.
   leads_to_trans (∃ t', ⌜λ s,
-        (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧ t ∉ ts') ∧
+        (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧ t ∉ ts ++ ts') ∧
         s.(state).(lock) = true ∧
         lock_held s t'⌝)%L.
   - rewrite exist_state_pred.
     apply (leads_to_assume (⌜locked_inv⌝)); [ tla_apply locked_inv_ok | ].
-    rewrite combine_state_preds.
-    apply pred_leads_to => s [[Hq Hl] Hinv].
+    apply (leads_to_assume (⌜nodup_inv⌝)); [ tla_apply nodup_inv_ok | ].
+    tla_simp.
+    apply pred_leads_to => s [[[Hq Hl] Hinv] Hnodup].
+    destruct s as [[l q] ?]; simpl in *; subst.
     destruct Hinv as [t' ?]; eauto.
     exists t'; intuition eauto.
     exists nil; rewrite app_nil_r. split; first by eauto.
-    set_solver.
+    rewrite /nodup_inv /= in Hnodup.
+    apply NoDup_cons_inv in Hnodup; intuition auto.
   - apply leads_to_exist_intro => t'.
     tla_pose exclusion_inv_ok.
     tla_pose nodup_inv_ok.
@@ -538,7 +561,7 @@ This "detour" is actually really interesting: you might think that simple transi
       tla_apply (wf1 (step t')).
       { tla_split; [ tla_assumption | tla_apply fair_step ]. }
       - intros [σ tp] [σ' tp'] => /= [Hinv Hnext].
-        destruct Hnext  as (Hnext & [Hexclusion Hnodup] & _).
+        destruct Hnext  as (Hnext & [Hexclusion Hnodup] & [_ Hnodup']).
         destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto 8 ].
         destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
         stm_simp.
@@ -549,7 +572,10 @@ This "detour" is actually really interesting: you might think that simple transi
         + left; intuition eauto.
           eexists (_ ++ [t'']).
           rewrite !app_assoc; split; first by eauto.
-          rewrite /nodup_inv /= in Hnodup; set_solver.
+          rewrite /nodup_inv /= NoDup_cons_inv in Hnodup Hnodup'.
+          rewrite elem_of_app elem_of_list_singleton; intuition subst.
+          rewrite NoDup_cons_inv NoDup_app1 in Hnodup'.
+          set_solver+ Hnodup'.
         + assert (t' = t''); subst.
           { apply Hexclusion; eauto. }
           right; stm.
@@ -583,7 +609,7 @@ This "detour" is actually really interesting: you might think that simple transi
           eexists (_ ++ [t'']).
           rewrite !app_assoc; split; eauto.
         + right. eexists; intuition eauto.
-          rewrite /nodup_inv /= in Hnodup; destruct Hnodup as [Hnodup _].
+          rewrite /nodup_inv /= in Hnodup.
           apply NoDup_head_not_in in Hnodup; auto.
       - intros [[q l] tp] [σ' tp'] => /= Hp.
         destruct_and!; subst; repeat deex.
@@ -593,9 +619,7 @@ This "detour" is actually really interesting: you might think that simple transi
         assert (pc = pc.unlock_wake) by congruence; subst.
         rewrite thread_step_eq /= in H1.
         stm.
-        eexists; intuition eauto.
-        rewrite /nodup_inv /= in Hnodup;
-          destruct Hnodup as [Hnodup _].
+        rewrite /nodup_inv /= in Hnodup.
         apply NoDup_head_not_in in Hnodup; auto.
       - intros [[q l] tp] ?. rewrite step_enabled.
         stm.
