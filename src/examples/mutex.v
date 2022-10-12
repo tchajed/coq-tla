@@ -582,7 +582,7 @@ This "detour" is actually really interesting: you might think that simple transi
       ((∃ ts' : list Tid, s.(state).(queue) = t :: ts ++ ts')
        ∧ s.(tp) !! t' = Some pc.unlock_wake)⌝).
 
-    { rewrite combine_or_preds.
+    { tla_simp.
       tla_apply (wf1 (step t')).
       { tla_split; [ tla_assumption | tla_apply fair_step ]. }
       - intros [σ tp] [σ' tp'] => /= [Hinv Hnext].
@@ -660,11 +660,11 @@ Definition wait_pc pc :=
 Definition wait_set (tp: gmap Tid pc.t) : gset _ :=
   dom (filter (λ '(tid, pc), wait_pc pc) tp).
 
-Definition thread_sets (a: gset Tid) : Config → Prop :=
+Definition waiters_are (a: gset Tid) : Config → Prop :=
   λ s, wait_set s.(tp) = a.
 
 Definition h (a: gset Tid) : Config → Prop :=
-  λ s, thread_sets a s ∧
+  λ s, waiters_are a s ∧
        s.(state).(lock) = false.
 
 (* TODO: remove duplicate from spinlock_many_threads *)
@@ -754,6 +754,44 @@ Proof.
   set_solver.
 Qed.
 
+Lemma in_wait_set tp t pc :
+  tp !! t = Some pc →
+  wait_pc pc →
+  t ∈ wait_set tp.
+Proof.
+  intros.
+  rewrite elem_of_wait_set.
+  naive_solver.
+Qed.
+
+Lemma not_in_wait_set tp t pc :
+  tp !! t = Some pc →
+  ¬wait_pc pc →
+  t ∉ wait_set tp.
+Proof.
+  intros.
+  rewrite elem_of_wait_set.
+  naive_solver.
+Qed.
+
+Hint Extern 1 (¬wait_pc ?pc) => apply not_wait_pc : core.
+
+Hint Resolve in_wait_set not_in_wait_set : core.
+
+Lemma wait_set_unchanged_not_present t pc pc' tp :
+  tp !! t = Some pc →
+  ¬wait_pc pc →
+  ¬wait_pc pc' →
+  wait_set (<[t := pc']> tp) = wait_set tp.
+Proof.
+  intros.
+  apply gset_ext => t'.
+  rewrite wait_set_insert_other //.
+  { rewrite not_wait_pc in H1; auto. }
+  assert (t ∉ wait_set tp) by eauto.
+  set_solver.
+Qed.
+
 (*
 Lemma pc_set_remove_not_present t pc0 pc tp :
   tp !! t = Some pc →
@@ -780,14 +818,14 @@ Hint Rewrite wait_set_insert_other using (by auto) : pc.
 Lemma decreases_FW waiters t :
   t ∈ waiters →
   spec ⊢
-  ⌜thread_sets waiters⌝ ~~>
+  ⌜waiters_are waiters⌝ ~~>
   ⌜λ s, ∃ waiters', waiters' ⊂ waiters ∧
-                    thread_sets waiters' s⌝.
+                    waiters_are waiters' s⌝.
 Proof.
   intros Hel.
   tla_apply (wf1 (step t)).
   - unfold spec. tla_split; [ tla_assumption | tla_apply fair_step ].
-  - rewrite /h /thread_sets.
+  - rewrite /h /waiters_are.
     move => [σ tp] [σ' tp'] /= ? Hnext. subst.
     destruct Hnext as [ [t' Hstep] | Heq]; [ | stm_simp; by eauto ].
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
@@ -800,18 +838,12 @@ Proof.
       { rewrite elem_of_wait_set. eauto. }
       set_solver.
     + left.
-      assert (t' ∉ wait_set tp).
-      { rewrite elem_of_wait_set. intros [pc' [Heq ?]].
-        assert (pc' = pc.unlock_store) by congruence.
-        contradict H; rewrite not_wait_pc; auto. }
+      assert (t' ∉ wait_set tp) by eauto.
       set_solver.
-    + assert (t' ∉ wait_set tp).
-      { rewrite elem_of_wait_set. intros [pc' [Heq ?]].
-        assert (pc' = pc.unlock_wake) by congruence.
-        contradict H; rewrite not_wait_pc; auto. }
+    + assert (t' ∉ wait_set tp) by eauto.
       set_solver.
   - move => [σ tp] [σ' tp'] /= Hsets _ Hstep.
-    rewrite /thread_sets /= in Hsets |- *; subst.
+    rewrite /waiters_are /= in Hsets |- *; subst.
     eexists; split; [ | by eauto ].
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
     assert (wait_pc pc'') as Hwait_pc.
@@ -821,9 +853,99 @@ Proof.
       try solve [ contradict Hwait_pc; rewrite not_wait_pc; auto ];
       clear Hwait_pc.
     +
-
-
 Abort.
 
+Lemma proof_to_true (P: Prop) :
+  P → P ↔ True.
+Proof.
+  tauto.
+Qed.
+
+Lemma not_proof_to_false (P: Prop) :
+  ¬P → P ↔ False.
+Proof.
+  tauto.
+Qed.
+
+Ltac simp_prop P :=
+  lazymatch type of P with
+  | Prop =>
+    lazymatch P with
+    | True => fail
+    | False => fail
+    | _ => rewrite (proof_to_true P ltac:(by auto)) ||
+            rewrite (not_proof_to_false P ltac:(by auto))
+    end
+  | _ => fail "not a prop"
+  end.
+
+Ltac simp_props :=
+  repeat
+    match goal with
+    | |- context[?P ∧ ?Q] => simp_prop P || simp_prop Q
+    end;
+  rewrite ?and_True ?True_and.
+
+Lemma eventually_unlock W :
+  spec ⊢
+  ⌜λ s, waiters_are W s⌝ ~~>
+  ⌜λ s, waiters_are W s ∧ s.(state).(lock) = false⌝.
+Proof.
+  rewrite leads_to_assume_not. tla_simp.
+  leads_to_trans (⌜λ s, waiters_are W s ∧ s.(state).(lock) = false⌝ ∨
+                  ⌜λ s, waiters_are W s ∧ s.(state).(lock) = true⌝)%L.
+  { tla_simp. apply pred_leads_to => s.
+    destruct s.(state).(lock); tauto. }
+
+  rewrite leads_to_or_split; tla_split.
+  { tla_clear; apply leads_to_refl. }
+
+  (* somebody must hold the lock *)
+  eapply leads_to_assume; [ apply locked_inv_ok | ].
+  tla_simp.
+  leads_to_trans (∃ t, ⌜λ s, waiters_are W s ∧
+                             s.(state).(lock) = true ∧
+                             lock_held s t⌝)%L.
+  { rewrite exist_state_pred.
+    apply pred_leads_to => s.
+    rewrite /locked_inv.
+    naive_solver. }
+  apply leads_to_exist_intro => t0.
+
+  tla_apply (wf1 (step t0)).
+  { rewrite /spec.
+    tla_split; [ tla_assumption | tla_apply fair_step ]. }
+  - move => [σ tp] [σ' tp'] /=.
+    rewrite /waiters_are /lock_held /=.
+    intros (Hwait & Hlock & Ht0) Hnext; subst.
+    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    destruct_step; stm_simp;
+      autorewrite with pc;
+      repeat erewrite wait_set_unchanged by eauto;
+      repeat erewrite wait_set_unchanged_not_present by eauto;
+      auto;
+      simp_props.
+    + right.
+      assert (t ∉ wait_set tp) by eauto.
+      set_solver.
+    + left.
+      assert (t ∉ wait_set tp) by eauto.
+      set_solver.
+  - move => [σ tp] [σ' tp'] /=.
+    rewrite /waiters_are /lock_held /=.
+    intros (Hwait & Hlock & Ht0) _ Hstep; subst.
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    assert (pc'' = pc.unlock_store) by congruence; subst.
+    rewrite thread_step_eq /thread_step_def in Hstep; stm.
+    autorewrite with pc.
+    assert (t0 ∉ wait_set tp) by eauto.
+    set_solver.
+  - move => [[l q] tp] /=.
+    rewrite /waiters_are /lock_held /=.
+    intros (? & ? & Hlookup); subst.
+    rewrite step_enabled /=.
+    naive_solver.
+Qed.
 
 End example.

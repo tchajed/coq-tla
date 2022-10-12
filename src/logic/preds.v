@@ -134,4 +134,4 @@ Proof. unseal. Qed.
 
 End TLA.
 
-Hint Rewrite not_state_pred combine_state_preds : tla.
+Hint Rewrite not_state_pred combine_or_preds combine_state_preds : tla.
