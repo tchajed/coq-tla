@@ -948,4 +948,64 @@ Proof.
     naive_solver.
 Qed.
 
+Lemma lock_cas_decreases_W t W :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(tp) !! t = Some pc.lock_cas⌝ ~~>
+  ⌜λ s, ∃ W', W' ⊂ W ∧
+              waiters_are W' s⌝.
+Proof.
+Abort.
+
+Lemma futex_wait_progress t W :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(tp) !! t = Some pc.futex_wait⌝ ~~>
+  ⌜λ s, (∃ W', W' ⊂ W ∧ waiters_are W' s) ∨
+        waiters_are W s ∧
+        (s.(tp) !! t = Some pc.lock_cas ∨
+         s.(tp) !! t = Some pc.kernel_wait ∧
+         t ∈ s.(state).(queue))⌝.
+Proof.
+Abort.
+
+(* if there is a thread t in pc.kernel_wait, then either the queue is empty, in
+which case weak_fairness (step t) easily gets t to pc.lock_cas, or it has a head element t', in which case that thread will get to cas *)
+
+(* this is actually an implication but everything is setup to use leads_to *)
+Lemma kernel_wait_head_queue t W :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
+  ⌜λ s, waiters_are W s ∧
+        (s.(state).(queue) = [] ∧
+          s.(tp) !! t = Some pc.kernel_wait) ∨
+          (∃ t', ∃ ts, s.(state).(queue) = t' :: ts ∧
+                s.(tp) !! t' = Some pc.kernel_wait)⌝.
+Proof.
+  eapply leads_to_assume.
+  { apply nodup_helper_inv_ok. }
+  tla_simp. apply pred_leads_to.
+  intros [[q l] tp]. rewrite /waiters_are /nodup_helper_inv /=.
+  intros ([? Hlookup] & _ & Hq_wait); subst.
+  destruct l; [ left; by eauto | right ].
+  eexists _, _; intuition eauto.
+  apply Hq_wait. set_solver.
+Qed.
+
+Lemma kernel_wait_head_progress t W :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+       ∃ ts, s.(state).(queue) = t::ts ∧
+             s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
+  ⌜λ s, (∃ W', W' ⊂ W ∧ waiters_are W' s) ∨
+        waiters_are W s ∧
+        s.(tp) !! t = Some pc.lock_cas⌝.
+Proof.
+Abort.
+
+(* TODO: if the lock is free and t is at the head of the queue, what happens? it
+seems we could be stuck: we need to prove an invariant that in this situation, a
+thread is at pc.futex_wake, so that we're guaranteed to get a wakeup signal *)
+
 End example.
