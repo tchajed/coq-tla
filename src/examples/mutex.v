@@ -995,8 +995,9 @@ Lemma queue_gets_popped_unlocked W t ts :
         s.(state).(queue) = t :: ts ∧
         s.(state).(lock) = false⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊆ W ∧
-        (s.(state).(queue) = ts ∨
-        s.(state).(queue) = t :: ts ∧
+        (s.(state).(queue) = ts ∧
+           t ∉ s.(state).(queue) ∨
+         s.(state).(queue) = t :: ts ∧
            s.(state).(lock) = true)⌝.
 Proof.
   apply (leads_to_assume _ lock_free_queue_inv_ok); tla_simp.
@@ -1016,6 +1017,8 @@ Proof.
 
   apply leads_to_exist_intro => t'.
 
+  apply (add_safety nodup_inv_ok).
+
   apply (leads_to_detour
     ⌜λ s, wait_set s.(tp) ⊆ W ∧
          s.(state).(queue) = t::ts ∧
@@ -1027,8 +1030,8 @@ Proof.
     { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
 
     - move => [σ tp] [σ' tp'] /=.
-      rewrite /waiters_are.
-      intros (Hwaiters & Hq & Hlock & Hcan_lock) Hnext; simpl; subst.
+      rewrite /nodup_inv /=.
+      intros (Hwaiters & Hq & Hlock & Hcan_lock) (Hnext & Hnodup & _); simpl; subst.
       destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
       destruct_step; stm_simp; simp_props; eauto.
@@ -1042,9 +1045,13 @@ Proof.
       + left.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
         destruct (decide (t' = t'')); lookup_simp; eauto.
+      + assert (t ∉ ts) by (inversion Hnodup; auto).
+        stm.
     - move => [σ tp] [σ' tp'] /=.
-      intros (Hwaiters & Hq & Hlock & Hcan_lock) _ Hstep; subst.
+      intros (Hwaiters & Hq & Hlock & Hcan_lock) (_ & Hnodup & _) Hstep; subst.
+      rewrite /nodup_inv /= in Hnodup.
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      assert (t ∉ ts) by (inversion Hnodup; auto).
       rewrite thread_step_eq /thread_step_def in Hstep.
       rewrite /thread_can_lock /= in Hcan_lock;
         (intuition idtac).
@@ -1061,9 +1068,11 @@ Proof.
     { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
 
     - move => [σ tp] [σ' tp'] /=.
-      intros (Hq & Hlock & Hcan_lock) Hnext; subst.
+      intros (Hq & Hlock & Hcan_lock) (Hnext & Hnodup & _); subst.
+      rewrite /nodup_inv /= in Hnodup.
       destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      assert (t ∉ ts) by (inversion Hnodup; auto).
       destruct_step; stm.
     - move => [σ tp] [σ' tp'] /=.
       intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
