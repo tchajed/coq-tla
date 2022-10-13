@@ -268,14 +268,6 @@ Proof.
     eauto 8.
 Qed.
 
-Definition exclusion_inv: Config → Prop :=
-  λ s, (∀ tid, s.(tp) !! tid = Some pc.critical_sec →
-               s.(state).(lock) = true) ∧
-       safe s.
-
-#[local]
-Hint Unfold init next step safe fair terminated : stm.
-
 Ltac lookup_simp :=
   subst;
   repeat
@@ -287,7 +279,151 @@ Ltac lookup_simp :=
     end;
   try congruence.
 
+
+Definition wait_pc pc :=
+  pc = pc.lock_cas ∨
+  pc = pc.futex_wait ∨
+  pc = pc.kernel_wait.
+
+Definition wait_set (tp: gmap Tid pc.t) : gset _ :=
+  dom (filter (λ '(tid, pc), wait_pc pc) tp).
+
+Definition waiters_are (a: gset Tid) : Config → Prop :=
+  λ s, wait_set s.(tp) = a.
+
+(* TODO: remove duplicate from spinlock_many_threads *)
+Lemma gset_ext {A: Type} `{Countable A} (s1 s2: gset A) :
+  (∀ x, x ∈ s1 ↔ x ∈ s2) →
+  s1 = s2.
+Proof.
+  intros.
+  apply leibniz_equiv.
+  apply set_equiv.
+  auto.
+Qed.
+
+(* TODO: remove duplicate from spinlock_many_threads *)
+Lemma filter_is_Some {K: Type} `{Countable K} {V: Type}
+  (P: (K * V) → Prop) `{∀ x, Decision (P x)} (m: gmap K V) k :
+  is_Some (filter P m !! k) ↔ (∃ v, m !! k = Some v ∧ P (k,v)).
+Proof.
+  split; (intuition auto); repeat deex.
+  - destruct H1 as [v Hlookup].
+    rewrite map_filter_lookup_Some in Hlookup.
+    eauto.
+  - rewrite map_filter_lookup. rewrite /is_Some.
+    exists v.
+    rewrite H1 /=.
+    rewrite option_guard_True //.
+Qed.
+
+Lemma elem_of_wait_set t tp :
+  t ∈ wait_set tp ↔ (∃ pc, tp !! t = Some pc ∧ wait_pc pc).
+Proof.
+  rewrite /wait_set.
+  rewrite elem_of_dom filter_is_Some //.
+Qed.
+
+(* TODO: almost identical theorem in spinlock_many_threads *)
+Lemma wait_set_insert_other t tp pc' :
+  (pc' = pc.unlock_store ∨ pc' = pc.unlock_wake ∨ pc' = pc.finished) →
+  wait_set (<[t := pc']> tp) = wait_set tp ∖ {[t]}.
+Proof.
+  intros.
+  apply gset_ext => t'.
+  rewrite elem_of_wait_set
+    elem_of_difference elem_of_singleton elem_of_wait_set.
+  rewrite /wait_pc.
+  destruct (decide (t = t')); lookup_simp.
+  - naive_solver.
+  - naive_solver.
+Qed.
+
+Lemma not_wait_pc pc :
+  ¬wait_pc pc ↔ (pc = pc.unlock_store ∨ pc = pc.unlock_wake ∨ pc = pc.finished).
+Proof.
+  unfold wait_pc.
+  intuition (try congruence).
+  destruct pc; eauto; try congruence.
+Qed.
+
+Lemma wait_set_insert_same t pc' tp :
+  wait_pc pc' →
+  wait_set (<[t := pc']> tp) = wait_set tp ∪ {[t]}.
+Proof.
+  intros Hpc'.
+  apply gset_ext => t'.
+  rewrite elem_of_wait_set elem_of_union elem_of_singleton elem_of_wait_set.
+  split.
+  - intros; repeat deex.
+    destruct (decide (t = t')); lookup_simp; eauto.
+  - intros [H|H]; lookup_simp; eauto.
+    repeat deex; destruct_and?.
+    destruct (decide (t = t')); lookup_simp; eauto.
+Qed.
+
+Hint Extern 1 (wait_pc _) => rewrite /wait_pc : core.
+
+Lemma wait_set_unchanged t pc pc' tp :
+  tp !! t = Some pc →
+  wait_pc pc →
+  wait_pc pc' →
+  wait_set (<[t := pc']> tp) = wait_set tp.
+Proof.
+  intros.
+  apply gset_ext => t'.
+  rewrite wait_set_insert_same //.
+  assert (t ∈ wait_set tp).
+  { rewrite elem_of_wait_set; eauto. }
+  set_solver.
+Qed.
+
+Lemma in_wait_set tp t pc :
+  tp !! t = Some pc →
+  wait_pc pc →
+  t ∈ wait_set tp.
+Proof.
+  intros.
+  rewrite elem_of_wait_set.
+  naive_solver.
+Qed.
+
+Lemma not_in_wait_set tp t pc :
+  tp !! t = Some pc →
+  ¬wait_pc pc →
+  t ∉ wait_set tp.
+Proof.
+  intros.
+  rewrite elem_of_wait_set.
+  naive_solver.
+Qed.
+
+Hint Extern 1 (¬wait_pc ?pc) => apply not_wait_pc : core.
+
+Hint Resolve in_wait_set not_in_wait_set : core.
+
+Lemma wait_set_unchanged_not_present t pc pc' tp :
+  tp !! t = Some pc →
+  ¬wait_pc pc →
+  ¬wait_pc pc' →
+  wait_set (<[t := pc']> tp) = wait_set tp.
+Proof.
+  intros.
+  apply gset_ext => t'.
+  rewrite wait_set_insert_other //.
+  { rewrite not_wait_pc in H1; auto. }
+  assert (t ∉ wait_set tp) by eauto.
+  set_solver.
+Qed.
+
+Hint Rewrite wait_set_unchanged using (by auto) : pc.
+Hint Rewrite wait_set_insert_other using (by auto) : pc.
+
+
 Ltac invc H := inversion H; subst; clear H.
+
+#[local]
+Hint Unfold init next step safe fair terminated : stm.
 
 Ltac stm_simp :=
   autounfold with stm in *;
@@ -326,6 +462,9 @@ Ltac stm_simp :=
         | _ => progress (unfold set; simpl)
         | _ => progress lookup_simp
         | _ => progress cbn in *
+        | _ => progress autorewrite with pc
+        | _ => erewrite wait_set_unchanged by eauto
+        | _ => erewrite wait_set_unchanged_not_present by eauto
         end).
 
 Ltac stm :=
@@ -337,13 +476,10 @@ Ltac stm :=
     | (split; [ | solve [ intuition eauto ] ])
     ].
 
-Lemma insert_lookup_dec {tp: gmap Tid pc.t} :
-  ∀ t t' pc',
-  <[t' := pc']> tp !! t = if decide (t = t') then Some pc' else tp !! t.
-Proof.
-  intros.
-  destruct (decide _); lookup_simp.
-Qed.
+Definition exclusion_inv: Config → Prop :=
+  λ s, (∀ tid, s.(tp) !! tid = Some pc.critical_sec →
+               s.(state).(lock) = true) ∧
+       safe s.
 
 Theorem exclusion_inv' s :
   exclusion_inv s ↔
@@ -652,209 +788,6 @@ This "detour" is actually really interesting: you might think that simple transi
         intuition congruence. }
 Qed.
 
-Definition wait_pc pc :=
-  pc = pc.lock_cas ∨
-  pc = pc.futex_wait ∨
-  pc = pc.kernel_wait.
-
-Definition wait_set (tp: gmap Tid pc.t) : gset _ :=
-  dom (filter (λ '(tid, pc), wait_pc pc) tp).
-
-Definition waiters_are (a: gset Tid) : Config → Prop :=
-  λ s, wait_set s.(tp) = a.
-
-Definition h (a: gset Tid) : Config → Prop :=
-  λ s, waiters_are a s ∧
-       s.(state).(lock) = false.
-
-(* TODO: remove duplicate from spinlock_many_threads *)
-Lemma gset_ext {A: Type} `{Countable A} (s1 s2: gset A) :
-  (∀ x, x ∈ s1 ↔ x ∈ s2) →
-  s1 = s2.
-Proof.
-  intros.
-  apply leibniz_equiv.
-  apply set_equiv.
-  auto.
-Qed.
-
-(* TODO: remove duplicate from spinlock_many_threads *)
-Lemma filter_is_Some {K: Type} `{Countable K} {V: Type}
-  (P: (K * V) → Prop) `{∀ x, Decision (P x)} (m: gmap K V) k :
-  is_Some (filter P m !! k) ↔ (∃ v, m !! k = Some v ∧ P (k,v)).
-Proof.
-  split; (intuition auto); repeat deex.
-  - destruct H1 as [v Hlookup].
-    rewrite map_filter_lookup_Some in Hlookup.
-    eauto.
-  - rewrite map_filter_lookup. rewrite /is_Some.
-    exists v.
-    rewrite H1 /=.
-    rewrite option_guard_True //.
-Qed.
-
-Lemma elem_of_wait_set t tp :
-  t ∈ wait_set tp ↔ (∃ pc, tp !! t = Some pc ∧ wait_pc pc).
-Proof.
-  rewrite /wait_set.
-  rewrite elem_of_dom filter_is_Some //.
-Qed.
-
-(* TODO: almost identical theorem in spinlock_many_threads *)
-Lemma wait_set_insert_other t tp pc' :
-  (pc' = pc.unlock_store ∨ pc' = pc.unlock_wake ∨ pc' = pc.finished) →
-  wait_set (<[t := pc']> tp) = wait_set tp ∖ {[t]}.
-Proof.
-  intros.
-  apply gset_ext => t'.
-  rewrite elem_of_wait_set
-    elem_of_difference elem_of_singleton elem_of_wait_set.
-  rewrite /wait_pc.
-  destruct (decide (t = t')); lookup_simp.
-  - naive_solver.
-  - naive_solver.
-Qed.
-
-Lemma not_wait_pc pc :
-  ¬wait_pc pc ↔ (pc = pc.unlock_store ∨ pc = pc.unlock_wake ∨ pc = pc.finished).
-Proof.
-  unfold wait_pc.
-  intuition (try congruence).
-  destruct pc; eauto; try congruence.
-Qed.
-
-Lemma wait_set_insert_same t pc' tp :
-  wait_pc pc' →
-  wait_set (<[t := pc']> tp) = wait_set tp ∪ {[t]}.
-Proof.
-  intros Hpc'.
-  apply gset_ext => t'.
-  rewrite elem_of_wait_set elem_of_union elem_of_singleton elem_of_wait_set.
-  split.
-  - intros; repeat deex.
-    destruct (decide (t = t')); lookup_simp; eauto.
-  - intros [H|H]; lookup_simp; eauto.
-    repeat deex; destruct_and?.
-    destruct (decide (t = t')); lookup_simp; eauto.
-Qed.
-
-Hint Extern 1 (wait_pc _) => rewrite /wait_pc : core.
-
-Lemma wait_set_unchanged t pc pc' tp :
-  tp !! t = Some pc →
-  wait_pc pc →
-  wait_pc pc' →
-  wait_set (<[t := pc']> tp) = wait_set tp.
-Proof.
-  intros.
-  apply gset_ext => t'.
-  rewrite wait_set_insert_same //.
-  assert (t ∈ wait_set tp).
-  { rewrite elem_of_wait_set; eauto. }
-  set_solver.
-Qed.
-
-Lemma in_wait_set tp t pc :
-  tp !! t = Some pc →
-  wait_pc pc →
-  t ∈ wait_set tp.
-Proof.
-  intros.
-  rewrite elem_of_wait_set.
-  naive_solver.
-Qed.
-
-Lemma not_in_wait_set tp t pc :
-  tp !! t = Some pc →
-  ¬wait_pc pc →
-  t ∉ wait_set tp.
-Proof.
-  intros.
-  rewrite elem_of_wait_set.
-  naive_solver.
-Qed.
-
-Hint Extern 1 (¬wait_pc ?pc) => apply not_wait_pc : core.
-
-Hint Resolve in_wait_set not_in_wait_set : core.
-
-Lemma wait_set_unchanged_not_present t pc pc' tp :
-  tp !! t = Some pc →
-  ¬wait_pc pc →
-  ¬wait_pc pc' →
-  wait_set (<[t := pc']> tp) = wait_set tp.
-Proof.
-  intros.
-  apply gset_ext => t'.
-  rewrite wait_set_insert_other //.
-  { rewrite not_wait_pc in H1; auto. }
-  assert (t ∉ wait_set tp) by eauto.
-  set_solver.
-Qed.
-
-(*
-Lemma pc_set_remove_not_present t pc0 pc tp :
-  tp !! t = Some pc →
-  pc ≠ pc0 →
-  pc_set pc0 tp ∖ {[t]} = pc_set pc0 tp.
-Proof.
-  intros.
-  assert (t ∉ pc_set pc0 tp).
-  { unfold pc_set.
-    rewrite elem_of_dom.
-    rewrite filter_is_Some.
-    intros [v [Hlookup ?]]; subst.
-    congruence.
-  }
-  set_solver.
-Qed.
-*)
-
-Hint Rewrite wait_set_unchanged using (by auto) : pc.
-(* Hint Rewrite wait_set_insert_same : pc. *)
-Hint Rewrite wait_set_insert_other using (by auto) : pc.
-(* Hint Rewrite pc_set_remove_not_present using (auto; congruence) : pc. *)
-
-Lemma decreases_FW waiters t :
-  t ∈ waiters →
-  spec ⊢
-  ⌜waiters_are waiters⌝ ~~>
-  ⌜λ s, ∃ waiters', waiters' ⊂ waiters ∧
-                    waiters_are waiters' s⌝.
-Proof.
-  intros Hel.
-  tla_apply (wf1 (step t)).
-  - unfold spec. tla_split; [ tla_assumption | tla_apply fair_step ].
-  - rewrite /h /waiters_are.
-    move => [σ tp] [σ' tp'] /= ? Hnext. subst.
-    destruct Hnext as [ [t' Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    destruct_step; stm_simp;
-      autorewrite with pc;
-      repeat erewrite wait_set_unchanged by eauto;
-      eauto.
-    + right. eexists; split; [ | by eauto ].
-      assert (t' ∈ wait_set tp).
-      { rewrite elem_of_wait_set. eauto. }
-      set_solver.
-    + left.
-      assert (t' ∉ wait_set tp) by eauto.
-      set_solver.
-    + assert (t' ∉ wait_set tp) by eauto.
-      set_solver.
-  - move => [σ tp] [σ' tp'] /= Hsets _ Hstep.
-    rewrite /waiters_are /= in Hsets |- *; subst.
-    eexists; split; [ | by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    assert (wait_pc pc'') as Hwait_pc.
-    { apply elem_of_wait_set in Hel as [pc' Hlookup'];
-        intuition congruence. }
-    destruct_step; stm_simp;
-      try solve [ contradict Hwait_pc; rewrite not_wait_pc; auto ];
-      clear Hwait_pc.
-    +
-Abort.
-
 Lemma proof_to_true (P: Prop) :
   P → P ↔ True.
 Proof.
@@ -917,12 +850,7 @@ Proof.
     intros (Hwait & Hlock & Ht0) Hnext; subst.
     destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    destruct_step; stm_simp;
-      autorewrite with pc;
-      repeat erewrite wait_set_unchanged by eauto;
-      repeat erewrite wait_set_unchanged_not_present by eauto;
-      auto;
-      simp_props.
+    destruct_step; stm_simp; simp_props; auto.
     + right.
       assert (t ∉ wait_set tp) by eauto.
       set_solver.
@@ -935,7 +863,6 @@ Proof.
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
     assert (pc'' = pc.unlock_store) by congruence; subst.
     rewrite thread_step_eq /thread_step_def in Hstep; stm.
-    autorewrite with pc.
     assert (t0 ∉ wait_set tp) by eauto.
     set_solver.
   - move => [[l q] tp] /=.
@@ -1099,10 +1026,7 @@ Proof.
       intros (Hwaiters & Hq & Hlock & Hcan_lock) Hnext; simpl; subst.
       destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-      destruct_step; stm_simp; simp_props;
-        autorewrite with pc;
-        try erewrite wait_set_unchanged by eauto;
-        stm.
+      destruct_step; stm_simp; simp_props; eauto.
       + left.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
         assert (t' ≠ t'') by intuition congruence.
@@ -1119,13 +1043,9 @@ Proof.
       rewrite thread_step_eq /thread_step_def in Hstep.
       rewrite /thread_can_lock /= in Hcan_lock;
         (intuition idtac).
-      + assert (pc'' = pc.unlock_wake) by congruence; stm_simp.
-        right; autorewrite with pc; eauto.
-      + assert (pc'' = pc.kernel_wait) by congruence; stm_simp.
-        erewrite wait_set_unchanged by eauto.
-        eauto.
-      + assert (pc'' = pc.lock_cas) by congruence; stm_simp.
-        right; autorewrite with pc; eauto.
+      + assert (pc'' = pc.unlock_wake) by congruence; stm.
+      + assert (pc'' = pc.kernel_wait) by congruence; stm.
+      + assert (pc'' = pc.lock_cas) by congruence; stm.
     - move => [[l q] tp] /=.
       intros (? & ? & Hlookup); subst.
       rewrite step_enabled /=.
@@ -1139,16 +1059,12 @@ Proof.
       intros (Hq & Hlock & Hcan_lock) Hnext; subst.
       destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-      destruct_step; stm_simp;
-        autorewrite with pc;
-        try erewrite wait_set_unchanged by eauto;
-        eauto.
+      destruct_step; stm.
     - move => [σ tp] [σ' tp'] /=.
       intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
       rewrite thread_step_eq /thread_step_def in Hstep.
       assert (pc'' = pc.lock_cas) by congruence; stm.
-      autorewrite with pc; auto.
     - move => [[l q] tp] /=.
       intros (? & ? & Hlookup); subst.
       rewrite step_enabled /=.
@@ -1164,10 +1080,7 @@ Proof.
   intros Hnext.
   destruct Hnext as [ [t'' Hstep] | Heq ]; [ | by stm ].
   destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-  destruct_step; stm_simp;
-    autorewrite with pc;
-    try erewrite wait_set_unchanged by eauto;
-    set_solver.
+  destruct_step; stm.
 Qed.
 
 Lemma subseteq_to_subset (W W': gset Tid) :
