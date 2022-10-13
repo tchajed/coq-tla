@@ -1137,4 +1137,46 @@ Proof.
       naive_solver.
 Qed.
 
+Lemma waiters_monotonic_next s s' :
+  next s s' →
+  wait_set s'.(tp) ⊆ wait_set s.(tp).
+Proof.
+  destruct s as [σ tp]. destruct s' as [σ' tp'].
+  simpl.
+  intros Hnext.
+  destruct Hnext as [ [t'' Hstep] | Heq ]; [ | by stm ].
+  destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+  destruct_step; stm_simp;
+    autorewrite with pc;
+    try erewrite wait_set_unchanged by eauto;
+    set_solver.
+Qed.
+
+Lemma subseteq_to_subset (W W': gset Tid) :
+  W' ⊆ W → W' = W ∨ W' ⊂ W.
+Proof.
+  intros.
+  destruct (decide (W = W')); eauto.
+  set_solver.
+Qed.
+
+(* this is an implication but leads_tos are more convenient *)
+Lemma waiters_are_monotonic W :
+  spec ⊢
+  ⌜waiters_are W⌝ ~~>
+  □⌜λ s, waiters_are W s ∨ ∃ W', W' ⊂ W ∧ waiters_are W' s⌝.
+Proof.
+  rewrite -leads_to_impl_internal.
+  rewrite /spec. tla_clear ⌜init⌝. tla_clear fair.
+  apply always_induction_impl_pred.
+  - eauto.
+  - rewrite /waiters_are.
+    intros s s' Hwait_set.
+    intros Hsubset%waiters_monotonic_next.
+    apply subseteq_to_subset in Hsubset.
+    (intuition idtac); subst; repeat deex; eauto.
+    right. eexists; split; [ | done ].
+    set_solver.
+Qed.
+
 End example.

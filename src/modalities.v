@@ -275,6 +275,38 @@ Proof.
     rewrite drop_0 //.
 Qed.
 
+Lemma impl_intro' p q r :
+  (p ∧ q ⊢ r) →
+  (p ⊢ q → r).
+Proof. unseal. Qed.
+
+Theorem always_induction_impl p q r :
+  (□ p ∧ q ⊢ r) →
+  (□ p ∧ r ⊢ later r) →
+  (□ p ⊢ □(q → □r)).
+Proof.
+  intros Hr Hind.
+  apply always_intro_impl.
+  rewrite (always_induction r).
+  apply impl_intro'.
+  tla_split; auto.
+  transitivity (□p)%L; [ unseal | ].
+  apply always_intro_impl.
+  apply impl_intro'.
+  auto.
+Qed.
+
+Theorem always_induction_impl_pred a (Q R: Σ → Prop) :
+  (∀ s s', Q s → a s s' → R s) →
+  (∀ s s', R s → a s s' → R s') →
+  (□ ⟨a⟩ ⊢ □(⌜Q⌝ → □⌜R⌝)).
+Proof.
+  intros HR Hind.
+  apply always_induction_impl.
+  { rewrite always_weaken. unseal. }
+  { rewrite always_weaken. unseal. }
+Qed.
+
 Theorem later_always p :
   □ p ⊢ later (□ p).
 Proof.
