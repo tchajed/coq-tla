@@ -667,6 +667,8 @@ Proof.
 Qed.
 End nodup.
 
+Hint Extern 2 (_ ⊆ _) => set_solver : core.
+
 Lemma nodup_inv_ok :
   spec ⊢ □⌜nodup_inv⌝.
 Proof.
@@ -685,14 +687,18 @@ Proof.
   rewrite -always_and; tla_simp.
 Qed.
 
-Lemma queue_gets_popped t ts :
+Lemma queue_gets_popped_locked W t ts :
   spec ⊢
-  ⌜λ s, s.(state).(queue) = t :: ts ∧
+  ⌜λ s, waiters_are W s ∧
+        s.(state).(queue) = t :: ts ∧
         s.(state).(lock) = true⌝ ~~>
-  ⌜λ s, (∃ ts', s.(state).(queue) = ts ++ ts') ∧
+  ⌜λ s, wait_set s.(tp) ⊆ W ∧
+       (∃ ts', s.(state).(queue) = ts ++ ts') ∧
         t ∉ s.(state).(queue)⌝.
 Proof.
+  rewrite /waiters_are.
   leads_to_trans (∃ t', ⌜λ s,
+        wait_set s.(tp) = W ∧
         (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧ t ∉ ts ++ ts') ∧
         s.(state).(lock) = true ∧
         lock_held s t'⌝)%L.
@@ -700,7 +706,7 @@ Proof.
     apply (leads_to_assume _ locked_inv_ok).
     apply (leads_to_assume _ nodup_inv_ok).
     tla_simp.
-    apply pred_leads_to => s [[[Hq Hl] Hinv] Hnodup].
+    apply pred_leads_to => s [[[HW [Hq Hl]] Hinv] Hnodup].
     destruct s as [[l q] ?]; simpl in *; subst.
     destruct Hinv as [t' ?]; eauto.
     exists t'; intuition eauto.
@@ -715,13 +721,14 @@ Proof.
 This "detour" is actually really interesting: you might think that simple transitivity is enough, because if t' has the lock, it will release the lock, then signal to t (transitivity is needed because this is two steps from thread t'). However, this is _not_ the case. It is possible for t' to release the lock, and then for some other thread to happen to do a CAS, acquire the lock, unlock it, and then send the signal to t; the original t' will now signal some other thread. This is unusual because t' is trying to signal something to t but some unrelated thread swoops in and does it instead, many steps later.
 |*)
     apply (leads_to_detour ⌜λ s,
+      wait_set s.(tp) ⊆ W ∧
       ((∃ ts' : list Tid, s.(state).(queue) = t :: ts ++ ts')
        ∧ s.(tp) !! t' = Some pc.unlock_wake)⌝).
 
     { tla_simp.
       tla_apply (wf1 (step t')).
       { tla_split; [ tla_assumption | tla_apply fair_step ]. }
-      - intros [σ tp] [σ' tp'] => /= [Hinv Hnext].
+      - intros [σ tp] [σ' tp'] => /= [[Hwaiters Hinv] Hnext].
         destruct Hnext  as (Hnext & [Hexclusion Hnodup] & [_ Hnodup']).
         destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto 8 ].
         destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
@@ -729,7 +736,7 @@ This "detour" is actually really interesting: you might think that simple transi
 
         destruct_step; stm_simp;
           try (assert (t' ≠ t'') as Hneq by congruence);
-          try solve [ eauto 6 ].
+          try solve [ eauto 8 ].
         + left; intuition eauto.
           eexists (_ ++ [t'']).
           rewrite !app_assoc; split; first by eauto.
@@ -981,8 +988,6 @@ Proof.
       split; [ done | ].
       inversion Hnodup; auto.
 Qed.
-
-Hint Extern 2 (_ ⊆ _) => set_solver : core.
 
 Lemma queue_gets_popped_unlocked W t ts :
   spec ⊢
