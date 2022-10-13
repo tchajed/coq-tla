@@ -421,6 +421,20 @@ Proof.
   apply leads_to_refl.
 Qed.
 
+(* [leads_to_if q] is the principle that we can prove a leads_to by splitting it
+into two cases: one where q is true and another where it's false *)
+Lemma leads_to_if (q p φ Γ: predicate) :
+  (Γ ⊢ (p ∧ q) ~~> φ) →
+  (Γ ⊢ (p ∧ !q) ~~> φ) →
+  (Γ ⊢ p ~~> φ).
+Proof.
+  intros Hq Hnotq.
+  rewrite (tla_and_em q p).
+  rewrite tla_and_distr_l.
+  rewrite leads_to_or_split.
+  tla_split; auto.
+Qed.
+
 Lemma leads_to_exist_intro {A} (Γ: predicate) (φ: A → predicate) q :
   (∀ x, Γ ⊢ φ x ~~> q) →
   (Γ ⊢ (∃ x, φ x) ~~> q).

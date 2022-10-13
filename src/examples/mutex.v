@@ -888,17 +888,14 @@ Ltac simp_props :=
 
 Lemma eventually_unlock W :
   spec ⊢
-  ⌜λ s, waiters_are W s⌝ ~~>
+  ⌜waiters_are W⌝ ~~>
   ⌜λ s, waiters_are W s ∧ s.(state).(lock) = false⌝.
 Proof.
-  rewrite leads_to_assume_not. tla_simp.
-  leads_to_trans (⌜λ s, waiters_are W s ∧ s.(state).(lock) = false⌝ ∨
-                  ⌜λ s, waiters_are W s ∧ s.(state).(lock) = true⌝)%L.
-  { tla_simp. apply pred_leads_to => s.
-    destruct s.(state).(lock); tauto. }
-
-  rewrite leads_to_or_split; tla_split.
-  { tla_clear; apply leads_to_refl. }
+  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝); tla_simp.
+  2: {
+    apply pred_leads_to => s.
+    destruct (s.(state).(lock)); intuition auto.
+  }
 
   (* somebody must hold the lock *)
   eapply leads_to_assume; [ apply locked_inv_ok | ].
