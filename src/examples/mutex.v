@@ -1080,41 +1080,64 @@ Proof.
     specialize (Hcan_lock _ _ ltac:(eauto)); stm. }
 
   apply leads_to_exist_intro => t'.
-  tla_apply (wf1 (step t')).
-  { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
 
-  - move => [σ tp] [σ' tp'] /=.
-    intros (Hq & Hlock & Hcan_lock) Hnext; subst.
-    destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    destruct_step; stm; simp_props.
+  apply (leads_to_detour
+    ⌜λ s, s.(state).(queue) = t::ts ∧
+         s.(state).(lock) = false ∧
+         s.(tp) !! t' = Some pc.lock_cas⌝).
 
-    + left.
-      rewrite /thread_can_lock /= in Hcan_lock |- *.
-      assert (t' ≠ t'') by intuition congruence.
-      lookup_simp.
-    + left; intuition auto.
-      rewrite /thread_can_lock /= in Hcan_lock |- *.
-      destruct (decide (t' = t'')); lookup_simp; eauto.
-    + left.
-      rewrite /thread_can_lock /= in Hcan_lock |- *.
-      destruct (decide (t' = t'')); lookup_simp; eauto.
-  - move => [σ tp] [σ' tp'] /=.
-    intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    rewrite thread_step_eq /thread_step_def in Hstep.
-    rewrite /thread_can_lock /= in Hcan_lock;
-      (intuition idtac).
-    + assert (pc'' = pc.unlock_wake) by congruence; stm.
-    + assert (pc'' = pc.kernel_wait) by congruence; stm.
-      (* TODO: oops, some detour is needed here *)
-      admit.
-    + assert (pc'' = pc.lock_cas) by congruence; stm.
-  - move => [[l q] tp] /=.
-    intros (? & ? & Hlookup); subst.
-    rewrite step_enabled /=.
-    rewrite /thread_can_lock /= in Hlookup.
-    naive_solver.
-Abort.
+  { tla_simp.
+    tla_apply (wf1 (step t')).
+    { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
+
+    - move => [σ tp] [σ' tp'] /=.
+      intros (Hq & Hlock & Hcan_lock) Hnext; subst.
+      destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
+      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      destruct_step; stm; simp_props.
+
+      + left.
+        rewrite /thread_can_lock /= in Hcan_lock |- *.
+        assert (t' ≠ t'') by intuition congruence.
+        lookup_simp.
+      + left; intuition auto.
+        rewrite /thread_can_lock /= in Hcan_lock |- *.
+        destruct (decide (t' = t'')); lookup_simp; eauto.
+      + left.
+        rewrite /thread_can_lock /= in Hcan_lock |- *.
+        destruct (decide (t' = t'')); lookup_simp; eauto.
+    - move => [σ tp] [σ' tp'] /=.
+      intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
+      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      rewrite thread_step_eq /thread_step_def in Hstep.
+      rewrite /thread_can_lock /= in Hcan_lock;
+        (intuition idtac).
+      + assert (pc'' = pc.unlock_wake) by congruence; stm.
+      + assert (pc'' = pc.kernel_wait) by congruence; stm.
+      + assert (pc'' = pc.lock_cas) by congruence; stm.
+    - move => [[l q] tp] /=.
+      intros (? & ? & Hlookup); subst.
+      rewrite step_enabled /=.
+      rewrite /thread_can_lock /= in Hlookup.
+      naive_solver. }
+
+    tla_apply (wf1 (step t')).
+    { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
+
+    - move => [σ tp] [σ' tp'] /=.
+      intros (Hq & Hlock & Hcan_lock) Hnext; subst.
+      destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
+      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      destruct_step; stm; simp_props.
+    - move => [σ tp] [σ' tp'] /=.
+      intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
+      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      rewrite thread_step_eq /thread_step_def in Hstep.
+      assert (pc'' = pc.lock_cas) by congruence; stm.
+    - move => [[l q] tp] /=.
+      intros (? & ? & Hlookup); subst.
+      rewrite step_enabled /=.
+      naive_solver.
+Qed.
 
 End example.
