@@ -1008,4 +1008,113 @@ Abort.
 seems we could be stuck: we need to prove an invariant that in this situation, a
 thread is at pc.futex_wake, so that we're guaranteed to get a wakeup signal *)
 
+Definition thread_can_lock t' s :=
+  s.(tp) !! t' = Some pc.unlock_wake ∨
+  (s.(tp) !! t' = Some pc.kernel_wait ∧
+  t' ∉ s.(state).(queue)) ∨
+  s.(tp) !! t' = Some pc.lock_cas.
+
+(* if the queue has a head element [t] but the lock is free, there's some thread
+that can acquire the lock and send a signal to [t] *)
+Definition lock_free_queue_inv s :=
+  ∀ t ts,
+    s.(state).(queue) = t::ts →
+    s.(state).(lock) = false →
+    ∃ t', thread_can_lock t' s.
+
+Lemma lock_free_queue_inv_ok :
+  spec ⊢ □⌜lock_free_queue_inv⌝.
+Proof.
+  tla_pose nodup_helper_inv_ok.
+  rewrite /lock_free_queue_inv /thread_can_lock.
+  unfold spec. tla_clear fair.
+  rewrite combine_preds.
+  apply init_invariant.
+  - intros s. stm.
+  - move => [[q l] tp] [[q' l'] tp'] /=.
+    intros Hinv [Hnext [[Hnodup Hwait] _]] t0 ts0 -> ->; simpl in *.
+    rewrite /nodup_inv /= in Hnodup.
+    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    destruct_step;
+      repeat (stm_simp
+              || solve [
+                     specialize (Hinv _ _ ltac:(eauto));
+                     stm_simp;
+                     match goal with
+                     | t: Tid |- _ =>
+                         exists t; lookup_simp; eauto
+                     end
+        ]).
+    + destruct l.
+      { (* pop [] can't produce a non-nil queue *)
+        simpl in *; congruence. }
+      simpl in *; subst.
+      assert (tp !! t1 = Some pc.kernel_wait).
+      { apply Hwait; set_solver. }
+      exists t1. right; left.
+      lookup_simp.
+      split; [ done | ].
+      inversion Hnodup; auto.
+Qed.
+
+Lemma queue_gets_popped_unlocked t ts :
+  spec ⊢
+  ⌜λ s, s.(state).(queue) = t :: ts ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜λ s, s.(state).(queue) = ts ∨
+        (s.(state).(queue) = t :: ts ∧
+         s.(state).(lock) = true)⌝.
+Proof.
+  apply (leads_to_assume _ lock_free_queue_inv_ok); tla_simp.
+  rewrite /lock_free_queue_inv.
+
+  leads_to_trans (∃ t', ⌜ λ s,
+                    s.(state).(queue) = t :: ts ∧
+                    s.(state).(lock) = false ∧
+                    thread_can_lock t' s
+                   ⌝)%L.
+  { rewrite exist_state_pred.
+    apply pred_leads_to.
+    move => [[l q] tp] /= [[? ?] Hcan_lock]; simpl; subst.
+    specialize (Hcan_lock _ _ ltac:(eauto)); stm. }
+
+  apply leads_to_exist_intro => t'.
+  tla_apply (wf1 (step t')).
+  { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
+
+  - move => [σ tp] [σ' tp'] /=.
+    intros (Hq & Hlock & Hcan_lock) Hnext; subst.
+    destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    destruct_step; stm; simp_props.
+
+    + left.
+      rewrite /thread_can_lock /= in Hcan_lock |- *.
+      assert (t' ≠ t'') by intuition congruence.
+      lookup_simp.
+    + left; intuition auto.
+      rewrite /thread_can_lock /= in Hcan_lock |- *.
+      destruct (decide (t' = t'')); lookup_simp; eauto.
+    + left.
+      rewrite /thread_can_lock /= in Hcan_lock |- *.
+      destruct (decide (t' = t'')); lookup_simp; eauto.
+  - move => [σ tp] [σ' tp'] /=.
+    intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    rewrite thread_step_eq /thread_step_def in Hstep.
+    rewrite /thread_can_lock /= in Hcan_lock;
+      (intuition idtac).
+    + assert (pc'' = pc.unlock_wake) by congruence; stm.
+    + assert (pc'' = pc.kernel_wait) by congruence; stm.
+      (* TODO: oops, some detour is needed here *)
+      admit.
+    + assert (pc'' = pc.lock_cas) by congruence; stm.
+  - move => [[l q] tp] /=.
+    intros (? & ? & Hlookup); subst.
+    rewrite step_enabled /=.
+    rewrite /thread_can_lock /= in Hlookup.
+    naive_solver.
+Abort.
+
 End example.
