@@ -179,11 +179,10 @@ This "detour" is actually really interesting: you might think that simple transi
         destruct Hinv as [Hexclusion _ Hnodup _ _];
           destruct Hinv' as [_ _ Hnodup' _ _];
           autounfold with inv in *; simpl in *.
+        destruct Hexclusion as [_ Hsafe].
         stm_simp.
 
-        destruct_step; stm_simp;
-          try (assert (t' ≠ t'') as Hneq by congruence);
-          try solve [ eauto 8 ].
+        destruct_step; stm_simp; eauto 8.
         + left; intuition eauto.
           eexists (_ ++ [t'']).
           rewrite !app_assoc; split; first by eauto.
@@ -194,7 +193,7 @@ This "detour" is actually really interesting: you might think that simple transi
         + assert (t'' ≠ t) by set_solver.
           stm.
         + assert (t' = t''); subst.
-          { apply H0; eauto. }
+          { apply Hsafe; eauto. }
           right; stm.
       - stm.
       - stm.
@@ -244,10 +243,8 @@ Proof.
   leads_to_trans (∃ t, ⌜λ s, waiters_are W s ∧
                              s.(state).(lock) = true ∧
                              lock_held s t⌝)%L.
-  { rewrite exist_state_pred.
-    apply pred_leads_to => s.
-    rewrite /locked_inv.
-    naive_solver. }
+  { rewrite /locked_inv.
+    lt_auto naive_solver. }
   lt_intro t0.
 
   apply (mutex_wf1 t0); simpl; intros.
@@ -263,9 +260,7 @@ Proof.
   - rewrite /waiters_are /lock_held /= in Hpre |- *.
     destruct Hpre as (Hwait & Hlock & Ht0); subst.
     stm.
-  - rewrite /waiters_are /lock_held /= in H.
-    stm.
-    naive_solver.
+  - naive_solver.
 Qed.
 
 Lemma lock_cas_progress t W :
@@ -379,7 +374,7 @@ Proof.
          s.(tp) !! t' = Some pc.lock_cas⌝); tla_simp.
 
   { apply (mutex_wf1 t'); simpl.
-    - intros t''; intros.
+    - intros t'' **.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *.
       destruct_step; stm_simp; simp_props; eauto.
@@ -472,7 +467,7 @@ Proof.
     + left. set_solver.
     + assert (t ∉ pop q) by (intros ?%elem_of_pop; auto).
       assert (t' ∉ wait_set tp) by eauto.
-      eauto.
+      left; set_solver.
   - stm.
   - naive_solver.
 Qed.
