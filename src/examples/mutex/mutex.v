@@ -248,31 +248,23 @@ Proof.
     apply pred_leads_to => s.
     rewrite /locked_inv.
     naive_solver. }
-  apply leads_to_exist_intro => t0.
+  lt_intro t0.
 
-  tla_apply (wf1 (step t0)).
-  { rewrite /spec.
-    tla_split; [ tla_assumption | tla_apply fair_step ]. }
-  - move => [σ tp] [σ' tp'] /=.
-    rewrite /waiters_are /lock_held /=.
-    intros (Hwait & Hlock & Ht0) Hnext; subst.
-    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+  apply (mutex_wf1 t0); simpl; intros.
+  - rewrite /waiters_are /lock_held /= in Hpre |- *.
+    destruct Hpre as (Hwait & Hlock & Ht0); subst.
     destruct_step; stm_simp; simp_props; auto.
     + right.
-      assert (t ∉ wait_set tp) by eauto.
+      assert (t' ∉ wait_set tp) by eauto.
       set_solver.
     + left.
-      assert (t ∉ wait_set tp) by eauto.
+      assert (t' ∉ wait_set tp) by eauto.
       set_solver.
-  - move => [σ tp] [σ' tp'] /=.
-    rewrite /waiters_are /lock_held /=.
-    intros (Hwait & Hlock & Ht0) _ Hstep; subst.
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm.
-  - move => [[l q] tp] /=.
-    rewrite /waiters_are /lock_held /=.
-    intros (? & ? & Hlookup); subst.
-    rewrite step_enabled /=.
+  - rewrite /waiters_are /lock_held /= in Hpre |- *.
+    destruct Hpre as (Hwait & Hlock & Ht0); subst.
+    stm.
+  - rewrite /waiters_are /lock_held /= in H.
+    stm.
     naive_solver.
 Qed.
 
@@ -284,20 +276,11 @@ Lemma lock_cas_progress t W :
   ⌜λ s, wait_set s.(tp) ⊂ W⌝.
 Proof.
   rewrite /waiters_are /=.
-  tla_apply (wf1 (step t)).
-  { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
-  - move => [σ tp] [σ' tp'] /=.
-    intros (Hwait & Hpc) Hnext; subst.
-    destruct Hnext as [ [t' Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    destruct_step; stm; simp_props; eauto 8.
-  - move => [σ tp] [σ' tp'] /=.
-    intros (Hwait & Hpc) _ Hstep; subst.
-    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm.
-  - move => [[l q] tp] /=.
-    intros (? & Hpc); subst.
-    rewrite step_enabled /=.
-    naive_solver.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct_step; stm.
+    eauto 10.
+  - stm.
+  - naive_solver.
 Qed.
 
 Lemma futex_wait_progress t W :
@@ -314,25 +297,14 @@ Proof.
                  s.(state).(lock) = false ∧
                  s.(tp) !! t = Some pc.lock_cas⌝).
   { tla_simp.
-    tla_apply (wf1 (step t)).
-    { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
-    - move => [σ tp] [σ' tp'] /=.
-      intros (Hwait & Hpc) Hnext; subst.
-      destruct Hnext as [ [t' Hstep] | Heq]; [ | stm_simp; by eauto ].
-      destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-      destruct_step; stm; simp_props; eauto 8.
-      + destruct (decide (t = t')); subst; lookup_simp; eauto.
-      + destruct (decide (t = t')); subst; lookup_simp; eauto.
-    - move => [σ tp] [σ' tp'] /=.
-      intros (Hwait & Hpc) _ Hstep; subst.
-      destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm.
+    apply (mutex_wf1 t); simpl; intros.
+    - destruct_step; stm.
+      eauto 10.
+    - stm.
       destruct l0; stm.
-    - move => [[l q] tp] /=.
-      intros (? & Hpc); subst.
-      rewrite step_enabled /=.
-      naive_solver. }
+    - naive_solver. }
   leads_to_etrans; [ apply lock_cas_progress | ].
-  apply pred_leads_to => s; naive_solver.
+  lt_auto.
 Qed.
 
 (* if there is a thread t in pc.kernel_wait, then either the queue is empty, in
@@ -397,83 +369,60 @@ Proof.
     move => [[l q] tp] /= [[Hwaiters [? ?]] Hcan_lock]; simpl; subst.
     specialize (Hcan_lock _ _ ltac:(eauto)); stm. }
 
-  apply leads_to_exist_intro => t'.
-
-  apply (add_safety nodup_helper_inv_ok).
+  lt_intro.
 
   apply (leads_to_detour
     ⌜λ s, wait_set s.(tp) ⊆ W ∧
          s.(state).(queue) = t::ts ∧
          s.(tp) !! t = Some pc.kernel_wait ∧
          s.(state).(lock) = false ∧
-         s.(tp) !! t' = Some pc.lock_cas⌝).
+         s.(tp) !! t' = Some pc.lock_cas⌝); tla_simp.
 
-  { tla_simp.
-    tla_apply (wf1 (step t')).
-    { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
-
-    - move => [σ tp] [σ' tp'] /=.
-      rewrite /nodup_helper_inv /nodup_inv /=.
-      intros (Hwaiters & Hq & Hlock & Hcan_lock).
-      intros (Hnext & [Hnodup Hwaiting] & _); simpl; subst.
-      destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
-      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+  { apply (mutex_wf1 t'); simpl.
+    - intros t''; intros.
+      destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
+        autounfold with inv in *.
       destruct_step; stm_simp; simp_props; eauto.
       + left.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
-        assert (t' ≠ t'') by intuition congruence.
         lookup_simp; eauto.
       + left; intuition auto.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
-        destruct (decide (t' = t'')); lookup_simp; eauto.
+        lookup_simp; eauto.
       + left.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
-        destruct (decide (t' = t'')); lookup_simp; eauto.
+        lookup_simp; eauto.
       + assert (t ∉ ts) by (inversion Hnodup; auto).
         rewrite /waiting_inv in Hwaiting.
         assert (t'' ≠ t) by set_solver.
         right; right; left. stm.
-    - move => [σ tp] [σ' tp'] /=.
-      intros (Hwaiters & Hq & Hlock & Hcan_lock) (_ & Hnodup & _) Hstep; subst.
-      destruct Hnodup as [Hnodup Hwaiting].
-      rewrite /nodup_inv /= in Hnodup.
-      rewrite /waiting_inv /= in Hwaiting.
-      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    - intros.
+      destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
+        autounfold with inv in *; simpl in *.
+      stm_simp.
       assert (t ∉ ts) by (inversion Hnodup; auto).
+      stm_simp.
+      assert (tp !! t = Some pc.kernel_wait) by (eapply Hwaiting; eauto).
       rewrite thread_step_eq /thread_step_def in Hstep.
-      assert (tp !! t = Some pc.kernel_wait) by eauto.
-      rewrite /thread_can_lock /= in Hcan_lock;
-        (intuition idtac).
-      + assert (pc'' = pc.unlock_wake) by congruence; stm.
-      + assert (pc'' = pc.kernel_wait) by congruence; stm.
-        assert (t ≠ t') by set_solver. stm.
-      + assert (pc'' = pc.lock_cas) by congruence; stm.
-    - move => [[l q] tp] /=.
-      intros (? & ? & Hlookup); subst.
-      rewrite step_enabled /=.
-      rewrite /thread_can_lock /= in Hlookup.
+      unfold thread_can_lock in *; stm.
+      + assert (t ≠ t') by set_solver. stm.
+    - intros. rewrite /thread_can_lock /= in H.
       naive_solver. }
 
-    tla_apply (wf1 (step t')).
-    { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
-
-    - move => [σ tp] [σ' tp'] /=.
-      intros (Hq & Hlock & Hcan_lock) (Hnext & Hnodup & _); subst.
-      destruct Hnodup as [Hnodup Hwaiting].
-      rewrite /nodup_inv /= in Hnodup.
-      destruct Hnext as [ [t'' Hstep] | Heq]; [ | by stm ].
-      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    apply (mutex_wf1 t'); simpl.
+    - intros t'' **.
+      destruct Hpre as (Hq & Hlock & Hcan_lock).
+      destruct Hinv as [_ _ Hnodup Hwaiting _];
+        autounfold with inv in *; simpl in *.
+      stm_simp.
       assert (t ∉ ts) by (inversion Hnodup; auto).
       destruct_step; stm.
       assert (t'' ≠ t) by set_solver.
       stm.
-    - move => [σ tp] [σ' tp'] /=.
+    - intros *.
       intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
-      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm.
-    - move => [[l q] tp] /=.
-      intros (? & ? & Hlookup); subst.
-      rewrite step_enabled /=.
-      naive_solver.
+      stm.
+    - naive_solver.
 Qed.
 
 Lemma queue_gets_popped W t ts :
@@ -517,27 +466,15 @@ Lemma kernel_wait_not_queued_progress W t :
           s.(tp) !! t = Some pc.lock_cas⌝.
 Proof.
   rewrite /waiters_are.
-  tla_apply (wf1 (step t)).
-  { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
-
-  - move => [σ tp] [σ' tp'] /=.
-    intros (Hwait & Ht & Hnotin) Hnext; subst.
-    destruct Hnext as [ [t' Hstep] | Heq]; [ | by stm ].
-    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct Hpre as (Hwait & Ht & Hnotin); subst.
     destruct_step; stm; simp_props.
-    + assert (t ≠ t') by congruence.
-      left. set_solver.
-    + destruct (decide (t = t')); lookup_simp; eauto.
-    + assert (t ∉ pop q0) by (intros ?%elem_of_pop; auto).
+    + left. set_solver.
+    + assert (t ∉ pop q) by (intros ?%elem_of_pop; auto).
       assert (t' ∉ wait_set tp) by eauto.
       eauto.
-  - move => [σ tp] [σ' tp'] /=.
-    intros (Hwait & Ht & Hnotin) _ Hstep; subst.
-    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm.
-  - move => [[l q] tp] /=.
-    intros (? & ? & Hlookup); subst.
-    rewrite step_enabled /=.
-    naive_solver.
+  - stm.
+  - naive_solver.
 Qed.
 
 Lemma kernel_wait_progress W t :
