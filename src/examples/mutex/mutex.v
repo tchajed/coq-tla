@@ -451,6 +451,8 @@ Proof.
     lt_apply queue_gets_popped_locked.
 Qed.
 
+Hint Resolve elem_of_pop : core.
+
 Lemma kernel_wait_not_queued_progress W t :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
@@ -465,7 +467,7 @@ Proof.
   - destruct Hpre as (Hwait & Ht & Hnotin); subst.
     destruct_step; stm; simp_props.
     + left. set_solver.
-    + assert (t ∉ pop q) by (intros ?%elem_of_pop; auto).
+    + assert (t ∉ pop q) by auto.
       assert (t' ∉ wait_set tp) by eauto.
       left; set_solver.
   - stm.
