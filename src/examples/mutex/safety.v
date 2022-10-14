@@ -214,3 +214,33 @@ Proof.
       split; [ done | ].
       inversion Hnodup; auto.
 Qed.
+
+Record all_invs s :=
+  { Hexcl: exclusion_inv s;
+    Hlocked: locked_inv s;
+    Hnodup: nodup_inv s;
+    Hwaiting: waiting_inv s;
+    Hcan_lock: lock_free_queue_inv s;
+  }.
+
+Theorem all_invs_ok :
+  spec ⊢ □⌜all_invs⌝.
+Proof.
+  tla_pose exclusion_inv_ok.
+  tla_pose locked_inv_ok.
+  tla_pose nodup_helper_inv_ok.
+  tla_pose lock_free_queue_inv_ok.
+  tla_clear spec.
+  rewrite -!always_and.
+  tla_simp.
+  apply always_impl_proper.
+  apply state_pred_impl.
+  rewrite /nodup_helper_inv.
+  intuition idtac.
+  constructor; auto.
+Qed.
+
+#[export]
+Hint Unfold exclusion_inv locked_inv
+  nodup_inv waiting_inv
+  lock_free_queue_inv : inv.

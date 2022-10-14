@@ -485,7 +485,7 @@ Ltac prove_wf xs :=
 Ltac lt_simp :=
   tla_simp;
   repeat match goal with
-    | |- context[tla_exist _] => setoid_rewrite exist_state_pred
+    | |- context[tla_exist _] => rewrite exist_state_pred || setoid_rewrite exist_state_pred
     end.
 
 Ltac lt_intro_tac t :=

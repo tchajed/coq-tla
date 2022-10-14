@@ -68,6 +68,8 @@ Lemma mutex_wf1 (t: Tid) (P Q: Config → Prop) :
      let s := {| state := σ; tp := tp|} in
      let s' := {| state := σ'; tp := <[t' := pc']> tp |} in
      P s →
+     all_invs s →
+     all_invs s' →
      t ≠ t' →
      tp !! t' = Some pc →
      thread_step t' (σ, pc) (σ', pc') →
@@ -77,12 +79,14 @@ Lemma mutex_wf1 (t: Tid) (P Q: Config → Prop) :
      let s := {| state := σ; tp := tp|} in
      let s' := {| state := σ'; tp := <[t := pc']> tp |} in
      P s →
+     all_invs s →
      tp !! t = Some pc →
      thread_step t (σ, pc) (σ', pc') →
      Q s'
   ) →
   (∀ l q tp,
-     P {| state := {| lock := l; queue := q |}; tp := tp |} →
+     let s := {| state := {| lock := l; queue := q |}; tp := tp |} in
+     P s →
      ∃ pc, tp !! t = Some pc ∧
            (pc = pc.kernel_wait → t ∉ q) ∧
            pc ≠ pc.finished
@@ -91,11 +95,13 @@ Lemma mutex_wf1 (t: Tid) (P Q: Config → Prop) :
 Proof.
   simpl.
   intros H1 H2 H3.
+  apply (add_safety all_invs_ok).
   tla_apply (wf1 (step t)).
   { rewrite /spec.
     tla_split; [ tla_assumption | tla_apply fair_step ]. }
   - intros [σ tp] [σ' tp'].
     intros Hp Hnext.
+    destruct Hnext as [Hnext [Hinvs Hinvs']].
     destruct Hnext as [ [t' Hstep] | Heq].
     + destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]].
       invc Heq.
@@ -105,7 +111,7 @@ Proof.
       destruct (decide (t = t')); subst; eauto.
     + invc Heq; eauto.
   - intros [σ tp] [σ' tp'].
-    intros Hp Hnext Hstep.
+    intros Hp [Hnext [Hinvs Hinvs']] Hstep.
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
     invc Heq.
     destruct ρ' as [σ' tp']; simpl in *.
@@ -144,17 +150,15 @@ Proof.
         s.(state).(lock) = true ∧
         lock_held s t'⌝)%L.
   - rewrite exist_state_pred.
-    apply (leads_to_assume _ locked_inv_ok).
-    apply (leads_to_assume _ nodup_helper_inv_ok).
+    apply (leads_to_assume _ all_invs_ok).
     tla_simp.
-    apply pred_leads_to => s [[[HW [Hq Hl]] Hinv] Hnodup].
-    destruct Hnodup as [Hnodup Hwaiting].
-    rewrite /waiting_inv in Hwaiting.
+    apply pred_leads_to => s [[HW [Hq Hl]] Hinv].
+    destruct Hinv as [_ Hlocked Hnodup Hwaiting _];
+      autounfold with inv in *.
     destruct s as [[l q] ?]; simpl in *; subst.
-    destruct Hinv as [t' ?]; eauto.
+    destruct Hlocked as [t' ?]; eauto.
     exists t'; intuition eauto.
     { exists nil; rewrite app_nil_r. split; first by eauto.
-      rewrite /nodup_inv /= in Hnodup.
       apply NoDup_cons_inv in Hnodup; intuition auto. }
   - apply leads_to_exist_intro => t'.
     apply (add_safety queue_invs).
