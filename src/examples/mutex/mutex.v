@@ -2,7 +2,7 @@ From Coq.Relations Require Import Relation_Operators.
 From Coq.Wellfounded Require Import Lexicographic_Product.
 
 From TLA Require Import logic.
-From TLA.examples.mutex Require Import spec wait_set.
+From TLA.examples.mutex Require Import spec wait_set nodup.
 
 Section example.
 
@@ -314,29 +314,6 @@ Definition waiting_inv s :=
 Definition nodup_helper_inv s :=
   nodup_inv s ∧ waiting_inv s.
 
-Lemma NoDup_singleton {A} (x: A) :
-  NoDup [x].
-Proof.
-  constructor.
-  - set_solver.
-  - constructor.
-Qed.
-
-Lemma NoDup_app1 {A} (l: list A) (x: A) :
-  NoDup (l ++ [x]) ↔ NoDup l ∧ x ∉ l.
-Proof.
-  rewrite NoDup_app.
-  pose proof (NoDup_singleton x).
-  (intuition auto); set_solver.
-Qed.
-
-Lemma NoDup_app1_fwd {A} (l: list A) (x: A) :
-  NoDup l → x ∉ l →
-  NoDup (l ++ [x]).
-Proof.
-  rewrite NoDup_app1 //.
-Qed.
-
 Lemma NoDup_pop (l: list Tid) :
   NoDup l → NoDup (pop l).
 Proof.
@@ -344,29 +321,13 @@ Proof.
   inversion 1; subst; auto.
 Qed.
 
+
 Lemma elem_of_pop t (l: list Tid) :
   t ∈ pop l →
   t ∈ l.
 Proof.
   unfold pop.
   destruct l; set_solver.
-Qed.
-
-Lemma NoDup_cons_inv t ts :
-  NoDup (t :: ts) ↔
-  t ∉ ts ∧ NoDup ts.
-Proof.
-  split.
-  - inversion 1; subst; auto.
-  - intros.
-    constructor; intuition auto.
-Qed.
-
-Lemma NoDup_head_not_in t ts :
-  NoDup (t :: ts) →
-  t ∉ ts.
-Proof.
-  rewrite NoDup_cons_inv; intuition auto.
 Qed.
 
 (* limit these hints to just this NoDup theorem *)
@@ -655,16 +616,6 @@ Proof.
     rewrite step_enabled /=.
     naive_solver.
 Qed.
-
-Lemma wait_set_remove_subset (W: gset Tid) (t: Tid) :
-  t ∈ W → W ∖ {[t]} ⊂ W.
-Proof. set_solver. Qed.
-
-Lemma wait_set_remove_eq (W: gset Tid) (t: Tid) :
-  t ∉ W → W ∖ {[t]} = W.
-Proof. set_solver. Qed.
-
-Hint Resolve wait_set_remove_subset wait_set_remove_eq : core.
 
 Lemma lock_cas_progress t W :
   spec ⊢

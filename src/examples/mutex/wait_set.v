@@ -161,3 +161,14 @@ Qed.
 Hint Rewrite wait_set_unchanged using (by auto) : pc.
 #[export]
 Hint Rewrite wait_set_insert_other using (by auto) : pc.
+
+Lemma wait_set_remove_subset (W: gset Tid) (t: Tid) :
+  t ∈ W → W ∖ {[t]} ⊂ W.
+Proof. set_solver. Qed.
+
+Lemma wait_set_remove_eq (W: gset Tid) (t: Tid) :
+  t ∉ W → W ∖ {[t]} = W.
+Proof. set_solver. Qed.
+
+#[export]
+Hint Resolve wait_set_remove_subset wait_set_remove_eq : core.
