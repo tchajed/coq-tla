@@ -67,21 +67,21 @@ Lemma mutex_wf1 (t: Tid) (P Q: Config → Prop) :
   (∀ t' σ tp pc σ' pc',
      let s := {| state := σ; tp := tp|} in
      let s' := {| state := σ'; tp := <[t' := pc']> tp |} in
-     P s →
-     all_invs s →
-     all_invs s' →
-     t ≠ t' →
-     tp !! t' = Some pc →
-     thread_step t' (σ, pc) (σ', pc') →
-     P s' ∨ Q s'
+     ∀ (Hpre: P s)
+       (Hinv: all_invs s)
+       (Hinv': all_invs s')
+       (Hneq: t ≠ t')
+       (Hlookup: tp !! t' = Some pc)
+       (Hstep: thread_step t' (σ, pc) (σ', pc')),
+       P s' ∨ Q s'
   ) →
   (∀ σ tp pc σ' pc',
      let s := {| state := σ; tp := tp|} in
      let s' := {| state := σ'; tp := <[t := pc']> tp |} in
-     P s →
-     all_invs s →
-     tp !! t = Some pc →
-     thread_step t (σ, pc) (σ', pc') →
+     ∀ (Hpre: P s)
+       (Hinv: all_invs s)
+       (Hlookup: tp !! t = Some pc)
+       (Hstep: thread_step t (σ, pc) (σ', pc')),
      Q s'
   ) →
   (∀ l q tp,
@@ -161,7 +161,6 @@ Proof.
     { exists nil; rewrite app_nil_r. split; first by eauto.
       apply NoDup_cons_inv in Hnodup; intuition auto. }
   - apply leads_to_exist_intro => t'.
-    apply (add_safety queue_invs).
     unfold lock_held.
 
 (*|
@@ -174,12 +173,12 @@ This "detour" is actually really interesting: you might think that simple transi
        s.(tp) !! t' = Some pc.unlock_wake)⌝).
 
     { tla_simp.
-      tla_apply (wf1 (step t')).
-      { tla_split; [ tla_assumption | tla_apply fair_step ]. }
-      - intros [σ tp] [σ' tp'] => /= [[Hwaiters Hinv] Hnext].
-        destruct Hnext  as (Hnext & [Hexclusion Hnodup] & [_ Hnodup']).
-        destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto 8 ].
-        destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
+      apply (mutex_wf1 t'); cbn.
+      - intro t''; intros.
+        (* extract the invariants we want to use *)
+        destruct Hinv as [Hexclusion _ Hnodup _ _];
+          destruct Hinv' as [_ _ Hnodup' _ _];
+          autounfold with inv in *; simpl in *.
         stm_simp.
 
         destruct_step; stm_simp;
@@ -188,40 +187,27 @@ This "detour" is actually really interesting: you might think that simple transi
         + left; intuition eauto.
           eexists (_ ++ [t'']).
           rewrite !app_assoc; split; first by eauto.
-          rewrite /nodup_inv /= NoDup_cons_inv in Hnodup Hnodup'.
+          rewrite NoDup_cons_inv in Hnodup Hnodup'.
           rewrite elem_of_app elem_of_list_singleton; intuition subst.
           rewrite NoDup_cons_inv NoDup_app1 in Hnodup'.
           set_solver+ Hnodup'.
         + assert (t'' ≠ t) by set_solver.
           stm.
         + assert (t' = t''); subst.
-          { apply Hexclusion; eauto. }
+          { apply H0; eauto. }
           right; stm.
-      - intros [[q l] tp] [σ' tp'] => /= Hp.
-        destruct_and!; subst; repeat deex.
-        (* drop next *)
-        intros _ Hstep.
-        rewrite /step /= in Hstep.
-        repeat deex.
-        assert (pc = pc.unlock_store) by congruence; subst.
-        stm_simp.
-        rewrite thread_step_eq /= in H2.
-        stm.
-      - intros [[q l] tp] ?. rewrite step_enabled.
-        stm.
+      - stm.
+      - stm.
         eexists; split; first by eauto.
         intuition congruence. }
 
-    { tla_apply (wf1 (step t')).
-      { tla_split; [ tla_assumption | tla_apply fair_step ]. }
-      - intros [σ tp] [σ' tp'] => /= [Hinv Hnext].
-        destruct Hnext  as (Hnext & [Hexclusion Hnodup] & [_ Hnodup']).
-        destruct Hnext as [ [t'' Hstep] | Heq]; [ | by  stm ].
-        destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
+    { apply (mutex_wf1 t'); cbn.
+      - intro t''; intros.
+        destruct Hinv as [_ _  Hnodup _ _];
+          autounfold with inv in *; simpl in *.
         stm_simp.
 
         destruct_step; stm_simp;
-          try (assert (t' ≠ t'') as Hneq by congruence);
           try solve [ eauto 6 ].
         + left; intuition eauto.
           eexists (_ ++ [t'']).
@@ -229,19 +215,13 @@ This "detour" is actually really interesting: you might think that simple transi
         + assert (t'' ≠ t) by set_solver.
           stm.
         + right. eexists; intuition eauto.
-          rewrite /nodup_inv /= in Hnodup.
           apply NoDup_head_not_in in Hnodup; auto.
-      - intros [[q l] tp] [σ' tp'] => /= Hp.
-        destruct_and!; subst; repeat deex.
-        (* drop next *)
-        intros (_ & [_ Hnodup] & _) Hstep.
-        rewrite /step /= in Hstep; stm_simp.
-        assert (pc = pc.unlock_wake) by congruence; subst.
-        rewrite thread_step_eq /= in H2.
+      - intros.
         stm.
-        rewrite /nodup_inv /= in Hnodup.
+        destruct Hinv as [_ _ Hnodup _ _];
+          autounfold with inv in *; simpl in *.
         apply NoDup_head_not_in in Hnodup; auto.
-      - intros [[q l] tp] ?. rewrite step_enabled.
+      - intros.
         stm.
         eexists; split; first by eauto.
         intuition congruence. }
@@ -288,9 +268,7 @@ Proof.
   - move => [σ tp] [σ' tp'] /=.
     rewrite /waiters_are /lock_held /=.
     intros (Hwait & Hlock & Ht0) _ Hstep; subst.
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    assert (pc'' = pc.unlock_store) by congruence; subst.
-    rewrite thread_step_eq /thread_step_def in Hstep; stm.
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm.
   - move => [[l q] tp] /=.
     rewrite /waiters_are /lock_held /=.
     intros (? & ? & Hlookup); subst.
@@ -315,9 +293,7 @@ Proof.
     destruct_step; stm; simp_props; eauto 8.
   - move => [σ tp] [σ' tp'] /=.
     intros (Hwait & Hpc) _ Hstep; subst.
-    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    assert (pc = pc.lock_cas) by congruence; subst.
-    rewrite thread_step_eq /thread_step_def in Hstep; stm.
+    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm.
   - move => [[l q] tp] /=.
     intros (? & Hpc); subst.
     rewrite step_enabled /=.
@@ -349,9 +325,7 @@ Proof.
       + destruct (decide (t = t')); subst; lookup_simp; eauto.
     - move => [σ tp] [σ' tp'] /=.
       intros (Hwait & Hpc) _ Hstep; subst.
-      destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-      assert (pc = pc.futex_wait) by congruence; subst.
-      rewrite thread_step_eq /thread_step_def in Hstep; stm.
+      destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm.
       destruct l0; stm.
     - move => [[l q] tp] /=.
       intros (? & Hpc); subst.
@@ -495,9 +469,7 @@ Proof.
       stm.
     - move => [σ tp] [σ' tp'] /=.
       intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
-      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-      rewrite thread_step_eq /thread_step_def in Hstep.
-      assert (pc'' = pc.lock_cas) by congruence; stm.
+      destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm.
     - move => [[l q] tp] /=.
       intros (? & ? & Hlookup); subst.
       rewrite step_enabled /=.
@@ -562,9 +534,7 @@ Proof.
       eauto.
   - move => [σ tp] [σ' tp'] /=.
     intros (Hwait & Ht & Hnotin) _ Hstep; subst.
-    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    rewrite thread_step_eq /thread_step_def in Hstep.
-    assert (pc = pc.kernel_wait) by congruence; stm.
+    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm.
   - move => [[l q] tp] /=.
     intros (? & ? & Hlookup); subst.
     rewrite step_enabled /=.

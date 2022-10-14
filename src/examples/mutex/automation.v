@@ -135,6 +135,11 @@ Ltac stm_simp :=
         | H: @eq _ (mkConfig _ _) (mkConfig _ _) |- _ =>
             invc H; cbn in *
         | H: Some _ = Some _ |- _ => invc H
+        | pc: pc.t, H: ?x = Some ?pc, H': ?x = Some ?pc' |- _ =>
+            assert (pc = pc') by congruence; subst; clear H
+        | H: thread_step ?t (_, ?pc) (_, _) |- _ =>
+            first [ is_var pc (* make sure pc is not a variable *)
+                  | rewrite thread_step_eq /= in H ]
         | H: ?x = ?x → _ |- _ => specialize (H eq_refl)
         | H: ?P → _, H': ?P |- _ => lazymatch type of P with
                                     | Prop => specialize (H H')
