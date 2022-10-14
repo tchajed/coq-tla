@@ -616,10 +616,13 @@ Qed.
 Definition nodup_inv s :=
   NoDup s.(state).(queue).
 
+Definition waiting_inv s :=
+  ∀ t, t ∈ s.(state).(queue) →
+        s.(tp) !! t = Some pc.kernel_wait.
+
+(* these need to be proven together *)
 Definition nodup_helper_inv s :=
-  nodup_inv s ∧
-  (∀ t, t ∈ s.(state).(queue) →
-        s.(tp) !! t = Some pc.kernel_wait).
+  nodup_inv s ∧ waiting_inv s.
 
 Lemma NoDup_singleton {A} (x: A) :
   NoDup [x].
@@ -692,11 +695,11 @@ Lemma nodup_helper_inv_ok :
 Proof.
   unfold spec.
   tla_clear fair.
+  rewrite /nodup_helper_inv /nodup_inv /waiting_inv.
   apply init_invariant.
-  - unfold nodup_helper_inv, nodup_inv; stm.
+  - stm.
     set_solver+.
-  - unfold nodup_helper_inv, nodup_inv.
-    intros [σ tp] [σ' tp'] [Hnodup Hwait] Hnext.
+  - intros [σ tp] [σ' tp'] [Hnodup Hwait] Hnext.
     destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
     destruct_step; stm; intros;
@@ -716,7 +719,7 @@ Proof.
   tla_pose nodup_helper_inv_ok.
   tla_clear spec.
   apply always_impl_proper.
-  apply state_pred_impl; unfold nodup_helper_inv; naive_solver.
+  apply state_pred_impl; rewrite /nodup_helper_inv; naive_solver.
 Qed.
 
 Lemma queue_invs :
@@ -728,11 +731,65 @@ Proof.
   rewrite -always_and; tla_simp.
 Qed.
 
-Lemma list_elem_of_head {A: Type} (l: list A) (x: A) :
+(* specialized wf1 rule that handles some common manipulation for this state
+machine *)
+Lemma mutex_wf1 (t: Tid) (P Q: Config → Prop) :
+  (∀ t' σ tp pc σ' pc',
+     let s := {| state := σ; tp := tp|} in
+     let s' := {| state := σ'; tp := <[t' := pc']> tp |} in
+     P s →
+     t ≠ t' →
+     tp !! t' = Some pc →
+     thread_step t' (σ, pc) (σ', pc') →
+     P s' ∨ Q s'
+  ) →
+  (∀ σ tp pc σ' pc',
+     let s := {| state := σ; tp := tp|} in
+     let s' := {| state := σ'; tp := <[t := pc']> tp |} in
+     P s →
+     tp !! t = Some pc →
+     thread_step t (σ, pc) (σ', pc') →
+     Q s'
+  ) →
+  (∀ l q tp,
+     P {| state := {| lock := l; queue := q |}; tp := tp |} →
+     ∃ pc, tp !! t = Some pc ∧
+           (pc = pc.kernel_wait → t ∉ q) ∧
+           pc ≠ pc.finished
+  ) →
+  spec ⊢ ⌜P⌝ ~~> ⌜Q⌝.
+Proof.
+  simpl.
+  intros H1 H2 H3.
+  tla_apply (wf1 (step t)).
+  { rewrite /spec.
+    tla_split; [ tla_assumption | tla_apply fair_step ]. }
+  - intros [σ tp] [σ' tp'].
+    intros Hp Hnext.
+    destruct Hnext as [ [t' Hstep] | Heq].
+    + destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]].
+      invc Heq.
+      destruct ρ' as [σ' pc']; simpl in *.
+      (* in one branch we use the proof that P ∨ Q is preserved, in the other we
+      use the proof that [step t] leads to Q *)
+      destruct (decide (t = t')); subst; eauto.
+    + invc Heq; eauto.
+  - intros [σ tp] [σ' tp'].
+    intros Hp Hnext Hstep.
+    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
+    invc Heq.
+    destruct ρ' as [σ' tp']; simpl in *.
+    eauto.
+  - intros [[l q] tp] HP.
+    rewrite step_enabled /=.
+    eauto.
+Qed.
+
+Lemma list_elem_of_head {A} (l: list A) (x: A) :
   x ∈ x::l.
 Proof. set_solver. Qed.
 
-Lemma list_not_elem_of_head {A: Type} (l: list A) (x y: A) :
+Lemma list_not_elem_of_head {A} (l: list A) (x y: A) :
   x ∉ y::l → x ≠ y.
 Proof. set_solver. Qed.
 
@@ -762,6 +819,7 @@ Proof.
     tla_simp.
     apply pred_leads_to => s [[[HW [Hq Hl]] Hinv] Hnodup].
     destruct Hnodup as [Hnodup Hwaiting].
+    rewrite /waiting_inv in Hwaiting.
     destruct s as [[l q] ?]; simpl in *; subst.
     destruct Hinv as [t' ?]; eauto.
     exists t'; intuition eauto.
@@ -1029,7 +1087,8 @@ Proof.
   eapply leads_to_assume.
   { apply nodup_helper_inv_ok. }
   tla_simp. apply pred_leads_to.
-  intros [[q l] tp]. rewrite /waiters_are /nodup_helper_inv /=.
+  intros [[q l] tp].
+  rewrite /waiters_are /nodup_helper_inv /waiting_inv /=.
   intros ([? Hlookup] & _ & Hq_wait); subst.
   destruct l; [ left; by eauto | right ].
   eexists _, _; intuition eauto.
@@ -1156,12 +1215,14 @@ Proof.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
         destruct (decide (t' = t'')); lookup_simp; eauto.
       + assert (t ∉ ts) by (inversion Hnodup; auto).
+        rewrite /waiting_inv in Hwaiting.
         assert (t'' ≠ t) by set_solver.
         right; right; left. stm.
     - move => [σ tp] [σ' tp'] /=.
       intros (Hwaiters & Hq & Hlock & Hcan_lock) (_ & Hnodup & _) Hstep; subst.
       destruct Hnodup as [Hnodup Hwaiting].
       rewrite /nodup_inv /= in Hnodup.
+      rewrite /waiting_inv /= in Hwaiting.
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
       assert (t ∉ ts) by (inversion Hnodup; auto).
       rewrite thread_step_eq /thread_step_def in Hstep.
