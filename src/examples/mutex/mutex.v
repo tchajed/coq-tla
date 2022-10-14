@@ -503,8 +503,7 @@ Proof.
                                 s.(state).(queue) = t::ts ∧
                                 s.(state).(lock) = true⌝)%L.
     { lt_auto naive_solver. }
-    apply leads_to_exist_intro => W'.
-    apply leads_to_exist_intro => Hsub.
+    lt_intros.
     lt_apply queue_gets_popped_locked.
 Qed.
 
@@ -559,8 +558,7 @@ Proof.
     + lt_auto intuition idtac.
       destruct s.(state).(queue) eqn:Hq; [ exfalso; set_solver | ].
       naive_solver.
-    + apply leads_to_exist_intro => t0.
-      apply leads_to_exist_intro => ts0.
+    + lt_intro t0. lt_intro ts0.
       lt_apply queue_gets_popped.
 
       leads_to_trans (∃ W' (_: W' ⊆ W),
@@ -569,8 +567,7 @@ Proof.
                                  t0 ∉ s.(state).(queue)⌝)%L.
       { lt_auto intuition eauto. }
 
-      apply leads_to_exist_intro => W'.
-      apply leads_to_exist_intro => Hle.
+      lt_intros.
       lt_apply kernel_wait_not_queued_progress.
       lt_auto intuition eauto.
       left; set_solver.
