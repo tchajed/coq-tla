@@ -419,7 +419,6 @@ Qed.
 Hint Rewrite wait_set_unchanged using (by auto) : pc.
 Hint Rewrite wait_set_insert_other using (by auto) : pc.
 
-
 Ltac invc H := inversion H; subst; clear H.
 
 #[local]
@@ -570,6 +569,50 @@ Proof.
   refine (forall_apply _ _).
 Qed.
 
+(* NOTE: this monotonicity proof isn't actually used (although its relative
+simplicity does demonstrate that the automation is working) *)
+
+Hint Extern 2 (_ ⊆ _) => set_solver : core.
+
+Lemma waiters_monotonic_next s s' :
+  next s s' →
+  wait_set s'.(tp) ⊆ wait_set s.(tp).
+Proof.
+  destruct s as [σ tp]. destruct s' as [σ' tp'].
+  simpl.
+  intros Hnext.
+  destruct Hnext as [ [t'' Hstep] | Heq ]; [ | by stm ].
+  destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+  destruct_step; stm.
+Qed.
+
+Lemma subseteq_to_subset (W W': gset Tid) :
+  W' ⊆ W → W' = W ∨ W' ⊂ W.
+Proof.
+  intros.
+  destruct (decide (W = W')); eauto.
+  set_solver.
+Qed.
+
+(* this is an implication but leads_tos are more convenient *)
+Lemma waiters_are_monotonic W :
+  spec ⊢
+  ⌜waiters_are W⌝ ~~>
+  □⌜λ s, waiters_are W s ∨ ∃ W', W' ⊂ W ∧ waiters_are W' s⌝.
+Proof.
+  rewrite -leads_to_impl_internal.
+  rewrite /spec. tla_clear ⌜init⌝. tla_clear fair.
+  apply always_induction_impl_pred.
+  - eauto.
+  - rewrite /waiters_are.
+    intros s s' Hwait_set.
+    intros Hsubset%waiters_monotonic_next.
+    apply subseteq_to_subset in Hsubset.
+    (intuition idtac); subst; repeat deex; eauto.
+    right. eexists; split; [ | done ].
+    set_solver.
+Qed.
+
 Definition nodup_inv s :=
   NoDup s.(state).(queue).
 
@@ -666,8 +709,6 @@ Proof.
       apply Hwait in Hel; congruence.
 Qed.
 End nodup.
-
-Hint Extern 2 (_ ⊆ _) => set_solver : core.
 
 Lemma nodup_inv_ok :
   spec ⊢ □⌜nodup_inv⌝.
@@ -973,7 +1014,6 @@ Proof.
   intros ([? Hlookup] & _ & Hq_wait); subst.
   destruct l; [ left; by eauto | right ].
   eexists _, _; intuition eauto.
-  apply Hq_wait. set_solver.
 Qed.
 
 Lemma kernel_wait_head_progress t W :
@@ -986,10 +1026,6 @@ Lemma kernel_wait_head_progress t W :
         s.(tp) !! t = Some pc.lock_cas⌝.
 Proof.
 Abort.
-
-(* TODO: if the lock is free and t is at the head of the queue, what happens? it
-seems we could be stuck: we need to prove an invariant that in this situation, a
-thread is at pc.futex_wake, so that we're guaranteed to get a wakeup signal *)
 
 Definition thread_can_lock t' s :=
   s.(tp) !! t' = Some pc.unlock_wake ∨
@@ -1135,45 +1171,6 @@ Proof.
       intros (? & ? & Hlookup); subst.
       rewrite step_enabled /=.
       naive_solver.
-Qed.
-
-Lemma waiters_monotonic_next s s' :
-  next s s' →
-  wait_set s'.(tp) ⊆ wait_set s.(tp).
-Proof.
-  destruct s as [σ tp]. destruct s' as [σ' tp'].
-  simpl.
-  intros Hnext.
-  destruct Hnext as [ [t'' Hstep] | Heq ]; [ | by stm ].
-  destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-  destruct_step; stm.
-Qed.
-
-Lemma subseteq_to_subset (W W': gset Tid) :
-  W' ⊆ W → W' = W ∨ W' ⊂ W.
-Proof.
-  intros.
-  destruct (decide (W = W')); eauto.
-  set_solver.
-Qed.
-
-(* this is an implication but leads_tos are more convenient *)
-Lemma waiters_are_monotonic W :
-  spec ⊢
-  ⌜waiters_are W⌝ ~~>
-  □⌜λ s, waiters_are W s ∨ ∃ W', W' ⊂ W ∧ waiters_are W' s⌝.
-Proof.
-  rewrite -leads_to_impl_internal.
-  rewrite /spec. tla_clear ⌜init⌝. tla_clear fair.
-  apply always_induction_impl_pred.
-  - eauto.
-  - rewrite /waiters_are.
-    intros s s' Hwait_set.
-    intros Hsubset%waiters_monotonic_next.
-    apply subseteq_to_subset in Hsubset.
-    (intuition idtac); subst; repeat deex; eauto.
-    right. eexists; split; [ | done ].
-    set_solver.
 Qed.
 
 End example.
