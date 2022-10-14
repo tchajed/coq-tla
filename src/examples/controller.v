@@ -138,7 +138,7 @@ Ltac stm_simp :=
   repeat deex;
   repeat match goal with
         | s: state |- _ => destruct s
-        | H: @eq state _ _ |- _ => inversion H; subst; clear H
+        | H: @eq state _ _ |- _ => invc H
         end;
   simpl in *;
   intuition idtac.

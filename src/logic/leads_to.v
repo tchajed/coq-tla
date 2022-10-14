@@ -19,7 +19,7 @@ full generality of temporal predicates.
 From TLA Require Import defs automation.
 From TLA Require Import propositional_ltl modalities.
 From TLA Require Import classical.
-From TLA.logic Require Import safety.
+From TLA.logic Require Import safety preds.
 
 Section TLA.
 
@@ -481,3 +481,45 @@ Ltac prove_wf xs :=
     go xs;
     try solve [ intros []; assumption ]
   end.
+
+Ltac lt_simp :=
+  tla_simp;
+  repeat match goal with
+    | |- context[tla_exist _] => setoid_rewrite exist_state_pred
+    end.
+
+Ltac lt_intro_tac t :=
+  lt_simp;
+  let s := fresh "s" in
+  apply pred_leads_to => s; t.
+
+Tactic Notation "lt_unfold" := lt_intro_tac idtac.
+Tactic Notation "lt_auto" := lt_intro_tac eauto.
+Tactic Notation "lt_done" := lt_intro_tac ltac:(by eauto).
+Tactic Notation "lt_auto" tactic1(t) := lt_intro_tac t.
+
+Tactic Notation "lt_apply" constr(lem) :=
+  lt_simp;
+  leads_to_etrans; [ leads_to_etrans; [ | apply lem ] | ];
+  [ try solve [ lt_auto intuition eauto ] |
+    try solve [ lt_auto intuition eauto ] | .. ].
+
+Tactic Notation "lt_eapply" constr(lem) :=
+  leads_to_etrans; [ leads_to_etrans; [ | eapply lem ] | ];
+  [ try solve [ lt_auto intuition eauto ] |
+    try solve [ lt_auto intuition eauto ] | .. ].
+
+Tactic Notation "lt_intro" :=
+  match goal with
+  | |- _ ⊢ (tla_exist (λ H, _)) ~~> _ =>
+      let x := fresh H in
+      apply leads_to_exist_intro; intro x
+  end.
+
+Tactic Notation "lt_intro" ident(x) :=
+  match goal with
+  | |- _ ⊢ (tla_exist (λ _, _)) ~~> _ =>
+      apply leads_to_exist_intro; intro x
+  end.
+
+Ltac lt_intros := repeat lt_intro.

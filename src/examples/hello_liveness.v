@@ -85,7 +85,7 @@ Ltac stm :=
           let x := fresh "x" in
           let happy := fresh "happy" in
           destruct s as [x happy]
-        | H: (@eq state _ _) |- _ => inversion H; subst; clear H
+        | H: (@eq state _ _) |- _ => invc H
         end;
   intuition idtac;
   try solve [

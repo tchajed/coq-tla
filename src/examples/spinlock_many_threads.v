@@ -152,7 +152,7 @@ Ltac stm_simp :=
         | H: ?x = ?x |- _ => clear H
         | H: @eq Pc _ _ |- _ => solve [ inversion H ]
         | H: @eq state (mkState _ _) (mkState _ _) |- _ =>
-            inversion H; subst; clear H; cbn in *
+            invc H; cbn in *
         | H: context[@set state _ _ _ _ _] |- _ =>
             progress (unfold set in H; simpl in H)
         | H: @eq bool _ _ |- _ => solve [ inversion H ]
@@ -381,7 +381,7 @@ Proof.
   unfold unlock.
   intros [_ Hs'] Hwaiting Hwait Ht Hlock Hinv.
   destruct s as [l pcs]; destruct s' as [l' pcs']; simpl in *.
-  inversion Hs'; subst; clear Hs'.
+  invc Hs'.
 
   exists (waiting ∖ {[t]}). unshelve eexists.
   { set_solver+ Hwaiting. }
@@ -415,17 +415,16 @@ This is the second key lemma: if some thread holds the lock, it will eventually 
 |*)
 Lemma locked_to_smaller_h waiting :
   ⌜ init ⌝ ∧ □ ⟨next⟩ ∧ fair
-  ⊢ (∃ t' (_ : t' ∈ waiting),
+  ⊢ (∃ t (_ : t ∈ waiting),
         ⌜λ s,
-          waiting_set (pcs s) = waiting ∖ {[t']} ∧
-          pcs s !! t' = Some pc1 ∧
+          waiting_set (pcs s) = waiting ∖ {[t]} ∧
+          pcs s !! t = Some pc1 ∧
           lock s = true ⌝) ~~>
      ⌜ λ s, ∃ (waiting' : gset Tid),
               waiting' ⊂ waiting ∧ h waiting' s ⌝.
 Proof.
   rewrite <- tla_and_assoc. rewrite add_safety. tla_simp.
-  apply leads_to_exist_intro => t.
-  apply leads_to_exist_intro => Hwaiting.
+  lt_intro. lt_intro Hwaiting.
   tla_apply (wf1 (step t)).
   { tla_split; [ tla_assumption | tla_apply fair_step ]. }
   - intros s s' (Hwait & Ht & Hlock) (Hnext & Hinv & Hinv').
@@ -464,8 +463,8 @@ Proof.
 (*|
 In this branch we need to go from the wait set `waiting` to a set with one thread `t ∈ waiting` removed and the lock held; this is exactly what `cas_succ` does. Removing one thread results in a strictly smaller waiting set.
 |*)
-    setoid_rewrite exist_state_pred. rewrite exist_state_pred.
-    eapply h_leads_to_locked; eauto.
+    lt_eapply h_leads_to_locked; eauto.
+    lt_auto.
   -
 (*|
 Over in the other branch we need to show that from the smaller wait set, we can get back to `h`, which additionally requires that the lock be free. This will happen easily due to an `unlock t` action, which is the only thing enabled.
@@ -502,9 +501,8 @@ Proof.
   assert (exists t, t ∈ waiting) as [t Hwaiting].
   { apply set_choose_L in Hnotempty; naive_solver. }
 
-  leads_to_etrans; [ eapply h_decrease; eauto | ].
-  apply pred_leads_to => s.
-  naive_solver.
+  lt_eapply h_decrease; eauto.
+  lt_auto naive_solver.
 Qed.
 
 End example.

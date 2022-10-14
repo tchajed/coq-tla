@@ -136,7 +136,7 @@ Ltac stm_simp :=
         | H: ?x = ?x |- _ => clear H
         | H: @eq pc _ _ |- _ => solve [ inversion H ]
         | H: @eq state (mkState _ _) (mkState _ _) |- _ =>
-            inversion H; subst; clear H; cbn in *
+            invc H; cbn in *
         | H: context[@set state _ _ _ _ _] |- _ =>
             progress (unfold set in H; simpl in H)
         | H: @eq bool _ _ |- _ => solve [ inversion H ]

@@ -419,8 +419,6 @@ Qed.
 Hint Rewrite wait_set_unchanged using (by auto) : pc.
 Hint Rewrite wait_set_insert_other using (by auto) : pc.
 
-Ltac invc H := inversion H; subst; clear H.
-
 #[local]
 Hint Unfold init next step safe fair terminated : stm.
 
@@ -913,37 +911,6 @@ This "detour" is actually really interesting: you might think that simple transi
         intuition congruence. }
 Qed.
 
-Lemma proof_to_true (P: Prop) :
-  P → P ↔ True.
-Proof.
-  tauto.
-Qed.
-
-Lemma not_proof_to_false (P: Prop) :
-  ¬P → P ↔ False.
-Proof.
-  tauto.
-Qed.
-
-Ltac simp_prop P :=
-  lazymatch type of P with
-  | Prop =>
-    lazymatch P with
-    | True => fail
-    | False => fail
-    | _ => rewrite (proof_to_true P ltac:(by auto)) ||
-            rewrite (not_proof_to_false P ltac:(by auto))
-    end
-  | _ => fail "not a prop"
-  end.
-
-Ltac simp_props :=
-  repeat
-    match goal with
-    | |- context[?P ∧ ?Q] => simp_prop P || simp_prop Q
-    end;
-  rewrite ?and_True ?True_and.
-
 Lemma eventually_unlock W :
   spec ⊢
   ⌜waiters_are W⌝ ~~>
@@ -1263,21 +1230,6 @@ Proof.
       naive_solver.
 Qed.
 
-Ltac lt_auto_tac t :=
-  let s := fresh "s" in
-  tla_simp;
-  repeat setoid_rewrite exist_state_pred;
-  apply pred_leads_to => s; t.
-
-Tactic Notation "lt_intros" := lt_auto_tac idtac.
-Tactic Notation "lt_auto" := lt_auto_tac eauto.
-Tactic Notation "lt_done" := lt_auto_tac ltac:(by eauto).
-Tactic Notation "lt_auto" tactic1(t) := lt_auto_tac t.
-
-Ltac lt_apply lem :=
-  leads_to_etrans; [ leads_to_etrans; [ | apply lem ] | ];
-  [ try solve [ lt_auto intuition eauto ] | try solve [ lt_auto intuition eauto ] ].
-
 Lemma queue_gets_popped W t ts :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
@@ -1290,7 +1242,7 @@ Proof.
     tla_simp.
   - lt_apply queue_gets_popped_locked.
   - lt_apply queue_gets_popped_unlocked.
-    { lt_intros. rewrite not_true_iff_false. naive_solver. }
+    { lt_unfold. rewrite not_true_iff_false. naive_solver. }
     leads_to_trans
       (⌜λ s, wait_set s.(tp) ⊆ W ∧
                s.(tp) !! t = Some pc.kernel_wait ∧

@@ -34,6 +34,46 @@ Ltac deex :=
   | _ => subst
   end.
 
+Ltac invc H := inversion H; subst; clear H.
+
+Lemma proof_to_true (P: Prop) :
+  P → P ↔ True.
+Proof.
+  tauto.
+Qed.
+
+Lemma not_proof_to_false (P: Prop) :
+  ¬P → P ↔ False.
+Proof.
+  tauto.
+Qed.
+
+Ltac simp_prop P :=
+  lazymatch type of P with
+  | Prop =>
+    lazymatch P with
+    | True => fail
+    | False => fail
+    | _ => rewrite (proof_to_true P ltac:(by auto)) ||
+            rewrite (not_proof_to_false P ltac:(by auto))
+    end
+  | _ => fail "not a prop"
+  end.
+
+(** If individual components of a proof are provable (or disprovable), [simp_props]
+will remove them from the goal. This can make it easier to see what remains to
+be proven in a goal with many conjuncts/disjuncts.
+
+This simplification may come at the expensive of hiding where each
+conjunct/disjunct came from, but in many goals this is hard to see anyway. *)
+Ltac simp_props :=
+  repeat
+    match goal with
+    | |- context[?P ∧ ?Q] => simp_prop P || simp_prop Q
+    | |- context[?P ∨ ?Q] => simp_prop P || simp_prop Q
+    end;
+  rewrite ?and_True ?True_and ?or_False ?False_or.
+
 #[export]
 Hint Unfold tla_and tla_or tla_not tla_implies tla_forall tla_exist : tla.
 #[export]
