@@ -1204,7 +1204,9 @@ Qed.
 
 Ltac lt_auto_tac t :=
   let s := fresh "s" in
-  tla_simp; apply pred_leads_to => s; t.
+  tla_simp;
+  repeat setoid_rewrite exist_state_pred;
+  apply pred_leads_to => s; t.
 
 Tactic Notation "lt_intros" := lt_auto_tac idtac.
 Tactic Notation "lt_auto" := lt_auto_tac eauto.
@@ -1213,7 +1215,7 @@ Tactic Notation "lt_auto" tactic1(t) := lt_auto_tac t.
 
 Ltac lt_apply lem :=
   leads_to_etrans; [ leads_to_etrans; [ | apply lem ] | ];
-  [ try solve [ lt_auto ] | try solve [ lt_auto ] ].
+  [ try solve [ lt_auto intuition eauto ] | try solve [ lt_auto intuition eauto ] ].
 
 Lemma queue_gets_popped W t ts :
   spec ⊢
@@ -1226,8 +1228,6 @@ Proof.
   apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝);
     tla_simp.
   - lt_apply queue_gets_popped_locked.
-    { lt_auto naive_solver. }
-    { lt_auto naive_solver. }
   - lt_apply queue_gets_popped_unlocked.
     { lt_intros. rewrite not_true_iff_false. naive_solver. }
     leads_to_trans
@@ -1243,12 +1243,82 @@ Proof.
     leads_to_trans (∃ W' (_: W' ⊆ W), ⌜λ s, wait_set s.(tp) = W' ∧
                                 s.(state).(queue) = t::ts ∧
                                 s.(state).(lock) = true⌝)%L.
-    { setoid_rewrite exist_state_pred. rewrite exist_state_pred.
-      lt_auto naive_solver. }
+    { lt_auto naive_solver. }
     apply leads_to_exist_intro => W'.
     apply leads_to_exist_intro => Hsub.
     lt_apply queue_gets_popped_locked.
-    lt_auto naive_solver.
+Qed.
+
+Lemma kernel_wait_not_queued_progress W t :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        t ∉ s.(state).(queue)⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        wait_set s.(tp) = W ∧
+          s.(tp) !! t = Some pc.lock_cas⌝.
+Proof.
+  rewrite /waiters_are.
+  tla_apply (wf1 (step t)).
+  { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
+
+  - move => [σ tp] [σ' tp'] /=.
+    intros (Hwait & Ht & Hnotin) Hnext; subst.
+    destruct Hnext as [ [t' Hstep] | Heq]; [ | by stm ].
+    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    destruct_step; stm; simp_props.
+    + assert (t ≠ t') by congruence.
+      left. set_solver.
+    + destruct (decide (t = t')); lookup_simp; eauto.
+    + assert (t ∉ pop q0) by (intros ?%elem_of_pop; auto).
+      assert (t' ∉ wait_set tp) by eauto.
+      eauto.
+  - move => [σ tp] [σ' tp'] /=.
+    intros (Hwait & Ht & Hnotin) _ Hstep; subst.
+    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    rewrite thread_step_eq /thread_step_def in Hstep.
+    assert (pc = pc.kernel_wait) by congruence; stm.
+  - move => [[l q] tp] /=.
+    intros (? & ? & Hlookup); subst.
+    rewrite step_enabled /=.
+    naive_solver.
+Qed.
+
+Lemma kernel_wait_progress W t :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (∃ t', wait_set s.(tp) ⊆ W ∧
+               s.(tp) !! t' = Some pc.lock_cas)⌝.
+Proof.
+  rewrite /waiters_are.
+  apply (leads_to_if ⌜λ s, t ∈ s.(state).(queue)⌝).
+  - tla_simp.
+    leads_to_trans (∃ t0 ts0,
+                       ⌜λ s, wait_set s.(tp) = W ∧
+                             s.(tp) !! t = Some pc.kernel_wait ∧
+                             s.(state).(queue) = t0::ts0⌝)%L.
+    + lt_auto intuition idtac.
+      destruct s.(state).(queue) eqn:Hq; [ exfalso; set_solver | ].
+      naive_solver.
+    + apply leads_to_exist_intro => t0.
+      apply leads_to_exist_intro => ts0.
+      lt_apply queue_gets_popped.
+
+      leads_to_trans (∃ W' (_: W' ⊆ W),
+                         ⌜λ s, wait_set s.(tp) = W' ∧
+                                 s.(tp) !! t0 = Some pc.kernel_wait ∧
+                                 t0 ∉ s.(state).(queue)⌝)%L.
+      { lt_auto intuition eauto. }
+
+      apply leads_to_exist_intro => W'.
+      apply leads_to_exist_intro => Hle.
+      lt_apply kernel_wait_not_queued_progress.
+      lt_auto intuition eauto.
+      left; set_solver.
+  - tla_simp.
+    lt_apply kernel_wait_not_queued_progress.
 Qed.
 
 End example.
