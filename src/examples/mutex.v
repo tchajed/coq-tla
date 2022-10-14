@@ -728,6 +728,16 @@ Proof.
   rewrite -always_and; tla_simp.
 Qed.
 
+Lemma list_elem_of_head {A: Type} (l: list A) (x: A) :
+  x ∈ x::l.
+Proof. set_solver. Qed.
+
+Lemma list_not_elem_of_head {A: Type} (l: list A) (x y: A) :
+  x ∉ y::l → x ≠ y.
+Proof. set_solver. Qed.
+
+Hint Resolve list_elem_of_head list_not_elem_of_head : core.
+
 Lemma queue_gets_popped_locked W t ts :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
@@ -735,25 +745,29 @@ Lemma queue_gets_popped_locked W t ts :
         s.(state).(lock) = true⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊆ W ∧
        (∃ ts', s.(state).(queue) = ts ++ ts') ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
         t ∉ s.(state).(queue)⌝.
 Proof.
   rewrite /waiters_are.
   leads_to_trans (∃ t', ⌜λ s,
         wait_set s.(tp) = W ∧
-        (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧ t ∉ ts ++ ts') ∧
+        (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧
+                t ∉ ts ++ ts') ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(lock) = true ∧
         lock_held s t'⌝)%L.
   - rewrite exist_state_pred.
     apply (leads_to_assume _ locked_inv_ok).
-    apply (leads_to_assume _ nodup_inv_ok).
+    apply (leads_to_assume _ nodup_helper_inv_ok).
     tla_simp.
     apply pred_leads_to => s [[[HW [Hq Hl]] Hinv] Hnodup].
+    destruct Hnodup as [Hnodup Hwaiting].
     destruct s as [[l q] ?]; simpl in *; subst.
     destruct Hinv as [t' ?]; eauto.
     exists t'; intuition eauto.
-    exists nil; rewrite app_nil_r. split; first by eauto.
-    rewrite /nodup_inv /= in Hnodup.
-    apply NoDup_cons_inv in Hnodup; intuition auto.
+    { exists nil; rewrite app_nil_r. split; first by eauto.
+      rewrite /nodup_inv /= in Hnodup.
+      apply NoDup_cons_inv in Hnodup; intuition auto. }
   - apply leads_to_exist_intro => t'.
     apply (add_safety queue_invs).
     unfold lock_held.
@@ -763,8 +777,9 @@ This "detour" is actually really interesting: you might think that simple transi
 |*)
     apply (leads_to_detour ⌜λ s,
       wait_set s.(tp) ⊆ W ∧
-      ((∃ ts' : list Tid, s.(state).(queue) = t :: ts ++ ts')
-       ∧ s.(tp) !! t' = Some pc.unlock_wake)⌝).
+      ((∃ ts' : list Tid, s.(state).(queue) = t :: ts ++ ts') ∧
+      s.(tp) !! t = Some pc.kernel_wait ∧
+       s.(tp) !! t' = Some pc.unlock_wake)⌝).
 
     { tla_simp.
       tla_apply (wf1 (step t')).
@@ -785,6 +800,8 @@ This "detour" is actually really interesting: you might think that simple transi
           rewrite elem_of_app elem_of_list_singleton; intuition subst.
           rewrite NoDup_cons_inv NoDup_app1 in Hnodup'.
           set_solver+ Hnodup'.
+        + assert (t'' ≠ t) by set_solver.
+          stm.
         + assert (t' = t''); subst.
           { apply Hexclusion; eauto. }
           right; stm.
@@ -796,7 +813,7 @@ This "detour" is actually really interesting: you might think that simple transi
         repeat deex.
         assert (pc = pc.unlock_store) by congruence; subst.
         stm_simp.
-        rewrite thread_step_eq /= in H1.
+        rewrite thread_step_eq /= in H2.
         stm.
       - intros [[q l] tp] ?. rewrite step_enabled.
         stm.
@@ -807,7 +824,7 @@ This "detour" is actually really interesting: you might think that simple transi
       { tla_split; [ tla_assumption | tla_apply fair_step ]. }
       - intros [σ tp] [σ' tp'] => /= [Hinv Hnext].
         destruct Hnext  as (Hnext & [Hexclusion Hnodup] & [_ Hnodup']).
-        destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
+        destruct Hnext as [ [t'' Hstep] | Heq]; [ | by  stm ].
         destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
         stm_simp.
 
@@ -817,6 +834,8 @@ This "detour" is actually really interesting: you might think that simple transi
         + left; intuition eauto.
           eexists (_ ++ [t'']).
           rewrite !app_assoc; split; eauto.
+        + assert (t'' ≠ t) by set_solver.
+          stm.
         + right. eexists; intuition eauto.
           rewrite /nodup_inv /= in Hnodup.
           apply NoDup_head_not_in in Hnodup; auto.
@@ -826,7 +845,7 @@ This "detour" is actually really interesting: you might think that simple transi
         intros (_ & [_ Hnodup] & _) Hstep.
         rewrite /step /= in Hstep; stm_simp.
         assert (pc = pc.unlock_wake) by congruence; subst.
-        rewrite thread_step_eq /= in H1.
+        rewrite thread_step_eq /= in H2.
         stm.
         rewrite /nodup_inv /= in Hnodup.
         apply NoDup_head_not_in in Hnodup; auto.
@@ -1014,7 +1033,6 @@ Proof.
   intros ([? Hlookup] & _ & Hq_wait); subst.
   destruct l; [ left; by eauto | right ].
   eexists _, _; intuition eauto.
-  apply Hq_wait; set_solver.
 Qed.
 
 Lemma kernel_wait_head_progress t W :
@@ -1085,7 +1103,8 @@ Lemma queue_gets_popped_unlocked W t ts :
         s.(state).(lock) = false⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊆ W ∧
         (s.(state).(queue) = ts ∧
-           t ∉ s.(state).(queue) ∨
+           t ∉ s.(state).(queue) ∧
+           s.(tp) !! t = Some pc.kernel_wait ∨
          s.(state).(queue) = t :: ts ∧
            s.(state).(lock) = true)⌝.
 Proof.
@@ -1106,11 +1125,12 @@ Proof.
 
   apply leads_to_exist_intro => t'.
 
-  apply (add_safety nodup_inv_ok).
+  apply (add_safety nodup_helper_inv_ok).
 
   apply (leads_to_detour
     ⌜λ s, wait_set s.(tp) ⊆ W ∧
          s.(state).(queue) = t::ts ∧
+         s.(tp) !! t = Some pc.kernel_wait ∧
          s.(state).(lock) = false ∧
          s.(tp) !! t' = Some pc.lock_cas⌝).
 
@@ -1119,8 +1139,9 @@ Proof.
     { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
 
     - move => [σ tp] [σ' tp'] /=.
-      rewrite /nodup_inv /=.
-      intros (Hwaiters & Hq & Hlock & Hcan_lock) (Hnext & Hnodup & _); simpl; subst.
+      rewrite /nodup_helper_inv /nodup_inv /=.
+      intros (Hwaiters & Hq & Hlock & Hcan_lock).
+      intros (Hnext & [Hnodup Hwaiting] & _); simpl; subst.
       destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
       destruct_step; stm_simp; simp_props; eauto.
@@ -1135,17 +1156,21 @@ Proof.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
         destruct (decide (t' = t'')); lookup_simp; eauto.
       + assert (t ∉ ts) by (inversion Hnodup; auto).
-        stm.
+        assert (t'' ≠ t) by set_solver.
+        right; right; left. stm.
     - move => [σ tp] [σ' tp'] /=.
       intros (Hwaiters & Hq & Hlock & Hcan_lock) (_ & Hnodup & _) Hstep; subst.
+      destruct Hnodup as [Hnodup Hwaiting].
       rewrite /nodup_inv /= in Hnodup.
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
       assert (t ∉ ts) by (inversion Hnodup; auto).
       rewrite thread_step_eq /thread_step_def in Hstep.
+      assert (tp !! t = Some pc.kernel_wait) by eauto.
       rewrite /thread_can_lock /= in Hcan_lock;
         (intuition idtac).
       + assert (pc'' = pc.unlock_wake) by congruence; stm.
       + assert (pc'' = pc.kernel_wait) by congruence; stm.
+        assert (t ≠ t') by set_solver. stm.
       + assert (pc'' = pc.lock_cas) by congruence; stm.
     - move => [[l q] tp] /=.
       intros (? & ? & Hlookup); subst.
@@ -1158,11 +1183,14 @@ Proof.
 
     - move => [σ tp] [σ' tp'] /=.
       intros (Hq & Hlock & Hcan_lock) (Hnext & Hnodup & _); subst.
+      destruct Hnodup as [Hnodup Hwaiting].
       rewrite /nodup_inv /= in Hnodup.
-      destruct Hnext as [ [t'' Hstep] | Heq]; [ | stm_simp; by eauto ].
+      destruct Hnext as [ [t'' Hstep] | Heq]; [ | by stm ].
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
       assert (t ∉ ts) by (inversion Hnodup; auto).
       destruct_step; stm.
+      assert (t'' ≠ t) by set_solver.
+      stm.
     - move => [σ tp] [σ' tp'] /=.
       intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
       destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
@@ -1192,9 +1220,7 @@ Lemma queue_gets_popped W t ts :
   ⌜λ s, waiters_are W s ∧
         s.(state).(queue) = t :: ts⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊆ W ∧
-        (* TODO: we need to carry this through to actually exploit this enabling
-        condition *)
-        (* s.(tp) !! t = pc.kernel_wait ∧ *)
+        s.(tp) !! t = Some pc.kernel_wait ∧
         t ∉ s.(state).(queue)⌝.
 Proof.
   apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝);
@@ -1206,6 +1232,7 @@ Proof.
     { lt_intros. rewrite not_true_iff_false. naive_solver. }
     leads_to_trans
       (⌜λ s, wait_set s.(tp) ⊆ W ∧
+               s.(tp) !! t = Some pc.kernel_wait ∧
                t ∉ s.(state).(queue)⌝ ∨
        ⌜λ s, wait_set s.(tp) ⊆ W ∧
                s.(state).(queue) = t::ts ∧
@@ -1215,7 +1242,7 @@ Proof.
     rewrite leads_to_or_split; tla_split; [ lt_auto | ].
     leads_to_trans (∃ W' (_: W' ⊆ W), ⌜λ s, wait_set s.(tp) = W' ∧
                                 s.(state).(queue) = t::ts ∧
-                                  s.(state).(lock) = true⌝)%L.
+                                s.(state).(lock) = true⌝)%L.
     { setoid_rewrite exist_state_pred. rewrite exist_state_pred.
       lt_auto naive_solver. }
     apply leads_to_exist_intro => W'.
