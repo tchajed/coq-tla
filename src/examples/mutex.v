@@ -1014,6 +1014,7 @@ Proof.
   intros ([? Hlookup] & _ & Hq_wait); subst.
   destruct l; [ left; by eauto | right ].
   eexists _, _; intuition eauto.
+  apply Hq_wait; set_solver.
 Qed.
 
 Lemma kernel_wait_head_progress t W :
@@ -1171,6 +1172,56 @@ Proof.
       intros (? & ? & Hlookup); subst.
       rewrite step_enabled /=.
       naive_solver.
+Qed.
+
+Ltac lt_auto_tac t :=
+  let s := fresh "s" in
+  tla_simp; apply pred_leads_to => s; t.
+
+Tactic Notation "lt_intros" := lt_auto_tac idtac.
+Tactic Notation "lt_auto" := lt_auto_tac eauto.
+Tactic Notation "lt_done" := lt_auto_tac ltac:(by eauto).
+Tactic Notation "lt_auto" tactic1(t) := lt_auto_tac t.
+
+Ltac lt_apply lem :=
+  leads_to_etrans; [ leads_to_etrans; [ | apply lem ] | ];
+  [ try solve [ lt_auto ] | try solve [ lt_auto ] ].
+
+Lemma queue_gets_popped W t ts :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(state).(queue) = t :: ts⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊆ W ∧
+        (* TODO: we need to carry this through to actually exploit this enabling
+        condition *)
+        (* s.(tp) !! t = pc.kernel_wait ∧ *)
+        t ∉ s.(state).(queue)⌝.
+Proof.
+  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝);
+    tla_simp.
+  - lt_apply queue_gets_popped_locked.
+    { lt_auto naive_solver. }
+    { lt_auto naive_solver. }
+  - lt_apply queue_gets_popped_unlocked.
+    { lt_intros. rewrite not_true_iff_false. naive_solver. }
+    leads_to_trans
+      (⌜λ s, wait_set s.(tp) ⊆ W ∧
+               t ∉ s.(state).(queue)⌝ ∨
+       ⌜λ s, wait_set s.(tp) ⊆ W ∧
+               s.(state).(queue) = t::ts ∧
+               s.(state).(lock) = true⌝
+      )%L.
+    { lt_auto tauto. }
+    rewrite leads_to_or_split; tla_split; [ lt_auto | ].
+    leads_to_trans (∃ W' (_: W' ⊆ W), ⌜λ s, wait_set s.(tp) = W' ∧
+                                s.(state).(queue) = t::ts ∧
+                                  s.(state).(lock) = true⌝)%L.
+    { setoid_rewrite exist_state_pred. rewrite exist_state_pred.
+      lt_auto naive_solver. }
+    apply leads_to_exist_intro => W'.
+    apply leads_to_exist_intro => Hsub.
+    lt_apply queue_gets_popped_locked.
+    lt_auto naive_solver.
 Qed.
 
 End example.
