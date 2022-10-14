@@ -879,26 +879,78 @@ Proof.
     naive_solver.
 Qed.
 
-Lemma lock_cas_decreases_W t W :
+Lemma wait_set_remove_subset (W: gset Tid) (t: Tid) :
+  t ∈ W → W ∖ {[t]} ⊂ W.
+Proof. set_solver. Qed.
+
+Lemma wait_set_remove_eq (W: gset Tid) (t: Tid) :
+  t ∉ W → W ∖ {[t]} = W.
+Proof. set_solver. Qed.
+
+Hint Resolve wait_set_remove_subset wait_set_remove_eq : core.
+
+Lemma lock_cas_progress t W :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
+        s.(state).(lock) = false ∧
         s.(tp) !! t = Some pc.lock_cas⌝ ~~>
-  ⌜λ s, ∃ W', W' ⊂ W ∧
-              waiters_are W' s⌝.
+  ⌜λ s, wait_set s.(tp) ⊂ W⌝.
 Proof.
-Abort.
+  rewrite /waiters_are /=.
+  tla_apply (wf1 (step t)).
+  { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
+  - move => [σ tp] [σ' tp'] /=.
+    intros (Hwait & Hpc) Hnext; subst.
+    destruct Hnext as [ [t' Hstep] | Heq]; [ | stm_simp; by eauto ].
+    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    destruct_step; stm; simp_props; eauto 8.
+  - move => [σ tp] [σ' tp'] /=.
+    intros (Hwait & Hpc) _ Hstep; subst.
+    destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    assert (pc = pc.lock_cas) by congruence; subst.
+    rewrite thread_step_eq /thread_step_def in Hstep; stm.
+  - move => [[l q] tp] /=.
+    intros (? & Hpc); subst.
+    rewrite step_enabled /=.
+    naive_solver.
+Qed.
 
 Lemma futex_wait_progress t W :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(tp) !! t = Some pc.futex_wait⌝ ~~>
-  ⌜λ s, (∃ W', W' ⊂ W ∧ waiters_are W' s) ∨
-        waiters_are W s ∧
-        (s.(tp) !! t = Some pc.lock_cas ∨
-         s.(tp) !! t = Some pc.kernel_wait ∧
-         t ∈ s.(state).(queue))⌝.
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        wait_set s.(tp) = W ∧
+        s.(tp) !! t = Some pc.kernel_wait⌝.
 Proof.
-Abort.
+  rewrite /waiters_are /=.
+  apply (leads_to_detour
+           ⌜λ s, wait_set s.(tp) = W ∧
+                 s.(state).(lock) = false ∧
+                 s.(tp) !! t = Some pc.lock_cas⌝).
+  { tla_simp.
+    tla_apply (wf1 (step t)).
+    { rewrite /spec. tla_split; [ tla_assumption | tla_apply fair_step ]. }
+    - move => [σ tp] [σ' tp'] /=.
+      intros (Hwait & Hpc) Hnext; subst.
+      destruct Hnext as [ [t' Hstep] | Heq]; [ | stm_simp; by eauto ].
+      destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      destruct_step; stm; simp_props; eauto 8.
+      + destruct (decide (t = t')); subst; lookup_simp; eauto.
+      + destruct (decide (t = t')); subst; lookup_simp; eauto.
+    - move => [σ tp] [σ' tp'] /=.
+      intros (Hwait & Hpc) _ Hstep; subst.
+      destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+      assert (pc = pc.futex_wait) by congruence; subst.
+      rewrite thread_step_eq /thread_step_def in Hstep; stm.
+      destruct l0; stm.
+    - move => [[l q] tp] /=.
+      intros (? & Hpc); subst.
+      rewrite step_enabled /=.
+      naive_solver. }
+  leads_to_etrans; [ apply lock_cas_progress | ].
+  apply pred_leads_to => s; naive_solver.
+Qed.
 
 (* if there is a thread t in pc.kernel_wait, then either the queue is empty, in
 which case weak_fairness (step t) easily gets t to pc.lock_cas, or it has a head element t', in which case that thread will get to cas *)
