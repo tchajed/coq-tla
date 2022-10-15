@@ -47,29 +47,29 @@ Module spec.
   Instance tid_countable : Countable Tid := _.
 
 (*|
-The state consists of the state of the mutex, and a program counter for
-each thread. The initial domain of the pcs map determines the number of
-threads.
+The state consists of the state of the mutex, and a "thread pool", which records
+a program counter for each thread. The initial domain of the [tp] map determines
+the number of threads.
 |*)
   Record state :=
-    mkState { lock: bool; pcs: gmap Tid Pc; }.
+    mkState { lock: bool; tp: gmap Tid Pc; }.
 
   #[global]
-  Instance _eta : Settable _ := settable! mkState <lock; pcs>.
+  Instance _eta : Settable _ := settable! mkState <lock; tp>.
 
   Definition cas_fail (t0: Tid): action state :=
-    λ s s', (s.(pcs) !! t0 = Some pc0 ∧ s.(lock) = true)
+    λ s s', (s.(tp) !! t0 = Some pc0 ∧ s.(lock) = true)
             ∧ s' = s.
 
   Definition cas_succ (t0: Tid): action state :=
-    λ s s', s.(pcs) !! t0 = Some pc0 ∧ s.(lock) = false
+    λ s s', s.(tp) !! t0 = Some pc0 ∧ s.(lock) = false
             ∧ s' = s <|lock := true|>
-                     <|pcs ::= <[ t0 := pc1 ]> |>.
+                     <|tp ::= <[ t0 := pc1 ]> |>.
 
   Definition unlock (t0: Tid): action state :=
-    λ s s', s.(pcs) !! t0 = Some pc1
+    λ s s', s.(tp) !! t0 = Some pc1
             ∧ s' = s <|lock := false|>
-                     <|pcs ::= <[ t0 := pc2 ]> |>.
+                     <|tp ::= <[ t0 := pc2 ]> |>.
 
   Definition step (t0: Tid): action state :=
       λ s s', cas_fail t0 s s' ∨ cas_succ t0 s s' ∨ unlock t0 s s'.
@@ -77,7 +77,7 @@ threads.
   Definition init: state → Prop :=
     λ s, s.(lock) = false ∧
         (* all of the allocated threads are at the beginning of the spin loop *)
-         ∀ tid pc, s.(pcs) !! tid = Some pc → pc = pc0.
+         ∀ tid pc, s.(tp) !! tid = Some pc → pc = pc0.
 
   Definition next : action state :=
     λ s s', (∃ tid, step tid s s') ∨ s' = s.
@@ -87,8 +87,8 @@ threads.
 |*)
   Definition safe: state → Prop :=
     λ s, ∀ tid tid',
-    s.(pcs) !! tid = Some pc1 →
-    s.(pcs) !! tid' = Some pc1 →
+    s.(tp) !! tid = Some pc1 →
+    s.(tp) !! tid' = Some pc1 →
     tid = tid'.
 
 (*|
@@ -102,7 +102,10 @@ never enabled so weak fairness is trivial.) Notice that this is a whole set of a
 **Liveness** means all threads have terminated.
 |*)
   Definition terminated: state → Prop :=
-    λ s, ∀ tid pc, s.(pcs) !! tid = Some pc → pc = pc2.
+    λ s, ∀ tid pc, s.(tp) !! tid = Some pc → pc = pc2.
+
+  Definition spec: predicate state :=
+    ⌜init⌝ ∧ □⟨next⟩ ∧ fair.
 
 End spec.
 
@@ -117,7 +120,7 @@ Hint Unfold cas_fail cas_succ unlock : stm.
 
 Lemma enabled_thread t :
   enabled (step t) =
-  λ s, ∃ pc, s.(pcs) !! t = Some pc ∧ pc ≠ pc2.
+  λ s, ∃ pc, s.(tp) !! t = Some pc ∧ pc ≠ pc2.
 Proof.
   apply pred_ext => s.
   unfold enabled; split.
@@ -125,7 +128,7 @@ Proof.
       intuition (subst; eauto; congruence).
   - intros [pc [Hlookup Hne]].
     autounfold with stm.
-    destruct s as [l pcs0]; simpl in *.
+    destruct s as [l tp0]; simpl in *.
     destruct pc; [ | | congruence ].
     * destruct l; simpl; eexists (mkState _ _); eauto.
     * eexists (mkState _ _); eauto.
@@ -167,19 +170,20 @@ Ltac stm :=
   try congruence.
 
 Definition exclusion_inv: state → Prop :=
-  λ s, (∀ tid, s.(pcs) !! tid = Some pc1 → s.(lock)) ∧
+  λ s, (∀ tid, s.(tp) !! tid = Some pc1 → s.(lock)) ∧
        safe s.
 
 Hint Unfold exclusion_inv : stm.
 
 Lemma exclusion_inv_ok :
-  ⌜init⌝ ∧ □⟨next⟩ ⊢ □⌜exclusion_inv⌝.
+  spec ⊢ □⌜exclusion_inv⌝.
 Proof.
+  rewrite /spec. tla_clear fair.
   apply init_invariant.
   - stm.
     { pose proof (H1 _ _ H); congruence. }
     { pose proof (H1 _ _ H); congruence. }
-  - intros [lock pcs] [lock' pcs'].
+  - intros [lock tp] [lock' tp'].
     stm.
     { intuition stm.
       destruct (decide (tid0 = tid)); lookup_simp.
@@ -193,7 +197,7 @@ Proof.
 Qed.
 
 Theorem safety :
-  ⌜init⌝ ∧ □⟨next⟩ ⊢ □ ⌜safe⌝.
+  spec ⊢ □ ⌜safe⌝.
 Proof.
   rewrite exclusion_inv_ok.
   apply always_impl_proper.
@@ -202,14 +206,6 @@ Qed.
 
 (** wrapper for [exclusion_inv_ok] to "upgrade" from a semantics with [next] to
 one that incorporates the invariant *)
-Lemma add_safety :
-  ⌜init⌝ ∧ □⟨next⟩ ⊢
-  ⌜init⌝ ∧ □⟨λ s s', next s s' ∧ exclusion_inv s ∧ exclusion_inv s'⟩.
-Proof.
-  tla_pose (exclusion_inv_ok).
-  rewrite combine_preds //.
-Qed.
-
 (*|
 
 ---------------------
@@ -226,19 +222,19 @@ Theorem gset_subset_wf :
   well_founded  ((⊂) : gset Tid → gset Tid → Prop).
 Proof. apply set_wf. Qed.
 
-Definition waiting_set (pcs: gmap Tid Pc) : gset Tid :=
-  dom (filter (λ '(tid, pc), pc = pc0) pcs).
+Definition waiting_set (tp: gmap Tid Pc) : gset Tid :=
+  dom (filter (λ '(tid, pc), pc = pc0) tp).
 
 Definition not_locked : state → Prop :=
   λ s,
-    (∀ tid pc, s.(pcs) !! tid = Some pc → pc ≠ pc1) ∧
+    (∀ tid pc, s.(tp) !! tid = Some pc → pc ≠ pc1) ∧
     s.(lock) = false.
 
 (*|
 This is the interpretation of each lattice element.
 |*)
 Definition h (waiting: gset Tid) : state → Prop :=
-  λ s, waiting_set s.(pcs) = waiting ∧ not_locked s.
+  λ s, waiting_set s.(tp) = waiting ∧ not_locked s.
 
 Hint Unfold h : stm.
 
@@ -254,7 +250,7 @@ Qed.
 Theorem h_0_to_terminated :
   ⌜h ∅⌝ ⊢ ⌜terminated⌝.
 Proof.
-  (* actually waiting_set s.(pcs) = ∅ is sufficient *)
+  (* actually waiting_set s.(tp) = ∅ is sufficient *)
   unseal. unfold h, waiting_set, not_locked; stm.
   apply dom_empty_iff_L in H1.
 
@@ -299,9 +295,9 @@ Proof.
     rewrite option_guard_True //.
 Qed.
 
-Lemma waiting_set_remove pcs tid pc' :
+Lemma waiting_set_remove tp tid pc' :
   pc' ≠ pc0 →
-  waiting_set (<[tid:=pc']> pcs) = waiting_set pcs ∖ {[tid]}.
+  waiting_set (<[tid:=pc']> tp) = waiting_set tp ∖ {[tid]}.
 Proof.
   intros Hnot0.
   unfold waiting_set.
@@ -331,16 +327,17 @@ This is the first key lemma: whenever `h` holds, some thread acquire the lock an
 |*)
 Lemma h_leads_to_locked waiting t :
   t ∈ waiting →
-  ⌜ init ⌝ ∧ □ ⟨next⟩ ∧ fair
+  spec
   ⊢ ⌜ h waiting ⌝ ~~>
     ⌜λ s, ∃ (x : Tid) (_ : x ∈ waiting),
-      waiting_set (pcs s) = waiting ∖ {[x]} ∧
-      pcs s !! x = Some pc1 ∧
+      waiting_set s.(tp) = waiting ∖ {[x]} ∧
+      s.(tp) !! x = Some pc1 ∧
       lock s = true ⌝.
 Proof.
   intros Hel.
   tla_apply (wf1 (step t)).
-  { tla_split; [ tla_assumption | tla_apply fair_step ]. }
+  { rewrite /spec.
+    tla_split; [ tla_assumption | tla_apply fair_step ]. }
   - unfold h.
     intros s s' [Hwaitset Hno_lock] Hnext.
     destruct Hnext as [[tid Hstep] | ->]; [ | eauto ].
@@ -372,15 +369,15 @@ Qed.
 Lemma unlock_to_h waiting t s s' :
   unlock t s s' →
   t ∈ waiting →
-  waiting_set s.(pcs) = waiting ∖ {[t]} →
-  s.(pcs) !! t = Some pc1 →
+  waiting_set s.(tp) = waiting ∖ {[t]} →
+  s.(tp) !! t = Some pc1 →
   s.(lock) = true →
   exclusion_inv s →
   ∃ (waiting' : gset Tid) (_ : waiting' ⊂ waiting), h waiting' s'.
 Proof.
   unfold unlock.
   intros [_ Hs'] Hwaiting Hwait Ht Hlock Hinv.
-  destruct s as [l pcs]; destruct s' as [l' pcs']; simpl in *.
+  destruct s as [l tp]; destruct s' as [l' tp']; simpl in *.
   invc Hs'.
 
   exists (waiting ∖ {[t]}). unshelve eexists.
@@ -398,7 +395,7 @@ Qed.
 Lemma locked_step {tid s s' t} :
   step tid s s' →
   exclusion_inv s →
-  s.(pcs) !! t = Some pc1 →
+  s.(tp) !! t = Some pc1 →
   s.(lock) = true →
   (s' = s ∧ tid ≠ t) ∨ (tid = t ∧ unlock t s s').
 Proof.
@@ -414,17 +411,17 @@ Qed.
 This is the second key lemma: if some thread holds the lock, it will eventually free it and restore the `h` predicate that forms the lattice.
 |*)
 Lemma locked_to_smaller_h waiting :
-  ⌜ init ⌝ ∧ □ ⟨next⟩ ∧ fair
-  ⊢ (∃ t (_ : t ∈ waiting),
+  spec
+  ⊢ (∃ t (Hwaiting : t ∈ waiting),
         ⌜λ s,
-          waiting_set (pcs s) = waiting ∖ {[t]} ∧
-          pcs s !! t = Some pc1 ∧
+          waiting_set (tp s) = waiting ∖ {[t]} ∧
+          tp s !! t = Some pc1 ∧
           lock s = true ⌝) ~~>
      ⌜ λ s, ∃ (waiting' : gset Tid),
               waiting' ⊂ waiting ∧ h waiting' s ⌝.
 Proof.
-  rewrite <- tla_and_assoc. rewrite add_safety. tla_simp.
-  lt_intro. lt_intro Hwaiting.
+  apply (add_safety exclusion_inv_ok).
+  lt_intros.
   tla_apply (wf1 (step t)).
   { tla_split; [ tla_assumption | tla_apply fair_step ]. }
   - intros s s' (Hwait & Ht & Hlock) (Hnext & Hinv & Hinv').
@@ -447,23 +444,23 @@ Next, we simply group these two lemmas via simple transitivity into the statemen
 |*)
 Lemma h_decrease (waiting: gset Tid) (t: Tid) :
   t ∈ waiting →
-  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢
+  spec ⊢
   ⌜h waiting⌝ ~~>
     ⌜λ s, ∃ waiting', waiting' ⊂ waiting ∧ h waiting' s⌝.
 Proof.
   intros Hel.
 
   (* need to go through an intermediate state where lock is held by someone *)
-  leads_to_trans (∃ t' (_: t' ∈ waiting), ⌜λ s,
-      waiting_set s.(pcs) = waiting ∖ {[t']} ∧
-      s.(pcs) !! t' = Some pc1 ∧
+  leads_to_trans (∃ t' (Hwaiting: t' ∈ waiting), ⌜λ s,
+      waiting_set s.(tp) = waiting ∖ {[t']} ∧
+      s.(tp) !! t' = Some pc1 ∧
       s.(lock) = true⌝)%L.
 
   -
 (*|
 In this branch we need to go from the wait set `waiting` to a set with one thread `t ∈ waiting` removed and the lock held; this is exactly what `cas_succ` does. Removing one thread results in a strictly smaller waiting set.
 |*)
-    lt_eapply h_leads_to_locked; eauto.
+    lt_eapply h_leads_to_locked; [ eauto | ].
     lt_auto.
   -
 (*|
@@ -477,14 +474,9 @@ Putting everything together, `eventually_terminate` first shows that in the init
 |*)
 
 Lemma eventually_terminate :
-  ⌜init⌝ ∧ □⟨next⟩ ∧ fair ⊢ ◇ ⌜terminated⌝.
+  spec ⊢ ◇ ⌜terminated⌝.
 Proof.
-  apply (leads_to_apply ⌜init⌝); [ tla_assumption | ].
-
-  assert (∀ tid, (fair ⊢ weak_fairness (step tid))%L) as Hfair.
-  { intros tid. unfold fair.
-    (* apply's unification heuristics don't work here *)
-    refine (forall_apply _ _). }
+  apply (leads_to_apply ⌜init⌝); [ rewrite /spec; tla_assumption | ].
 
   leads_to_etrans;
     [ tla_clear; apply impl_to_leads_to;
