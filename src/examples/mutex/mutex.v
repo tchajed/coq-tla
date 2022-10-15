@@ -326,17 +326,6 @@ Proof.
   eexists _, _; intuition eauto.
 Qed.
 
-Lemma kernel_wait_head_progress t W :
-  spec ⊢
-  ⌜λ s, waiters_are W s ∧
-       ∃ ts, s.(state).(queue) = t::ts ∧
-             s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
-  ⌜λ s, (∃ W', W' ⊂ W ∧ waiters_are W' s) ∨
-        waiters_are W s ∧
-        s.(tp) !! t = Some pc.lock_cas⌝.
-Proof.
-Abort.
-
 Lemma queue_gets_popped_unlocked W t ts :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
