@@ -331,10 +331,12 @@ Lemma queue_gets_popped_unlocked W t ts :
   ⌜λ s, waiters_are W s ∧
         s.(state).(queue) = t :: ts ∧
         s.(state).(lock) = false⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊆ W ∧
-        (s.(state).(queue) = ts ∧
-           t ∉ s.(state).(queue) ∧
-           s.(tp) !! t = Some pc.kernel_wait ∨
+  ⌜λ s, (wait_set s.(tp) = W ∧
+         s.(state).(queue) = ts ∧
+         t ∉ s.(state).(queue) ∧
+         s.(tp) !! t = Some pc.kernel_wait ∧
+         s.(state).(lock) = false ∨
+         wait_set s.(tp) ⊂ W ∧
          s.(state).(queue) = t :: ts ∧
            s.(state).(lock) = true)⌝.
 Proof.
@@ -342,7 +344,7 @@ Proof.
   rewrite /lock_free_queue_inv.
 
   leads_to_trans (∃ t', ⌜ λ s,
-                    wait_set s.(tp) ⊆ W ∧
+                    wait_set s.(tp) = W ∧
                     s.(state).(queue) = t :: ts ∧
                     s.(state).(lock) = false ∧
                     thread_can_lock t' s
@@ -356,7 +358,7 @@ Proof.
   lt_intro.
 
   apply (leads_to_detour
-    ⌜λ s, wait_set s.(tp) ⊆ W ∧
+    ⌜λ s, wait_set s.(tp) = W ∧
          s.(state).(queue) = t::ts ∧
          s.(tp) !! t = Some pc.kernel_wait ∧
          s.(state).(lock) = false ∧
@@ -367,6 +369,7 @@ Proof.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *.
       destruct_step; stm_simp; simp_props; eauto.
+      + right; right; right. eauto.
       + left.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
         lookup_simp; eauto.
@@ -375,11 +378,13 @@ Proof.
         lookup_simp; eauto.
       + left.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
-        lookup_simp; eauto.
+        lookup_simp; eauto 8.
       + assert (t ∉ ts) by (inversion Hnodup; auto).
         rewrite /waiting_inv in Hwaiting.
         assert (t'' ≠ t) by set_solver.
         right; right; left. stm.
+        assert (t'' ∉ wait_set tp) by eauto.
+        set_solver.
     - intros.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *; simpl in *.
@@ -389,7 +394,12 @@ Proof.
       assert (tp !! t = Some pc.kernel_wait) by (eapply Hwaiting; eauto).
       rewrite thread_step_eq /thread_step_def in Hstep.
       unfold thread_can_lock in *; stm.
-      + assert (t ≠ t') by set_solver. stm.
+      + assert (t ≠ t') by set_solver.
+        assert (t' ∉ wait_set tp) by eauto.
+        stm.
+      + assert (t' ∈ wait_set tp) by eauto.
+        assert (t ≠ t') by set_solver.
+        lookup_simp; eauto 10.
     - intros. rewrite /thread_can_lock /= in H.
       naive_solver. }
 
@@ -401,8 +411,10 @@ Proof.
       stm_simp.
       assert (t ∉ ts) by (inversion Hnodup; auto).
       destruct_step; stm.
-      assert (t'' ≠ t) by set_solver.
-      stm.
+      + assert (t'' ≠ t) by set_solver.
+        stm.
+      + assert (t'' ∉ wait_set tp) by eauto.
+        stm.
     - intros *.
       intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
       stm.
@@ -413,9 +425,11 @@ Lemma queue_gets_popped W t ts :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(state).(queue) = t :: ts⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊆ W ∧
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) ⊆ W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
-        t ∉ s.(state).(queue)⌝.
+        t ∉ s.(state).(queue)
+        (* ∧ s.(state).(lock) = false *))⌝.
 Proof.
   apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝);
     tla_simp.
@@ -423,21 +437,13 @@ Proof.
   - lt_apply queue_gets_popped_unlocked.
     { lt_unfold. rewrite not_true_iff_false. naive_solver. }
     leads_to_trans
-      (⌜λ s, wait_set s.(tp) ⊆ W ∧
+      (⌜λ s, wait_set s.(tp) = W ∧
                s.(tp) !! t = Some pc.kernel_wait ∧
-               t ∉ s.(state).(queue)⌝ ∨
-       ⌜λ s, wait_set s.(tp) ⊆ W ∧
-               s.(state).(queue) = t::ts ∧
-               s.(state).(lock) = true⌝
-      )%L.
+               t ∉ s.(state).(queue) ∧
+               s.(state).(lock) = false⌝ ∨
+       ⌜λ s, wait_set s.(tp) ⊂ W⌝)%L.
     { lt_auto tauto. }
-    rewrite leads_to_or_split; tla_split; [ lt_auto | ].
-    leads_to_trans (∃ W' (_: W' ⊆ W), ⌜λ s, wait_set s.(tp) = W' ∧
-                                s.(state).(queue) = t::ts ∧
-                                s.(state).(lock) = true⌝)%L.
-    { lt_auto naive_solver. }
-    lt_intros.
-    lt_apply queue_gets_popped_locked.
+    rewrite leads_to_or_split; tla_split; [ lt_auto naive_solver | lt_auto ].
 Qed.
 
 Hint Resolve elem_of_pop : core.
@@ -483,6 +489,15 @@ Proof.
       naive_solver.
     + lt_intro t0. lt_intro ts0.
       lt_apply queue_gets_popped.
+
+      leads_to_trans
+        (⌜λ s, wait_set s.(tp) ⊂ W⌝ ∨
+        ⌜λ s, wait_set s.(tp) ⊆ W ∧
+                s.(tp) !! t0 = Some pc.kernel_wait ∧
+                t0 ∉ s.(state).(queue)⌝
+        )%L.
+      { lt_auto naive_solver. }
+      rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
 
       leads_to_trans (∃ W' (_: W' ⊆ W),
                          ⌜λ s, wait_set s.(tp) = W' ∧
