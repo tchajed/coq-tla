@@ -20,6 +20,10 @@ Definition wait_pc pc :=
   pc = pc.futex_wait ∨
   pc = pc.kernel_wait.
 
+#[global]
+Instance wait_pc_dec pc : Decision (wait_pc pc).
+Proof. apply _. Defined.
+
 Definition wait_set (tp: gmap Tid pc.t) : gset _ :=
   dom (filter (λ '(tid, pc), wait_pc pc) tp).
 
