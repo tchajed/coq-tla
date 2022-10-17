@@ -515,7 +515,69 @@ Theorem gset_subset_wf :
   well_founded  ((⊂) : gset Tid → gset Tid → Prop).
 Proof. apply set_wf. Qed.
 
-(* TODO: I don't think this is quite right, need to think about this more *)
+Lemma elem_wake_set tp t :
+  t ∈ wake_set tp ↔ tp !! t = Some pc.unlock_wake.
+Proof.
+  rewrite /wake_set.
+  rewrite elem_of_dom filter_is_Some. naive_solver.
+Qed.
+
+Lemma elem_wake_set_2 tp t :
+  tp !! t = Some pc.unlock_wake →
+  t ∈ wake_set tp.
+Proof.
+  apply elem_wake_set.
+Qed.
+
+Lemma not_elem_wake_set tp t pc :
+  tp !! t = Some pc →
+  pc ≠ pc.unlock_wake →
+  t ∉ wake_set tp.
+Proof.
+  rewrite elem_wake_set.
+  naive_solver.
+Qed.
+
+Hint Resolve elem_wake_set_2 not_elem_wake_set : core.
+
+Lemma wake_set_insert_same tp t pc pc' :
+  tp !! t = Some pc →
+  pc ≠ pc.unlock_wake → pc' ≠ pc.unlock_wake →
+  wake_set (<[t := pc']> tp) = wake_set tp.
+Proof.
+  intros.
+  apply gset_ext => t'.
+  rewrite /wake_set.
+  rewrite !elem_of_dom !filter_is_Some.
+  destruct (decide (t = t')); lookup_simp; naive_solver.
+Qed.
+
+Lemma wake_set_remove tp t pc' :
+  pc' ≠ pc.unlock_wake →
+  wake_set (<[t := pc']> tp) = wake_set tp ∖ {[t]}.
+Proof.
+  intros.
+  apply gset_ext => t'.
+  rewrite /wake_set. rewrite elem_of_difference !elem_of_dom !filter_is_Some.
+  rewrite elem_of_singleton.
+  destruct (decide (t = t')); lookup_simp; naive_solver.
+Qed.
+
+Hint Rewrite wake_set_remove using (by auto) : pc.
+
+Lemma wake_set_subset tp t pc' :
+  tp !! t = Some pc.unlock_wake →
+  pc' ≠ pc.unlock_wake →
+  wake_set (<[t := pc']> tp) ⊂ wake_set tp.
+Proof.
+  intros.
+  rewrite -> wake_set_remove by auto.
+  assert (t ∈ wake_set tp) by auto.
+  set_solver.
+Qed.
+
+Hint Resolve wake_set_insert_same wake_set_subset : core.
+
 Lemma eventually_no_wake_threads W :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
@@ -523,9 +585,15 @@ Lemma eventually_no_wake_threads W :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         s.(state).(lock) = false ∨
         wait_set s.(tp) = W ∧
+        s.(state).(lock) = true ∧
         no_wake_threads s.(tp)⌝.
 Proof.
-  set (h := λ U, λ s, wait_set s.(tp) ⊂ W ∨ wait_set s.(tp) = W ∧ wake_set s.(tp) = U).
+  set (h := λ U, λ s, wait_set s.(tp) ⊂ W ∨
+                      s.(state).(lock) = false ∨
+                      wait_set s.(tp) = W ∧
+                      wake_set s.(tp) = U ∧
+                      s.(state).(lock) = true
+      ).
   lt_apply (lattice_leads_to_ex gset_subset_wf h ∅).
   - lt_auto.
     rewrite /h. naive_solver.
@@ -533,8 +601,46 @@ Proof.
     rewrite /h.
     assert (∃ t, t ∈ U) as [t Hel].
     { apply set_choose_L in Hnotempty; naive_solver. }
+    leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W ∨
+                     s.(state).(lock) = false ∨
+                    ∃ U', U' ⊂ U ∧
+                            wait_set s.(tp) = W ∧
+                            wake_set s.(tp) = U' ∧
+                            s.(state).(lock) = true⌝).
+    2: { lt_auto naive_solver. }
+    leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W⌝ ∨
+                    ⌜λ s, s.(state).(lock) = false⌝ ∨
+                    ⌜λ s, wait_set s.(tp) = W ∧
+                          wake_set s.(tp) = U ∧
+                          s.(state).(lock) = true⌝
+                   )%L.
+    { lt_auto naive_solver. }
+    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
     apply (mutex_wf1 t); simpl; intros.
-    +
-Abort.
+    + destruct_step; stm.
+      * assert (t' ∈ wake_set tp) by eauto.
+        assert (t' ∉ wait_set tp) by eauto.
+        right; right; right.
+        eexists; intuition eauto.
+    + stm_simp.
+      apply elem_wake_set in Hel.
+      stm_simp.
+      right; right.
+      eexists; intuition eauto.
+      assert (t ∉ wait_set tp) by eauto.
+      set_solver.
+    + stm_simp.
+      apply elem_wake_set in Hel.
+      naive_solver.
+  - rewrite /h /no_wake_threads.
+    lt_auto.
+    intros [| [|]]; eauto.
+    right; right.
+    intuition eauto.
+    subst.
+    assert (t ∈ wake_set s.(tp)) by eauto.
+    set_solver.
+Qed.
 
 End example.
