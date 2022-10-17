@@ -149,10 +149,9 @@ Proof.
         s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(lock) = true ∧
         lock_held s t'⌝)%L.
-  - rewrite exist_state_pred.
-    apply (leads_to_assume _ all_invs_ok).
-    tla_simp.
-    apply pred_leads_to => s [[HW [Hq Hl]] Hinv].
+  - apply (leads_to_assume _ all_invs_ok).
+    lt_unfold.
+    intros [[HW [Hq Hl]] Hinv].
     destruct Hinv as [_ Hlocked Hnodup Hwaiting _];
       autounfold with inv in *.
     destruct s as [[l q] ?]; simpl in *; subst.
