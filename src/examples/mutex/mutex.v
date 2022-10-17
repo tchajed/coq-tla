@@ -461,13 +461,38 @@ Proof.
   - naive_solver.
 Qed.
 
+Lemma kernel_wait_not_queued_unlocked_progress W t :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        t ∉ s.(state).(queue) ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        wait_set s.(tp) = W ∧
+          s.(tp) !! t = Some pc.lock_cas ∧
+          s.(state).(lock) = false⌝.
+Proof.
+  rewrite /waiters_are.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct Hpre as (Hwait & Ht & Hnotin); subst.
+    destruct_step; stm; simp_props.
+    + assert (t ∉ pop q) by auto.
+      assert (t' ∉ wait_set tp) by eauto.
+      left; set_solver.
+  - stm.
+  - naive_solver.
+Qed.
+
 Lemma kernel_wait_progress W t :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
-        s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        s.(state).(lock) = false⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (∃ t', wait_set s.(tp) ⊆ W ∧
-               s.(tp) !! t' = Some pc.lock_cas)⌝.
+               s.(tp) !! t' = Some pc.lock_cas ∧
+               s.(state).(lock) = false
+         )⌝.
 Proof.
   rewrite /waiters_are.
   apply (leads_to_if ⌜λ s, t ∈ s.(state).(queue)⌝).
@@ -475,18 +500,20 @@ Proof.
     leads_to_trans (∃ t0 ts0,
                        ⌜λ s, wait_set s.(tp) = W ∧
                              s.(tp) !! t = Some pc.kernel_wait ∧
-                             s.(state).(queue) = t0::ts0⌝)%L.
+                             s.(state).(queue) = t0::ts0 ∧
+                             s.(state).(lock) = false⌝)%L.
     + lt_auto intuition idtac.
       destruct s.(state).(queue) eqn:Hq; [ exfalso; set_solver | ].
       naive_solver.
     + lt_intro t0. lt_intro ts0.
-      lt_apply queue_gets_popped.
+      lt_apply queue_gets_popped_unlocked.
 
       leads_to_trans
         (⌜λ s, wait_set s.(tp) ⊂ W⌝ ∨
         ⌜λ s, wait_set s.(tp) ⊆ W ∧
                 s.(tp) !! t0 = Some pc.kernel_wait ∧
-                t0 ∉ s.(state).(queue)⌝
+                t0 ∉ s.(state).(queue) ∧
+                s.(state).(lock) = false⌝
         )%L.
       { lt_auto naive_solver. }
       rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
@@ -494,15 +521,16 @@ Proof.
       leads_to_trans (∃ W' (_: W' ⊆ W),
                          ⌜λ s, wait_set s.(tp) = W' ∧
                                  s.(tp) !! t0 = Some pc.kernel_wait ∧
-                                 t0 ∉ s.(state).(queue)⌝)%L.
-      { lt_auto intuition eauto. }
+                                 t0 ∉ s.(state).(queue) ∧
+                                 s.(state).(lock) = false⌝)%L.
+      { lt_auto naive_solver. }
 
       lt_intros.
-      lt_apply kernel_wait_not_queued_progress.
+      lt_apply kernel_wait_not_queued_unlocked_progress.
       lt_auto intuition eauto.
       left; set_solver.
   - tla_simp.
-    lt_apply kernel_wait_not_queued_progress.
+    lt_apply kernel_wait_not_queued_unlocked_progress.
 Qed.
 
 Definition no_wake_threads tp :=
@@ -580,8 +608,7 @@ Hint Resolve wake_set_insert_same wake_set_subset : core.
 
 Lemma eventually_no_wake_threads W :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
-        s.(state).(lock) = true⌝ ~~>
+  ⌜λ s, waiters_are W s⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         s.(state).(lock) = false ∨
         wait_set s.(tp) = W ∧
@@ -596,7 +623,7 @@ Proof.
       ).
   lt_apply (lattice_leads_to_ex gset_subset_wf h ∅).
   - lt_auto.
-    rewrite /h. naive_solver.
+    rewrite /h. destruct s.(state).(lock); eauto. naive_solver.
   - intros U Hnotempty.
     rewrite /h.
     assert (∃ t, t ∈ U) as [t Hel].
@@ -641,6 +668,9 @@ Proof.
     subst.
     assert (t ∈ wake_set s.(tp)) by eauto.
     set_solver.
+
+    Unshelve.
+    all: exact inhabitant.
 Qed.
 
 End example.
