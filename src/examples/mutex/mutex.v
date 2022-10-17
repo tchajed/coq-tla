@@ -284,7 +284,8 @@ Lemma futex_wait_progress t W :
         s.(tp) !! t = Some pc.futex_wait⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         wait_set s.(tp) = W ∧
-        s.(tp) !! t = Some pc.kernel_wait⌝.
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        s.(state).(lock) = true⌝.
 Proof.
   rewrite /waiters_are /=.
   apply (leads_to_detour
@@ -331,14 +332,14 @@ Lemma queue_gets_popped_unlocked W t ts :
   ⌜λ s, waiters_are W s ∧
         s.(state).(queue) = t :: ts ∧
         s.(state).(lock) = false⌝ ~~>
-  ⌜λ s, (wait_set s.(tp) = W ∧
-         s.(state).(queue) = ts ∧
-         t ∉ s.(state).(queue) ∧
-         s.(tp) !! t = Some pc.kernel_wait ∧
-         s.(state).(lock) = false ∨
-         wait_set s.(tp) ⊂ W ∧
-         s.(state).(queue) = t :: ts ∧
-           s.(state).(lock) = true)⌝.
+  ⌜λ s,
+  (* this case covers when the lock goes from false to true *)
+    wait_set s.(tp) ⊂ W ∨
+      wait_set s.(tp) = W ∧
+      s.(state).(queue) = ts ∧
+      t ∉ s.(state).(queue) ∧
+      s.(tp) !! t = Some pc.kernel_wait ∧
+      s.(state).(lock) = false⌝.
 Proof.
   apply (leads_to_assume _ lock_free_queue_inv_ok); tla_simp.
   rewrite /lock_free_queue_inv.
@@ -369,7 +370,7 @@ Proof.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *.
       destruct_step; stm_simp; simp_props; eauto.
-      + right; right; right. eauto.
+      + right; right; left. eauto 10.
       + left.
         rewrite /thread_can_lock /= in Hcan_lock |- *.
         lookup_simp; eauto.
@@ -382,7 +383,7 @@ Proof.
       + assert (t ∉ ts) by (inversion Hnodup; auto).
         rewrite /waiting_inv in Hwaiting.
         assert (t'' ≠ t) by set_solver.
-        right; right; left. stm.
+        right; right; right. stm.
         assert (t'' ∉ wait_set tp) by eauto.
         set_solver.
     - intros.
@@ -436,14 +437,6 @@ Proof.
   - lt_apply queue_gets_popped_locked.
   - lt_apply queue_gets_popped_unlocked.
     { lt_unfold. rewrite not_true_iff_false. naive_solver. }
-    leads_to_trans
-      (⌜λ s, wait_set s.(tp) = W ∧
-               s.(tp) !! t = Some pc.kernel_wait ∧
-               t ∉ s.(state).(queue) ∧
-               s.(state).(lock) = false⌝ ∨
-       ⌜λ s, wait_set s.(tp) ⊂ W⌝)%L.
-    { lt_auto tauto. }
-    rewrite leads_to_or_split; tla_split; [ lt_auto naive_solver | lt_auto ].
 Qed.
 
 Hint Resolve elem_of_pop : core.
