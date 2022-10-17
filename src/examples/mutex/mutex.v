@@ -6,7 +6,7 @@ From TLA.examples.mutex Require Import spec wait_set nodup automation safety.
 
 Section example.
 
-Implicit Types (σ: State) (s: Config) (t: Tid).
+Implicit Types (σ: State) (s: Config) (t: Tid) (tp: gmap Tid pc.t).
 Implicit Types (l: bool) (q: list Tid).
 
 Lemma fair_step (tid: nat) :
@@ -497,5 +497,37 @@ Proof.
   - tla_simp.
     lt_apply kernel_wait_not_queued_progress.
 Qed.
+
+Definition no_wake_threads tp :=
+  ∀ t pc, tp !! t = Some pc → pc ≠ pc.unlock_wake.
+
+Definition wake_set tp : gset Tid :=
+  dom (filter (λ '(_, pc), pc = pc.unlock_wake) tp).
+
+Theorem gset_subset_wf :
+  well_founded  ((⊂) : gset Tid → gset Tid → Prop).
+Proof. apply set_wf. Qed.
+
+(* TODO: I don't think this is quite right, need to think about this more *)
+Lemma eventually_no_wake_threads W :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(state).(lock) = true⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        s.(state).(lock) = false ∨
+        wait_set s.(tp) = W ∧
+        no_wake_threads s.(tp)⌝.
+Proof.
+  set (h := λ U, λ s, wait_set s.(tp) ⊂ W ∨ wait_set s.(tp) = W ∧ wake_set s.(tp) = U).
+  lt_apply (lattice_leads_to_ex gset_subset_wf h ∅).
+  - lt_auto.
+    rewrite /h. naive_solver.
+  - intros U Hnotempty.
+    rewrite /h.
+    assert (∃ t, t ∈ U) as [t Hel].
+    { apply set_choose_L in Hnotempty; naive_solver. }
+    apply (mutex_wf1 t); simpl; intros.
+    +
+Abort.
 
 End example.
