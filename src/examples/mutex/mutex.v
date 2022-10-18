@@ -298,8 +298,7 @@ Proof.
     - stm.
       destruct l0; stm.
     - naive_solver. }
-  leads_to_etrans; [ apply lock_cas_progress | ].
-  lt_auto.
+  lt_apply lock_cas_progress.
 Qed.
 
 (* if there is a thread t in pc.kernel_wait, then either the queue is empty, in
@@ -483,7 +482,7 @@ Proof.
   - naive_solver.
 Qed.
 
-Lemma kernel_wait_progress W t :
+Lemma kernel_wait_progress1 W t :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
@@ -533,6 +532,21 @@ Proof.
         left; set_solver. }
   - tla_simp.
     lt_apply kernel_wait_not_queued_unlocked_progress.
+Qed.
+
+Lemma kernel_wait_progress W t :
+  spec ⊢
+  ⌜λ s, waiters_are W s ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W⌝.
+Proof.
+  leads_to_etrans.
+  { apply kernel_wait_progress1. }
+  rewrite -combine_or_preds.
+  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+  rewrite -exist_state_pred. lt_intro t'.
+  lt_apply lock_cas_progress.
 Qed.
 
 Definition no_wake_threads tp :=
@@ -594,6 +608,28 @@ Proof.
 Qed.
 
 Hint Rewrite wake_set_remove using (by auto) : pc.
+
+Lemma wake_set_add tp t :
+  wake_set (<[t := pc.unlock_wake]> tp) = wake_set tp ∪ {[t]}.
+Proof.
+  intros.
+  apply gset_ext => t'.
+  rewrite /wake_set. rewrite elem_of_union !elem_of_dom !filter_is_Some.
+  rewrite elem_of_singleton.
+  destruct (decide (t = t')); lookup_simp; naive_solver.
+Qed.
+
+Lemma wake_set_add_present tp t :
+  t ∈ wake_set tp →
+  wake_set (<[t := pc.unlock_wake]> tp) = wake_set tp.
+Proof.
+  intros.
+  rewrite wake_set_add.
+  set_solver.
+Qed.
+
+Hint Rewrite wake_set_add_present using (by eauto) : pc.
+Hint Rewrite wake_set_add using (by eauto) : pc.
 
 Lemma wake_set_subset tp t pc' :
   tp !! t = Some pc.unlock_wake →
@@ -731,6 +767,58 @@ Proof.
   - lt_auto naive_solver.
 Qed.
 
+Hint Rewrite wait_set_remove_eq using (by eauto) : pc.
+
+Lemma futex_wait_progress_unlocked t W :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        s.(tp) !! t = Some pc.futex_wait ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W⌝.
+Proof.
+  apply (leads_to_detour
+           ⌜λ s, wait_set s.(tp) = W ∧
+                 s.(state).(lock) = false ∧
+                 s.(tp) !! t = Some pc.lock_cas⌝).
+  { tla_simp.
+    apply (mutex_wf1 t); simpl; intros.
+    - destruct_step; stm.
+    - stm.
+    - naive_solver. }
+  lt_apply lock_cas_progress.
+Qed.
+
+Lemma futex_wait_progress' t W U :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(tp) !! t = Some pc.futex_wait⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧
+         wake_set s.(tp) ⊂ U) ∨
+        (wait_set s.(tp) = W ∧
+         wake_set s.(tp) = U ∧
+         s.(tp) !! t = Some pc.kernel_wait ∧
+         s.(state).(lock) = true)⌝.
+Proof.
+  apply (leads_to_detour
+           (⌜λ s, wait_set s.(tp) = W ∧
+                 s.(state).(lock) = false ∧
+                 s.(tp) !! t = Some pc.lock_cas⌝ ∨
+           ⌜λ s, wait_set s.(tp) = W ∧
+                  s.(state).(lock) = false ∧
+                  s.(tp) !! t = Some pc.futex_wait⌝)%L).
+  { tla_simp.
+    apply (mutex_wf1 t); simpl; intros.
+    - destruct_step; stm.
+    - stm.
+      destruct l0; stm.
+    - naive_solver. }
+  rewrite leads_to_or_split; tla_split.
+  - lt_apply lock_cas_progress.
+  - lt_apply futex_wait_progress_unlocked.
+Qed.
+
 Hint Constructors slexprod : core.
 
 Lemma eventually_no_waiters :
@@ -794,13 +882,18 @@ Proof.
       [ | rewrite leads_to_or_split; tla_split ];
       rewrite /h; tla_simp.
     + lt_apply lock_cas_progress.
-    + lt_apply futex_wait_progress.
-      admit. (* oops, the kernel_wait with the lock held is the tricky part *)
-    + lt_apply kernel_wait_progress.
+    + lt_apply futex_wait_progress'.
       rewrite -combine_or_preds.
       rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-      rewrite -exist_state_pred. lt_intro t'.
-      lt_apply lock_cas_progress.
+      rewrite -combine_or_preds.
+      rewrite leads_to_or_split; tla_split.
+      { lt_auto intuition auto.
+        admit. (* need to remove requirement that lock = false *)
+      }
+      lt_apply kernel_wait_progress.
+      lt_auto intuition eauto.
+      admit. (* need to prove a more general kernel_wait progress theorem *)
+    + lt_apply kernel_wait_progress.
   - apply (leads_to_assume _ all_invs_ok).
     rewrite /h.
     lt_auto.
