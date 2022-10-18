@@ -675,33 +675,93 @@ Proof.
     all: exact inhabitant.
 Qed.
 
+Lemma wake_threads_decrease U :
+  U ≠ ∅ →
+  spec ⊢
+  ⌜λ s, s.(state).(lock) = false ∧
+        wait_set s.(tp) = ∅ ∧
+        wake_set s.(tp) = U⌝ ~~>
+  ⌜λ s, wake_set s.(tp) ⊂ U ∧
+        s.(state).(lock) = false ∧
+        wait_set s.(tp) = ∅⌝.
+Proof.
+  intros Hnotempty.
+  assert (∃ t, t ∈ U) as [t Hel].
+  { apply set_choose_L in Hnotempty; naive_solver. }
+  apply (mutex_wf1 t); simpl; intros.
+  - stm_simp.
+    assert (¬wait_pc pc) as Hnotwait%not_wait_pc.
+    { intros H.
+      assert (t' ∈ wait_set tp) by eauto.
+      set_solver. }
+    (intuition idtac); stm.
+    + destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in Hexcl.
+      apply Hexcl in Hlookup; congruence.
+    + right. intuition eauto.
+      set_solver.
+  - stm_simp.
+    apply elem_wake_set in Hel.
+    stm_simp.
+    intuition eauto.
+    set_solver.
+  - stm_simp.
+    apply elem_wake_set in Hel.
+    naive_solver.
+Qed.
+
+Hint Constructors slexprod : core.
+
 Lemma eventually_no_waiters :
   spec ⊢
   ⌜λ s, s.(state).(lock) = false⌝ ~~>
   ⌜λ s, s.(state).(lock) = false ∧
         ∀ t pc, s.(tp) !! t = Some pc →
-                pc = pc.unlock_wake ∨ pc = pc.finished⌝.
+                pc = pc.finished⌝.
 Proof.
-  set (h W s := wait_set s.(tp) = W ∧ s.(state).(lock) = false).
-  lt_apply (lattice_leads_to_ex gset_subset_wf h ∅).
-  - rewrite /h. lt_auto.
-  - intros W Hnotempty.
+  set (h := λ '(W, U) s, wait_set s.(tp) = W ∧
+                         wake_set s.(tp) = U ∧
+                         s.(state).(lock) = false).
+  lt_apply (lattice_leads_to_ex
+              (wf_slexprod _ _ _ _ gset_subset_wf gset_subset_wf)
+              h (∅, ∅)).
+  - rewrite /h. lt_unfold.
+    intros.
+    eexists (_, _); intuition eauto.
+  - intros [W U] Hnot_bothempty.
+    assert (U ≠ ∅ ∧ W = ∅ ∨ W ≠ ∅) as [[Hnonempty ->]|Hnonempty].
+    { destruct (decide (W = ∅)); destruct (decide (U = ∅)); subst; eauto. }
+    { rewrite /h. lt_apply (wake_threads_decrease U); eauto.
+      lt_auto.
+      intros (?&?&?).
+      exists (∅, wake_set s.(tp)); intuition eauto. }
+
     assert (∃ t, t ∈ W) as [t Hel].
-    { apply set_choose_L in Hnotempty; naive_solver. }
-    leads_to_trans (⌜h W⌝ ∧
+    { apply set_choose_L in Hnonempty; naive_solver. }
+    leads_to_trans (⌜h (W, U)⌝ ∧
                     (⌜λ s, s.(tp) !! t = Some pc.lock_cas⌝ ∨
                     ⌜λ s, s.(tp) !! t = Some pc.futex_wait⌝ ∨
                     ⌜λ s, s.(tp) !! t = Some pc.kernel_wait⌝))%L.
     { rewrite /h. lt_auto intuition auto. subst.
       apply elem_of_wait_set in Hel as (pc & Hlookup & Hwait).
       rewrite /wait_pc in Hwait; naive_solver. }
-    leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W⌝).
+    leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W ∨ (wait_set s.(tp) = W ∧
+                                                 wake_set s.(tp) ⊂ U ∧
+                                                 s.(state).(lock) = false)⌝).
     2: {
-      leads_to_trans (∃ W' (Hsub: W' ⊂ W), ⌜λ s, wait_set s.(tp) = W'⌝)%L.
-      { lt_auto. }
-      lt_intros.
-      lt_apply eventually_unlock.
-      rewrite /h; lt_auto.
+      leads_to_trans ((∃ W' (Hsub: W' ⊂ W), ⌜λ s, wait_set s.(tp) = W'⌝) ∨
+                     ⌜λ s, wait_set s.(tp) = W ∧
+                           wake_set s.(tp) ⊂ U ∧
+                           s.(state).(lock) = false⌝)%L.
+      { lt_simp.
+        lt_auto naive_solver. }
+      rewrite leads_to_or_split; tla_split.
+      + lt_intros.
+        lt_apply eventually_unlock.
+        rewrite /h /waiters_are; lt_auto.
+        intros (?&?).
+        exists (W', wake_set s.(tp)); intuition eauto.
+      + rewrite /h; lt_unfold. intros (?&?&?); subst.
+        exists (wait_set s.(tp), wake_set s.(tp)); intuition eauto.
     }
     rewrite !tla_and_distr_l.
     rewrite leads_to_or_split; tla_split;
@@ -723,11 +783,12 @@ Proof.
     destruct (decide (wait_pc pc)) as [|Hnot_wait].
     + assert (t ∈ wait_set s.(tp)) by eauto.
       exfalso; set_solver.
-    + apply not_wait_pc in Hnot_wait; intuition auto.
-      subst.
-      destruct Hinv as [[Hexcl _] _ _ _ _].
-      apply Hexcl in H.
-      exfalso; congruence.
+    + apply not_wait_pc in Hnot_wait; intuition (subst; auto).
+      * destruct Hinv as [[Hexcl _] _ _ _ _].
+        apply Hexcl in H1.
+        exfalso; congruence.
+      * assert (t ∈ wake_set s.(tp)) by eauto.
+        exfalso; set_solver.
 Abort.
 
 End example.
