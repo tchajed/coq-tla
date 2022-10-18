@@ -675,17 +675,15 @@ Proof.
     all: exact inhabitant.
 Qed.
 
-Lemma wake_threads_decrease U :
+Lemma wake_threads_decrease_unlocked U :
   U ≠ ∅ →
   spec ⊢
-  (* without lock = false, this proof needs to first show the lock is released
-  (and this proof has to be repeated to preserve [wake_set = U]) *)
-  ⌜λ s, s.(state).(lock) = false ∧
-        wait_set s.(tp) = ∅ ∧
-        wake_set s.(tp) = U⌝ ~~>
-  ⌜λ s, wake_set s.(tp) ⊂ U ∧
-        s.(state).(lock) = false ∧
-        wait_set s.(tp) = ∅⌝.
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        wake_set s.(tp) = U ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        wake_set s.(tp) ⊂ U ∧
+        s.(state).(lock) = false⌝.
 Proof.
   intros Hnotempty.
   assert (∃ t, t ∈ U) as [t Hel].
@@ -693,7 +691,7 @@ Proof.
   apply (mutex_wf1 t); simpl; intros.
   - stm_simp.
     assert (¬wait_pc pc) as Hnotwait%not_wait_pc.
-    { intros H.
+    { intros Hwait.
       assert (t' ∈ wait_set tp) by eauto.
       set_solver. }
     (intuition idtac); stm.
@@ -711,6 +709,28 @@ Proof.
     naive_solver.
 Qed.
 
+Lemma wake_threads_empty :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = ∅⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        wake_set s.(tp) = ∅ ∧
+        s.(state).(lock) = false⌝.
+Proof.
+  leads_to_trans ⌜λ s, wait_set s.(tp) = ∅ ∧
+                       s.(state).(lock) = false⌝.
+  { apply eventually_unlock. }
+  set (h U s := wait_set s.(tp) = ∅ ∧
+                s.(state).(lock) = false ∧
+                wake_set s.(tp) = U).
+  lt_apply (lattice_leads_to_ex gset_subset_wf h ∅);
+    rewrite /h.
+  - lt_auto naive_solver.
+  - intros U Hnonempty.
+    lt_apply wake_threads_decrease_unlocked; auto.
+    lt_auto intuition eauto 10.
+  - lt_auto naive_solver.
+Qed.
+
 Hint Constructors slexprod : core.
 
 Lemma eventually_no_waiters :
@@ -723,7 +743,8 @@ Proof.
   (* TODO: h need not have the lock being free
 
   we need to handle kernel_wait ∧ l = true anyway, we're already handling
-  futex_wait with any lock state, and finally lock_cas ∧ l = true will go to one of those
+  futex_wait with any lock state, and finally lock_cas ∧ l = true will go to one
+  of those
    *)
   set (h := λ '(W, U) s, wait_set s.(tp) = W ∧
                          wake_set s.(tp) = U ∧
@@ -737,10 +758,8 @@ Proof.
   - intros [W U] Hnot_bothempty.
     assert (U ≠ ∅ ∧ W = ∅ ∨ W ≠ ∅) as [[Hnonempty ->]|Hnonempty].
     { destruct (decide (W = ∅)); destruct (decide (U = ∅)); subst; eauto. }
-    { rewrite /h. lt_apply (wake_threads_decrease U); eauto.
-      lt_auto.
-      intros (?&?&?).
-      exists (∅, wake_set s.(tp)); intuition eauto. }
+    { rewrite /h. lt_apply wake_threads_empty.
+      lt_auto. }
 
     assert (∃ t, t ∈ W) as [t Hel].
     { apply set_choose_L in Hnonempty; naive_solver. }
