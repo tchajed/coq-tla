@@ -262,7 +262,7 @@ Proof.
   - naive_solver.
 Qed.
 
-Lemma lock_cas_progress t W :
+Lemma lock_cas_unlocked_progress t W :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(state).(lock) = false ∧
@@ -298,7 +298,7 @@ Proof.
     - stm.
       destruct l0; stm.
     - naive_solver. }
-  lt_apply lock_cas_progress.
+  lt_apply lock_cas_unlocked_progress.
 Qed.
 
 (* if there is a thread t in pc.kernel_wait, then either the queue is empty, in
@@ -482,7 +482,7 @@ Proof.
   - naive_solver.
 Qed.
 
-Lemma kernel_wait_progress1 W t :
+Lemma kernel_wait_unlocked_progress1 W t :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
@@ -534,7 +534,7 @@ Proof.
     lt_apply kernel_wait_not_queued_unlocked_progress.
 Qed.
 
-Lemma kernel_wait_progress W t :
+Lemma kernel_wait_unlocked_progress W t :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
@@ -542,11 +542,11 @@ Lemma kernel_wait_progress W t :
   ⌜λ s, wait_set s.(tp) ⊂ W⌝.
 Proof.
   leads_to_etrans.
-  { apply kernel_wait_progress1. }
+  { apply kernel_wait_unlocked_progress1. }
   rewrite -combine_or_preds.
   rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
   rewrite -exist_state_pred. lt_intro t'.
-  lt_apply lock_cas_progress.
+  lt_apply lock_cas_unlocked_progress.
 Qed.
 
 Definition no_wake_threads tp :=
@@ -769,7 +769,7 @@ Qed.
 
 Hint Rewrite wait_set_remove_eq using (by eauto) : pc.
 
-Lemma futex_wait_progress_unlocked t W :
+Lemma futex_wait_unlocked_progress t W :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.futex_wait ∧
@@ -785,7 +785,7 @@ Proof.
     - destruct_step; stm.
     - stm.
     - naive_solver. }
-  lt_apply lock_cas_progress.
+  lt_apply lock_cas_unlocked_progress.
 Qed.
 
 Lemma futex_wait_progress' t W U :
@@ -815,9 +815,23 @@ Proof.
       destruct l0; stm.
     - naive_solver. }
   rewrite leads_to_or_split; tla_split.
-  - lt_apply lock_cas_progress.
-  - lt_apply futex_wait_progress_unlocked.
+  - lt_apply lock_cas_locked_progress.
+  - lt_apply futex_wait_unlocked_progress.
 Qed.
+
+Lemma kernel_wait_locked_progress W U t :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        s.(state).(lock) = true⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
+        (∃ t', wait_set s.(tp) = W ∧
+               s.(tp) !! t' = Some pc.lock_cas ∧
+               s.(state).(lock) = false)⌝.
+Proof.
+Abort.
 
 Hint Constructors slexprod : core.
 
@@ -881,7 +895,7 @@ Proof.
     rewrite leads_to_or_split; tla_split;
       [ | rewrite leads_to_or_split; tla_split ];
       rewrite /h; tla_simp.
-    + lt_apply lock_cas_progress.
+    + lt_apply lock_cas_unlocked_progress.
     + lt_apply futex_wait_progress'.
       rewrite -combine_or_preds.
       rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
@@ -890,10 +904,10 @@ Proof.
       { lt_auto intuition auto.
         admit. (* need to remove requirement that lock = false *)
       }
-      lt_apply kernel_wait_progress.
+      lt_apply kernel_wait_unlocked_progress.
       lt_auto intuition eauto.
       admit. (* need to prove a more general kernel_wait progress theorem *)
-    + lt_apply kernel_wait_progress.
+    + lt_apply kernel_wait_unlocked_progress.
   - apply (leads_to_assume _ all_invs_ok).
     rewrite /h.
     lt_auto.
