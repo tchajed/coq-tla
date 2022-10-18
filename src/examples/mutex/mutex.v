@@ -995,7 +995,127 @@ Proof.
   { lt_auto naive_solver. }
 
   lt_intros.
+  (* TODO: why does this solve the goal? shouldn't we have to use the fact that
+  [t ∉ q]? *)
   lt_apply (queue_gets_popped_locked' W U t ts).
+Qed.
+
+Lemma kernel_wait_locked_progress' W U :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(state).(lock) = true ∧
+        s.(state).(queue) ≠ []⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
+Proof.
+  lt_apply kernel_wait_locked_progress.
+  rewrite -!combine_or_preds.
+  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+  rewrite -exist_state_pred. lt_intro t.
+  lt_apply lock_cas_unlocked_progress.
+Qed.
+
+Lemma futex_wait_progress'' t W U :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(tp) !! t = Some pc.futex_wait⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
+Proof.
+  lt_apply futex_wait_progress'.
+  rewrite -!combine_or_preds.
+  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+  lt_apply kernel_wait_locked_progress'.
+Qed.
+
+Lemma lock_cas_locked_progress t W U :
+  spec
+  ⊢ ⌜
+      λ s,
+      wait_set s.(tp) = W ∧
+      wake_set s.(tp) = U ∧
+      s.(state).(lock) = true ∧
+      s.(tp) !! t = Some pc.lock_cas ⌝ ~~>
+    ⌜ λ s, wait_set s.(tp) ⊂ W ∨
+          (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ⌝.
+Proof.
+  apply (leads_to_detour ⌜λ s, wait_set s.(tp) = W ∧
+                               (wake_set s.(tp) ⊂ U ∨
+                               s.(tp) !! t = Some pc.lock_cas ∧
+                                 s.(state).(lock) = false ∨
+                               wake_set s.(tp) = U ∧
+                                 s.(tp) !! t = Some pc.futex_wait)⌝);
+    lt_simp.
+  - apply (mutex_wf1 t); simpl; intros.
+    + destruct_step; stm.
+    + stm.
+    + naive_solver.
+  - rewrite -combine_state_preds.
+    rewrite -!combine_or_preds.
+    rewrite !tla_and_distr_l.
+    rewrite !combine_state_preds.
+    rewrite leads_to_or_split; tla_split.
+    { lt_auto. }
+    rewrite leads_to_or_split; tla_split.
+    { lt_apply lock_cas_unlocked_progress. }
+    lt_apply (futex_wait_progress'' t W U).
+Qed.
+
+Lemma lock_cas_progress t W U :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(tp) !! t = Some pc.lock_cas⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
+Proof.
+  apply (leads_to_if ⌜λ s, s.(state).(lock) = false⌝).
+  - lt_apply lock_cas_unlocked_progress.
+  - lt_apply lock_cas_locked_progress.
+    lt_unfold.
+    rewrite not_false_iff_true. naive_solver.
+Qed.
+
+Lemma kernel_wait_locked_queue_empty_progress' W U t :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(state).(lock) = true ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        s.(state).(queue) = []⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
+        wait_set s.(tp) = W ∧
+        ∃ t', s.(tp) !! t' = Some pc.lock_cas⌝.
+Proof.
+  apply (leads_to_detour ⌜λ s,
+             wait_set s.(tp) = W ∧
+              s.(state).(lock) = false ∧
+              s.(tp) !! t = Some pc.kernel_wait ∨
+              (wait_set s.(tp) = W ∧
+               wake_set s.(tp) = U ∧
+                s.(state).(queue) ≠ [] ∧
+                s.(state).(lock) = true)
+              ⌝);
+    lt_simp.
+  - apply (mutex_wf1 t); simpl; intros.
+    + destruct_step; stm.
+      eauto 10.
+    + stm.
+      simp_props.
+      right; right; right.
+      exists t; lookup_simp.
+    + stm_simp.
+      eauto with set_solver.
+  - rewrite -combine_or_preds.
+    rewrite leads_to_or_split; tla_split.
+    + lt_apply kernel_wait_unlocked_progress.
+    + lt_apply kernel_wait_locked_progress.
+      lt_auto naive_solver.
 Qed.
 
 Hint Constructors slexprod : core.
@@ -1061,24 +1181,10 @@ Proof.
       [ | rewrite leads_to_or_split; tla_split ];
       rewrite /h; tla_simp.
     + lt_apply lock_cas_unlocked_progress.
-    + lt_apply futex_wait_progress'.
-      rewrite -combine_or_preds.
-      rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-      rewrite -combine_or_preds.
-      rewrite leads_to_or_split; tla_split.
+    + lt_apply futex_wait_progress''.
       { lt_auto intuition auto.
         admit. (* need to remove requirement that lock = false *)
       }
-      lt_apply kernel_wait_locked_progress.
-      rewrite -combine_or_preds.
-      rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-      rewrite -combine_or_preds.
-      rewrite leads_to_or_split; tla_split.
-      { (* remove lock = false *)
-        lt_auto.
-        admit. }
-      rewrite -exist_state_pred. lt_intro t'.
-      lt_apply lock_cas_unlocked_progress.
     + lt_apply kernel_wait_unlocked_progress.
   - apply (leads_to_assume _ all_invs_ok).
     rewrite /h.
