@@ -788,6 +788,14 @@ Proof.
   lt_apply lock_cas_unlocked_progress.
 Qed.
 
+Lemma append_non_empty {A} (l: list A) (x: A) :
+  l ++ [x] ≠ [].
+Proof.
+  destruct l; simpl; congruence.
+Qed.
+
+Hint Resolve append_non_empty : core.
+
 Lemma futex_wait_progress' t W U :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
@@ -799,7 +807,8 @@ Lemma futex_wait_progress' t W U :
         (wait_set s.(tp) = W ∧
          wake_set s.(tp) = U ∧
          s.(tp) !! t = Some pc.kernel_wait ∧
-         s.(state).(lock) = true)⌝.
+         s.(state).(lock) = true ∧
+         s.(state).(queue) ≠ [])⌝.
 Proof.
   apply (leads_to_detour
            (⌜λ s, wait_set s.(tp) = W ∧
@@ -813,25 +822,181 @@ Proof.
     - destruct_step; stm.
     - stm.
       destruct l0; stm.
+      eauto 10.
     - naive_solver. }
   rewrite leads_to_or_split; tla_split.
-  - lt_apply lock_cas_locked_progress.
+  - lt_apply lock_cas_unlocked_progress.
   - lt_apply futex_wait_unlocked_progress.
 Qed.
 
-Lemma kernel_wait_locked_progress W U t :
+Lemma queue_gets_popped_locked' W U t ts :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(state).(queue) = t :: ts ∧
+        s.(state).(lock) = true⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧
+        wake_set s.(tp) ⊂ U (* this is when s.(state).(lock) = true *)) ∨
+      (wait_set s.(tp) = W ∧
+       (∃ ts', s.(state).(queue) = ts ++ ts') ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        t ∉ s.(state).(queue) ∧
+       s.(state).(lock) = false) ⌝.
+Proof.
+  rewrite /waiters_are.
+  leads_to_trans (∃ t', ⌜λ s,
+        wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧
+                t ∉ ts ++ ts') ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        s.(state).(lock) = true ∧
+        lock_held s t'⌝)%L.
+  - apply (leads_to_assume _ all_invs_ok).
+    lt_unfold.
+    intros [(?&?&?&?) Hinv].
+    destruct Hinv as [_ Hlocked Hnodup Hwaiting _];
+      autounfold with inv in *.
+    destruct s as [[l q] ?]; simpl in *; subst.
+    destruct Hlocked as [t' ?]; eauto.
+    exists t'; intuition eauto.
+    { exists nil; rewrite app_nil_r. split; first by eauto.
+      apply NoDup_cons_inv in Hnodup; intuition auto. }
+  - lt_intros.
+    unfold lock_held.
+
+(*|
+This "detour" is actually really interesting: you might think that simple transitivity is enough, because if t' has the lock, it will release the lock, then signal to t (transitivity is needed because this is two steps from thread t'). However, this is _not_ the case. It is possible for t' to release the lock, and then for some other thread to happen to do a CAS, acquire the lock, unlock it, and then send the signal to t; the original t' will now signal some other thread. This is unusual because t' is trying to signal something to t but some unrelated thread swoops in and does it instead, many steps later.
+|*)
+    apply (leads_to_detour ⌜λ s,
+      wait_set s.(tp) = W ∧
+      (∃ ts' : list Tid, s.(state).(queue) = t :: ts ++ ts') ∧
+      s.(tp) !! t = Some pc.kernel_wait ∧
+       s.(tp) !! t' = Some pc.unlock_wake ∧
+      s.(state).(lock) = false⌝).
+
+    { tla_simp.
+      apply (mutex_wf1 t'); cbn.
+      - intro t''; intros.
+        (* extract the invariants we want to use *)
+        destruct Hinv as [Hexclusion _ Hnodup _ _];
+          destruct Hinv' as [_ _ Hnodup' _ _];
+          autounfold with inv in *; simpl in *.
+        destruct Hexclusion as [_ Hsafe].
+        stm_simp.
+
+        destruct_step; stm_simp; eauto 8.
+        + left; intuition eauto.
+        + left; intuition eauto.
+          eexists (_ ++ [t'']).
+          rewrite !app_assoc; split; first by eauto.
+          rewrite NoDup_cons_inv in Hnodup Hnodup'.
+          rewrite elem_of_app elem_of_list_singleton; intuition subst.
+          rewrite NoDup_cons_inv NoDup_app1 in Hnodup'.
+          set_solver+ Hnodup'.
+        + assert (t'' ≠ t) by set_solver.
+          stm.
+        + assert (t' = t'').
+          { apply Hsafe; eauto. }
+          exfalso; congruence.
+      - stm.
+      - stm.
+        eexists; split; first by eauto.
+        intuition congruence. }
+
+    { apply (mutex_wf1 t'); cbn.
+      - intro t''; intros.
+        destruct Hinv as [_ _  Hnodup _ _];
+          autounfold with inv in *; simpl in *.
+        stm_simp.
+
+        destruct_step; stm.
+        + assert (t'' ≠ t) by set_solver.
+          stm.
+        + simp_props.
+          right; right; right.
+          apply NoDup_head_not_in in Hnodup; eauto.
+      - intros.
+        stm.
+        destruct Hinv as [_ _ Hnodup _ _];
+          autounfold with inv in *; simpl in *.
+        apply NoDup_head_not_in in Hnodup; eauto 10.
+      - intros.
+        stm.
+        eexists; split; first by eauto.
+        intuition congruence. }
+Qed.
+
+Lemma kernel_wait_not_queued_progress' W U t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
-        s.(state).(lock) = true⌝ ~~>
+        t ∉ s.(state).(queue) ∧
+        s.(state).(lock) = false
+  ⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
-        (∃ t', wait_set s.(tp) = W ∧
-               s.(tp) !! t' = Some pc.lock_cas ∧
-               s.(state).(lock) = false)⌝.
+        wait_set s.(tp) = W ∧
+          s.(tp) !! t = Some pc.lock_cas ∧
+          s.(state).(lock) = false
+  ⌝.
 Proof.
-Abort.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct Hpre as (Hwait & Ht & Hnotin); subst.
+    destruct_step; stm; simp_props.
+    + exfalso.
+      destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in *.
+      apply Hexcl in Hlookup; congruence.
+  - stm.
+  - naive_solver.
+Qed.
+
+Lemma kernel_wait_locked_progress W U :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        (* the fact that the queue is non-empty implies some thread is waiting
+        (in fact the one that matters is only the head of the queue) *)
+        s.(state).(lock) = true ∧
+        s.(state).(queue) ≠ []⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
+        (∃ t, wait_set s.(tp) = W ∧
+              s.(tp) !! t = Some pc.lock_cas ∧
+              s.(state).(lock) = false)⌝.
+Proof.
+  leads_to_trans (∃ t,
+                      ⌜λ s, wait_set s.(tp) = W ∧
+                            wake_set s.(tp) = U ∧
+                            s.(tp) !! t = Some pc.kernel_wait ∧
+                            (∃ ts, s.(state).(queue) = t::ts) ∧
+                            s.(state).(lock) = true⌝)%L.
+  { apply (leads_to_assume _ all_invs_ok); tla_simp.
+    lt_unfold. intros [(?&?&?&?) [_ _ _ Hwait _]].
+    autounfold with inv in *.
+    stm_simp.
+    destruct q as [|t ts]; [ congruence | ].
+    eauto 10.
+  }
+  lt_intros.
+  apply (leads_to_detour ⌜λ s, wait_set s.(tp) = W ∧
+                                s.(tp) !! t = Some pc.kernel_wait ∧
+                                s.(state).(lock) = false⌝);
+    lt_simp.
+  2: { by lt_apply kernel_wait_unlocked_progress. }
+
+  leads_to_trans (∃ ts, ⌜λ s,
+                   wait_set s.(tp) = W ∧
+                   wake_set s.(tp) = U ∧
+                   s.(state).(queue) = t :: ts ∧
+                   s.(state).(lock) = true⌝)%L.
+  { lt_auto naive_solver. }
+
+  lt_intros.
+  lt_apply (queue_gets_popped_locked' W U t ts).
+Qed.
 
 Hint Constructors slexprod : core.
 
@@ -904,9 +1069,16 @@ Proof.
       { lt_auto intuition auto.
         admit. (* need to remove requirement that lock = false *)
       }
-      lt_apply kernel_wait_unlocked_progress.
-      lt_auto intuition eauto.
-      admit. (* need to prove a more general kernel_wait progress theorem *)
+      lt_apply kernel_wait_locked_progress.
+      rewrite -combine_or_preds.
+      rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+      rewrite -combine_or_preds.
+      rewrite leads_to_or_split; tla_split.
+      { (* remove lock = false *)
+        lt_auto.
+        admit. }
+      rewrite -exist_state_pred. lt_intro t'.
+      lt_apply lock_cas_unlocked_progress.
     + lt_apply kernel_wait_unlocked_progress.
   - apply (leads_to_assume _ all_invs_ok).
     rewrite /h.
