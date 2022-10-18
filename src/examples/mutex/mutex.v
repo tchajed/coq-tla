@@ -678,6 +678,8 @@ Qed.
 Lemma wake_threads_decrease U :
   U ≠ ∅ →
   spec ⊢
+  (* without lock = false, this proof needs to first show the lock is released
+  (and this proof has to be repeated to preserve [wake_set = U]) *)
   ⌜λ s, s.(state).(lock) = false ∧
         wait_set s.(tp) = ∅ ∧
         wake_set s.(tp) = U⌝ ~~>
@@ -718,6 +720,11 @@ Lemma eventually_no_waiters :
         ∀ t pc, s.(tp) !! t = Some pc →
                 pc = pc.finished⌝.
 Proof.
+  (* TODO: h need not have the lock being free
+
+  we need to handle kernel_wait ∧ l = true anyway, we're already handling
+  futex_wait with any lock state, and finally lock_cas ∧ l = true will go to one of those
+   *)
   set (h := λ '(W, U) s, wait_set s.(tp) = W ∧
                          wake_set s.(tp) = U ∧
                          s.(state).(lock) = false).
