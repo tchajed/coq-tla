@@ -187,58 +187,58 @@ Wake set
 ===========
 |*)
 
-Definition wake_set (tp: gmap Tid pc.t) : gset Tid :=
+Definition signal_set (tp: gmap Tid pc.t) : gset Tid :=
   dom (filter (λ '(_, pc), pc = pc.unlock_wake) tp).
 
-Lemma elem_wake_set tp t :
-  t ∈ wake_set tp ↔ tp !! t = Some pc.unlock_wake.
+Lemma elem_signal_set tp t :
+  t ∈ signal_set tp ↔ tp !! t = Some pc.unlock_wake.
 Proof.
-  rewrite /wake_set.
+  rewrite /signal_set.
   rewrite elem_of_dom filter_is_Some. naive_solver.
 Qed.
 
-Lemma elem_wake_set_2 tp t :
+Lemma elem_signal_set_2 tp t :
   tp !! t = Some pc.unlock_wake →
-  t ∈ wake_set tp.
+  t ∈ signal_set tp.
 Proof.
-  apply elem_wake_set.
+  apply elem_signal_set.
 Qed.
 
-Lemma not_elem_wake_set tp t pc :
+Lemma not_elem_signal_set tp t pc :
   tp !! t = Some pc →
   pc ≠ pc.unlock_wake →
-  t ∉ wake_set tp.
+  t ∉ signal_set tp.
 Proof.
-  rewrite elem_wake_set.
+  rewrite elem_signal_set.
   naive_solver.
 Qed.
 
 #[export]
-Hint Resolve elem_wake_set_2 not_elem_wake_set : core.
+Hint Resolve elem_signal_set_2 not_elem_signal_set : core.
 
-Lemma wake_set_remove tp t pc' :
+Lemma signal_set_remove tp t pc' :
   pc' ≠ pc.unlock_wake →
-  wake_set (<[t := pc']> tp) = wake_set tp ∖ {[t]}.
+  signal_set (<[t := pc']> tp) = signal_set tp ∖ {[t]}.
 Proof.
   intros.
   apply gset_ext => t'.
-  rewrite /wake_set. rewrite elem_of_difference !elem_of_dom !filter_is_Some.
+  rewrite /signal_set. rewrite elem_of_difference !elem_of_dom !filter_is_Some.
   rewrite elem_of_singleton.
   destruct (decide (t = t')); lookup_simp; naive_solver.
 Qed.
 
 #[export]
-Hint Rewrite wake_set_remove using (by auto) : pc.
+Hint Rewrite signal_set_remove using (by auto) : pc.
 
-Lemma wake_set_add tp t :
-  wake_set (<[t := pc.unlock_wake]> tp) = wake_set tp ∪ {[t]}.
+Lemma signal_set_add tp t :
+  signal_set (<[t := pc.unlock_wake]> tp) = signal_set tp ∪ {[t]}.
 Proof.
   intros.
   apply gset_ext => t'.
-  rewrite /wake_set. rewrite elem_of_union !elem_of_dom !filter_is_Some.
+  rewrite /signal_set. rewrite elem_of_union !elem_of_dom !filter_is_Some.
   rewrite elem_of_singleton.
   destruct (decide (t = t')); lookup_simp; naive_solver.
 Qed.
 
 #[export]
-Hint Rewrite wake_set_add : pc.
+Hint Rewrite signal_set_add : pc.

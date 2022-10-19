@@ -254,18 +254,18 @@ Lemma gset_subset_wf :
   well_founded  ((⊂) : gset Tid → gset Tid → Prop).
 Proof. apply set_wf. Qed.
 
-Lemma wake_threads_decrease_unlocked U :
-  U ≠ ∅ →
+Lemma signal_threads_decrease_unlocked S :
+  S ≠ ∅ →
   spec ⊢
   ⌜λ s, wait_set s.(tp) = ∅ ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         s.(state).(lock) = false⌝ ~~>
   ⌜λ s, wait_set s.(tp) = ∅ ∧
-        wake_set s.(tp) ⊂ U ∧
+        signal_set s.(tp) ⊂ S ∧
         s.(state).(lock) = false⌝.
 Proof.
   intros Hnotempty.
-  assert (∃ t, t ∈ U) as [t Hel].
+  assert (∃ t, t ∈ S) as [t Hel].
   { apply set_choose_L in Hnotempty; naive_solver. }
   apply (mutex_wf1 t); simpl; intros.
   - stm_simp.
@@ -277,32 +277,32 @@ Proof.
     + destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in Hexcl.
       apply Hexcl in Hlookup; congruence.
   - stm_simp.
-    apply elem_wake_set in Hel.
+    apply elem_signal_set in Hel.
     stm_simp.
     intuition eauto.
   - stm_simp.
-    apply elem_wake_set in Hel.
+    apply elem_signal_set in Hel.
     naive_solver.
 Qed.
 
-Lemma wake_threads_empty :
+Lemma signal_threads_empty :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = ∅⌝ ~~>
   ⌜λ s, wait_set s.(tp) = ∅ ∧
-        wake_set s.(tp) = ∅ ∧
+        signal_set s.(tp) = ∅ ∧
         s.(state).(lock) = false⌝.
 Proof.
   leads_to_trans ⌜λ s, wait_set s.(tp) = ∅ ∧
                        s.(state).(lock) = false⌝.
   { apply eventually_unlock. }
-  set (h U s := wait_set s.(tp) = ∅ ∧
+  set (h S s := wait_set s.(tp) = ∅ ∧
                 s.(state).(lock) = false ∧
-                wake_set s.(tp) = U).
+                signal_set s.(tp) = S).
   lt_apply (lattice_leads_to_ex gset_subset_wf h ∅);
     rewrite /h.
   - lt_auto naive_solver.
-  - intros U Hnonempty.
-    lt_apply wake_threads_decrease_unlocked; auto.
+  - intros S Hnonempty.
+    lt_apply signal_threads_decrease_unlocked; auto.
     lt_auto intuition eauto 10.
   - lt_auto naive_solver.
 Qed.
@@ -334,16 +334,16 @@ Qed.
 
 Hint Resolve append_non_empty : core.
 
-Lemma futex_wait_progress1 t W U :
+Lemma futex_wait_progress1 t W S :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         s.(tp) !! t = Some pc.futex_wait⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧
-         wake_set s.(tp) ⊂ U) ∨
+         signal_set s.(tp) ⊂ S) ∨
         (wait_set s.(tp) = W ∧
-         wake_set s.(tp) = U ∧
+         signal_set s.(tp) = S ∧
          s.(tp) !! t = Some pc.kernel_wait ∧
          s.(state).(lock) = true ∧
          s.(state).(queue) ≠ [])⌝.
@@ -367,15 +367,15 @@ Proof.
   - lt_apply futex_wait_unlocked_progress.
 Qed.
 
-Lemma queue_gets_popped_locked W U t :
+Lemma queue_gets_popped_locked W S t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         (∃ ts, s.(state).(queue) = t :: ts) ∧
         s.(state).(lock) = true⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
        (wait_set s.(tp) = W ∧
-        wake_set s.(tp) ⊂ U) ∨
+        signal_set s.(tp) ⊂ S) ∨
       (wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         t ∉ s.(state).(queue) ∧
@@ -383,7 +383,7 @@ Lemma queue_gets_popped_locked W U t :
 Proof.
   leads_to_trans (∃ t', ⌜λ s,
         wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         (∃ ts, s.(state).(queue) = t :: ts ∧
                 t ∉ ts) ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
@@ -460,20 +460,20 @@ This "detour" is actually really interesting: you might think that simple transi
         intuition congruence. }
 Qed.
 
-Lemma kernel_wait_locked_progress W U :
+Lemma kernel_wait_locked_progress W S :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         (* the fact that the queue is non-empty implies some thread is waiting
         (in fact the one that matters is only the head of the queue) *)
         s.(state).(lock) = true ∧
         s.(state).(queue) ≠ []⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ⌝.
+        (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S) ⌝.
 Proof.
   leads_to_trans (∃ t,
                       ⌜λ s, wait_set s.(tp) = W ∧
-                            wake_set s.(tp) = U ∧
+                            signal_set s.(tp) = S ∧
                             s.(tp) !! t = Some pc.kernel_wait ∧
                             (∃ ts, s.(state).(queue) = t::ts) ∧
                             s.(state).(lock) = true⌝)%L.
@@ -494,13 +494,13 @@ Proof.
   lt_apply queue_gets_popped_locked.
 Qed.
 
-Lemma futex_wait_progress t W U :
+Lemma futex_wait_progress t W S :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         s.(tp) !! t = Some pc.futex_wait⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
+        (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S)⌝.
 Proof.
   lt_apply futex_wait_progress1.
   lt_split; first by lt_auto.
@@ -508,22 +508,22 @@ Proof.
   lt_apply kernel_wait_locked_progress.
 Qed.
 
-Lemma lock_cas_locked_progress t W U :
+Lemma lock_cas_locked_progress t W S :
   spec
   ⊢ ⌜
       λ s,
       wait_set s.(tp) = W ∧
-      wake_set s.(tp) = U ∧
+      signal_set s.(tp) = S ∧
       s.(state).(lock) = true ∧
       s.(tp) !! t = Some pc.lock_cas ⌝ ~~>
     ⌜ λ s, wait_set s.(tp) ⊂ W ∨
-          (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ⌝.
+          (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S) ⌝.
 Proof.
   apply (leads_to_detour ⌜λ s, wait_set s.(tp) = W ∧
-                               (wake_set s.(tp) ⊂ U ∨
+                               (signal_set s.(tp) ⊂ S ∨
                                s.(tp) !! t = Some pc.lock_cas ∧
                                  s.(state).(lock) = false ∨
-                               wake_set s.(tp) = U ∧
+                               signal_set s.(tp) = S ∧
                                  s.(tp) !! t = Some pc.futex_wait)⌝);
     lt_simp.
   - apply (mutex_wf1 t); simpl; intros.
@@ -534,33 +534,33 @@ Proof.
     lt_split; first by lt_auto.
     lt_split.
     { lt_apply lock_cas_unlocked_progress. }
-    lt_apply (futex_wait_progress t W U).
+    lt_apply (futex_wait_progress t W S).
 Qed.
 
-Lemma lock_cas_progress t W U :
+Lemma lock_cas_progress t W S :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         s.(tp) !! t = Some pc.lock_cas⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
+        (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S)⌝.
 Proof.
   apply leads_to_if_lock.
   - lt_apply lock_cas_unlocked_progress.
   - lt_apply lock_cas_locked_progress.
 Qed.
 
-Lemma kernel_wait_locked_queue_empty_progress W U t :
+Lemma kernel_wait_locked_queue_empty_progress W S t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         s.(state).(lock) = true ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(queue) = []⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
+        (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S) ∨
         wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         ∃ t', s.(tp) !! t' = Some pc.lock_cas⌝.
 Proof.
   apply (leads_to_detour ⌜λ s,
@@ -568,7 +568,7 @@ Proof.
               s.(state).(lock) = false ∧
               s.(tp) !! t = Some pc.kernel_wait ∨
               (wait_set s.(tp) = W ∧
-               wake_set s.(tp) = U ∧
+               signal_set s.(tp) = S ∧
                 s.(state).(queue) ≠ [] ∧
                 s.(state).(lock) = true)
               ⌝);
@@ -587,13 +587,13 @@ Proof.
     + lt_apply kernel_wait_locked_progress.
 Qed.
 
-Lemma kernel_wait_progress W U t :
+Lemma kernel_wait_progress W S t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
+        signal_set s.(tp) = S ∧
         s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
+        (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S)⌝.
 Proof.
   apply leads_to_if_lock.
   { lt_apply kernel_wait_unlocked_progress. }
@@ -604,7 +604,7 @@ Proof.
     lt_simp.
     leads_to_trans (∃ t',
                        ⌜λ s, wait_set s.(tp) = W ∧
-                             wake_set s.(tp) = U ∧
+                             signal_set s.(tp) = S ∧
                              s.(tp) !! t' = Some pc.lock_cas⌝)%L.
     { lt_auto naive_solver. }
     lt_intros.
@@ -612,21 +612,21 @@ Proof.
   - lt_apply kernel_wait_locked_progress.
 Qed.
 
-Lemma empty_wait_wake_to_unlock :
+Lemma empty_wait_signal_to_unlock :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = ∅ ∧
-        wake_set s.(tp) = ∅⌝ ~~>
+        signal_set s.(tp) = ∅⌝ ~~>
   ⌜λ s, wait_set s.(tp) = ∅ ∧
-        wake_set s.(tp) = ∅ ∧
+        signal_set s.(tp) = ∅ ∧
         s.(state).(lock) = false⌝.
 Proof.
-  lt_apply wake_threads_empty.
+  lt_apply signal_threads_empty.
 Qed.
 
-Lemma empty_wait_wake_to_terminated :
+Lemma empty_wait_signal_to_terminated :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = ∅ ∧
-        wake_set s.(tp) = ∅ ∧
+        signal_set s.(tp) = ∅ ∧
         s.(state).(lock) = false⌝ ~~>
   ⌜terminated⌝.
 Proof.
@@ -642,17 +642,17 @@ Proof.
     * destruct Hinv as [[Hexcl _] _ _ _ _].
       apply Hexcl in H.
       exfalso; congruence.
-    * assert (t ∈ wake_set s.(tp)) by eauto.
+    * assert (t ∈ signal_set s.(tp)) by eauto.
       exfalso; set_solver.
 Qed.
 
-Lemma any_wait_progress W U t :
+Lemma any_wait_progress W S t :
   spec ⊢
-  (⌜ λ s, wait_set s.(tp) = W ∧ wake_set s.(tp) = U ⌝ ∧
+  (⌜ λ s, wait_set s.(tp) = W ∧ signal_set s.(tp) = S ⌝ ∧
    (⌜ λ s, s.(tp) !! t = Some pc.lock_cas ⌝ ∨
     ⌜ λ s, s.(tp) !! t = Some pc.futex_wait ⌝ ∨
     ⌜ λ s, s.(tp) !! t = Some pc.kernel_wait ⌝)) ~~>
-  ⌜ λ s, wait_set s.(tp) ⊂ W ∨ wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U ⌝.
+  ⌜ λ s, wait_set s.(tp) ⊂ W ∨ wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S ⌝.
 Proof.
   lt_split; [ | lt_split ]; tla_simp.
   - lt_apply lock_cas_progress.
@@ -668,8 +668,10 @@ Proof.
   apply (leads_to_apply ⌜λ s, True⌝).
   { unseal. }
 
-  set (h := λ '(W, U) s, wait_set s.(tp) = W ∧
-                         wake_set s.(tp) = U).
+  set (h := λ (WS: gset Tid * gset Tid) s,
+         let (W, S) := WS in
+         wait_set s.(tp) = W ∧
+           signal_set s.(tp) = S).
   lt_apply (lattice_leads_to_ex
               (wf_slexprod _ _ _ _ gset_subset_wf gset_subset_wf)
               h (∅, ∅)).
@@ -678,20 +680,20 @@ Proof.
     intros.
     eexists (_, _); intuition eauto.
 
-  - intros [W U] Hnot_bothempty.
+  - intros [W S] Hnot_bothempty.
 
 (*|
 Handle the case where W = ∅ separately.
   |*)
-    assert ((W = ∅ ∧ U ≠ ∅) ∨ W ≠ ∅) as [[-> Hnonempty]|Hnonempty].
-    { destruct (decide (W = ∅)); destruct (decide (U = ∅)); subst; eauto. }
-    { rewrite /h. lt_apply wake_threads_empty.
+    assert ((W = ∅ ∧ S ≠ ∅) ∨ W ≠ ∅) as [[-> Hnonempty]|Hnonempty].
+    { destruct (decide (W = ∅)); destruct (decide (S = ∅)); subst; eauto. }
+    { rewrite /h. lt_apply signal_threads_empty.
       lt_auto naive_solver. }
 
     assert (∃ t, t ∈ W) as [t Hel].
     { apply set_choose_L in Hnonempty; naive_solver. }
 
-    leads_to_trans (⌜h (W, U)⌝ ∧
+    leads_to_trans (⌜h (W, S)⌝ ∧
                     (⌜λ s, s.(tp) !! t = Some pc.lock_cas⌝ ∨
                     ⌜λ s, s.(tp) !! t = Some pc.futex_wait⌝ ∨
                     ⌜λ s, s.(tp) !! t = Some pc.kernel_wait⌝))%L.
@@ -703,8 +705,8 @@ Handle the case where W = ∅ separately.
     lt_auto naive_solver.
 
   - rewrite /h.
-    lt_apply empty_wait_wake_to_unlock.
-    lt_apply empty_wait_wake_to_terminated.
+    lt_apply empty_wait_signal_to_unlock.
+    lt_apply empty_wait_signal_to_terminated.
 
 Qed.
 

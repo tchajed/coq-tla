@@ -180,30 +180,30 @@ Lemma __eventually_no_wake_threads W :
         s.(state).(lock) = true ∧
         no_wake_threads s.(tp)⌝.
 Proof.
-  set (h U s := wait_set s.(tp) ⊂ W ∨
+  set (h S s := wait_set s.(tp) ⊂ W ∨
                 s.(state).(lock) = false ∨
                 wait_set s.(tp) = W ∧
-                wake_set s.(tp) = U ∧
+                signal_set s.(tp) = S ∧
                 s.(state).(lock) = true
       ).
   lt_apply (lattice_leads_to_ex gset_subset_wf h ∅).
   - lt_auto.
     rewrite /h. destruct s.(state).(lock); eauto. naive_solver.
-  - intros U Hnotempty.
+  - intros S Hnotempty.
     rewrite /h.
-    assert (∃ t, t ∈ U) as [t Hel].
+    assert (∃ t, t ∈ S) as [t Hel].
     { apply set_choose_L in Hnotempty; naive_solver. }
     leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W ∨
                      s.(state).(lock) = false ∨
-                    ∃ U', U' ⊂ U ∧
+                    ∃ U', U' ⊂ S ∧
                             wait_set s.(tp) = W ∧
-                            wake_set s.(tp) = U' ∧
+                            signal_set s.(tp) = U' ∧
                             s.(state).(lock) = true⌝).
     2: { lt_auto naive_solver. }
     leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W⌝ ∨
                     ⌜λ s, s.(state).(lock) = false⌝ ∨
                     ⌜λ s, wait_set s.(tp) = W ∧
-                          wake_set s.(tp) = U ∧
+                          signal_set s.(tp) = S ∧
                           s.(state).(lock) = true⌝
                    )%L.
     { lt_auto naive_solver. }
@@ -211,17 +211,17 @@ Proof.
     lt_split; first by lt_auto.
     apply (mutex_wf1 t); simpl; intros.
     + destruct_step; stm.
-      * assert (t' ∈ wake_set tp) by eauto.
+      * assert (t' ∈ signal_set tp) by eauto.
         assert (t' ∉ wait_set tp) by eauto.
         right; right; right.
         eexists; intuition eauto.
     + stm_simp.
-      apply elem_wake_set in Hel.
+      apply elem_signal_set in Hel.
       stm_simp.
       right; right.
       eexists; intuition eauto.
     + stm_simp.
-      apply elem_wake_set in Hel.
+      apply elem_signal_set in Hel.
       naive_solver.
   - rewrite /h /no_wake_threads.
     lt_auto.
@@ -229,7 +229,7 @@ Proof.
     right; right.
     intuition eauto.
     subst.
-    assert (t ∈ wake_set s.(tp)) by eauto.
+    assert (t ∈ signal_set s.(tp)) by eauto.
     set_solver.
 
     Unshelve.
