@@ -300,13 +300,12 @@ Proof.
                     s.(state).(lock) = false ∧
                     thread_can_lock t' s
                    ⌝)%L.
-  { rewrite exist_state_pred.
-    apply pred_leads_to.
-    move => [[l q] tp] /= [[Hwaiters [? ?]] Hcan_lock]; simpl; subst.
+  { lt_unfold.
+    destruct s as [[l q] tp].
+    move => /= [[Hwaiters [? ?]] Hcan_lock]; simpl; subst.
     specialize (Hcan_lock _ _ ltac:(eauto)); stm. }
 
   lt_intro.
-
   apply (leads_to_detour
     ⌜λ s, wait_set s.(tp) = W ∧
          s.(state).(queue) = t::ts ∧
@@ -433,7 +432,7 @@ Proof.
                 s.(state).(lock) = false⌝
         )%L.
       { lt_auto naive_solver. }
-      rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+      lt_split; first by lt_auto.
 
       leads_to_trans (∃ W' (_: W' ⊆ W),
                          ⌜λ s, wait_set s.(tp) = W' ∧
@@ -461,9 +460,8 @@ Lemma kernel_wait_unlocked_progress W t :
 Proof.
   leads_to_etrans.
   { apply kernel_wait_unlocked_progress1. }
-  rewrite -combine_or_preds.
-  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-  rewrite -exist_state_pred. lt_intro t'.
+  lt_split; first by lt_auto.
+  lt_intro t'.
   lt_apply lock_cas_unlocked_progress.
 Qed.
 
@@ -515,8 +513,8 @@ Proof.
                           s.(state).(lock) = true⌝
                    )%L.
     { lt_auto naive_solver. }
-    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+    lt_split; first by lt_auto.
+    lt_split; first by lt_auto.
     apply (mutex_wf1 t); simpl; intros.
     + destruct_step; stm.
       * assert (t' ∈ wake_set tp) by eauto.
@@ -652,7 +650,7 @@ Proof.
       destruct l0; stm.
       eauto 10.
     - naive_solver. }
-  rewrite leads_to_or_split; tla_split.
+  lt_split.
   - lt_apply lock_cas_unlocked_progress.
   - lt_apply futex_wait_unlocked_progress.
 Qed.
@@ -813,10 +811,10 @@ Lemma kernel_wait_locked_progress W U :
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
 Proof.
   lt_apply kernel_wait_locked_progress1.
-  rewrite -!combine_or_preds.
-  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-  rewrite -exist_state_pred. lt_intro t.
+  lt_split; first by lt_auto.
+  lt_split; first by lt_auto.
+  lt_simp.
+  lt_intro t.
   lt_apply lock_cas_unlocked_progress.
 Qed.
 
@@ -829,9 +827,8 @@ Lemma futex_wait_progress t W U :
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
 Proof.
   lt_apply futex_wait_progress1.
-  rewrite -!combine_or_preds.
-  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-  rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+  lt_split; first by lt_auto.
+  lt_split; first by lt_auto.
   lt_apply kernel_wait_locked_progress.
 Qed.
 
@@ -858,12 +855,8 @@ Proof.
     + stm.
     + naive_solver.
   - rewrite -combine_state_preds.
-    rewrite -!combine_or_preds.
-    rewrite !tla_and_distr_l.
-    rewrite !combine_state_preds.
-    rewrite leads_to_or_split; tla_split.
-    { lt_auto. }
-    rewrite leads_to_or_split; tla_split.
+    lt_split; first by lt_auto.
+    lt_split.
     { lt_apply lock_cas_unlocked_progress. }
     lt_apply (futex_wait_progress t W U).
 Qed.
@@ -915,8 +908,7 @@ Proof.
       exists t; lookup_simp.
     + stm_simp.
       eauto with set_solver.
-  - rewrite -combine_or_preds.
-    rewrite leads_to_or_split; tla_split.
+  - lt_split.
     + lt_apply kernel_wait_unlocked_progress.
     + lt_apply kernel_wait_locked_progress.
 Qed.
@@ -936,9 +928,8 @@ Proof.
   }
   apply (leads_to_if ⌜λ s, s.(state).(queue) = []⌝); lt_simp.
   - lt_apply kernel_wait_locked_queue_empty_progress.
-    rewrite -!combine_or_preds.
-    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+    lt_split; first by lt_auto.
+    lt_split; first by lt_auto.
     lt_simp.
     leads_to_trans (∃ t',
                        ⌜λ s, wait_set s.(tp) = W ∧
@@ -1019,9 +1010,7 @@ Proof.
                           (wait_set s.(tp) = W ∧
                            wake_set s.(tp) ⊂ U)⌝).
     2: by lt_auto naive_solver.
-    rewrite !tla_and_distr_l.
-    rewrite leads_to_or_split; tla_split;
-      [ | rewrite leads_to_or_split; tla_split ];
+    lt_split; [ | lt_split ];
       rewrite /h; tla_simp.
     + lt_apply lock_cas_progress.
     + lt_apply futex_wait_progress.

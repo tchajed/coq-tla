@@ -165,12 +165,23 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma leads_to_assume (q: predicate) {p r φ: predicate} :
+Lemma leads_to_state_pred_split Γ (P Q: Σ → Prop) φ :
+  (Γ ⊢ ⌜P⌝ ~~> φ) →
+  (Γ ⊢ ⌜Q⌝ ~~> φ) →
+  Γ ⊢ ⌜λ s, P s ∨ Q s⌝ ~~> φ.
+Proof.
+  intros HP HQ.
+  rewrite -combine_or_preds.
+  rewrite leads_to_or_split.
+  apply entails_and; auto.
+Qed.
+
+Lemma leads_to_assume (q: predicate) {p Γ φ: predicate} :
   (* side condition *)
-  (r ⊢ □ q) →
+  (Γ ⊢ □ q) →
   (* continue proof with q in the leads_to premise *)
-  (r ⊢ (p ∧ q) ~~> φ) →
-  (r ⊢ p ~~> φ).
+  (Γ ⊢ (p ∧ q) ~~> φ) →
+  (Γ ⊢ p ~~> φ).
 Proof.
   rewrite /leads_to.
   intros H Hleads_to.
@@ -509,17 +520,38 @@ Tactic Notation "lt_eapply" constr(lem) :=
   [ try solve [ lt_auto intuition eauto ] |
     try solve [ lt_auto intuition eauto ] | .. ].
 
-Tactic Notation "lt_intro" :=
-  match goal with
+Ltac lt_intro1 :=
+  lazymatch goal with
+  | |- _ ⊢ state_pred (λ _, ex (λ H, _)) ~~> _ =>
+      rewrite -exist_state_pred;
+      let x := fresh H in
+      apply leads_to_exist_intro; intro x
   | |- _ ⊢ (tla_exist (λ H, _)) ~~> _ =>
       let x := fresh H in
       apply leads_to_exist_intro; intro x
   end.
 
+Tactic Notation "lt_intro" := lt_intro1.
+Ltac lt_intros := repeat lt_intro1.
+
 Tactic Notation "lt_intro" ident(x) :=
   match goal with
+  | |- _ ⊢ state_pred (λ _, ex (λ H, _)) ~~> _ =>
+      rewrite -exist_state_pred;
+      apply leads_to_exist_intro; intro x
   | |- _ ⊢ (tla_exist (λ _, _)) ~~> _ =>
       apply leads_to_exist_intro; intro x
   end.
 
-Ltac lt_intros := repeat lt_intro.
+Ltac lt_split_or :=
+  lazymatch goal with
+  | |- _ ⊢ (state_pred (fun _ => tla_or _ _)) ~~> _ =>
+      apply leads_to_state_pred_split
+  | |- _ ⊢ (tla_or _ _) ~~> _ =>
+      rewrite leads_to_or_split; tla_split
+  | |- _ ⊢ _ ~~> _ =>
+    rewrite -?combine_or_preds ?tla_and_distr_l ?tla_and_distr_r;
+    rewrite leads_to_or_split; tla_split
+  end.
+
+Tactic Notation "lt_split" := lt_split_or.
