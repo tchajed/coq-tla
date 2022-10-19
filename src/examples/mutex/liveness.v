@@ -87,11 +87,41 @@ Proof.
   lt_unfold. rewrite not_true_iff_false //.
 Qed.
 
+Lemma all_invs_unlock_store q tp t :
+  all_invs {| state := {| lock := false; queue := q; |}; tp := tp; |} →
+  tp !! t = Some pc.unlock_store →
+  False.
+Proof.
+  destruct 1 as [[Hexcl _] _ _ _ _]; simpl in *.
+  intros H%Hexcl.
+  congruence.
+Qed.
+
+Lemma all_invs_nodup {l t q tp} :
+  all_invs {| state := {| lock := l; queue := t::q; |}; tp := tp |} →
+  t ∉ q.
+Proof.
+  destruct 1 as [_ _ Hnodup _ _]; autounfold with inv in *; simpl in *.
+  apply NoDup_head_not_in in Hnodup; auto.
+Qed.
+
 Lemma list_elem_of_head {A} (l: list A) (x: A) :
   x ∈ x::l.
 Proof. set_solver. Qed.
 
 Hint Resolve list_elem_of_head : core.
+
+Lemma unlock_store_progress W t :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧ s.(tp) !! t = Some pc.unlock_store⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = W ∧ s.(state).(lock) = false⌝.
+Proof.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct_step; stm.
+    exfalso; eauto using all_invs_unlock_store.
+  - stm.
+  - naive_solver.
+Qed.
 
 Lemma eventually_unlock W :
   spec ⊢
@@ -108,13 +138,9 @@ Proof.
                              lock_held s t⌝)%L.
   { rewrite /locked_inv.
     lt_auto naive_solver. }
-  lt_intro t0.
 
-  rewrite /lock_held.
-  apply (mutex_wf1 t0); simpl; intros.
-  - destruct_step; stm.
-  - stm.
-  - naive_solver.
+  lt_intros.
+  lt_apply unlock_store_progress.
 Qed.
 
 Lemma lock_cas_unlocked_progress t W :
@@ -170,13 +196,13 @@ Proof.
 
   { apply (mutex_wf1 t'); simpl.
     - intros t'' **.
-      destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
-        autounfold with inv in *.
       rewrite /thread_can_signal.
       destruct_step; stm_simp; simp_props; auto.
       + right; right; left. eauto.
-      + assert (t ∉ ts) by (inversion Hnodup; auto).
-        rewrite /waiting_inv in Hwaiting.
+      + assert (t ∉ ts).
+        { eapply all_invs_nodup; eauto. }
+        pose proof (Hwaiting _ Hinv) as Hwaiting;
+          autounfold with inv in *; simpl in *.
         assert (t'' ≠ t) by set_solver.
         right; right; right. stm.
     - intros.
@@ -595,8 +621,7 @@ Proof.
       assert (t' ∈ wait_set tp) by eauto.
       set_solver. }
     (intuition idtac); stm.
-    + destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in Hexcl.
-      apply Hexcl in Hlookup; congruence.
+    + exfalso; eauto using all_invs_unlock_store.
   - stm_simp.
     apply elem_signal_set in Hel.
     stm_simp.
@@ -670,9 +695,7 @@ Proof.
   + assert (t ∈ wait_set s.(tp)) by eauto.
     exfalso; set_solver.
   + apply not_wait_pc in Hnot_wait; intuition (subst; auto).
-    * destruct Hinv as [[Hexcl _] _ _ _ _].
-      apply Hexcl in H.
-      exfalso; congruence.
+    * stm_simp. exfalso; eauto using all_invs_unlock_store.
     * assert (t ∈ signal_set s.(tp)) by eauto.
       exfalso; set_solver.
 Qed.
