@@ -156,10 +156,13 @@ Definition tla_enabled {Σ} (a: action Σ) : predicate Σ :=
 (*|
 Weak fairness is an important definition for stating liveness properties. Typically liveness properties hold only under some assumptions that the behavior in question treats an action _fairly_, intuitively meaning that it gets a chance to run "often enough". This is defined in weak fairness as the following: in a behavior, `a` is treated weakly fairly if whenever it is always enabled, it eventually runs. Alternately, we can rewrite the implication as a disjunction and say that `a` is treated weakly fairly if at every step it is either not enabled at some point, or it executes.
 
-The logic will eventually have a rule `wf1` that allows to use a `weak_fairness a` assumption and prove `◇ q` from it.
+The logic has a rule `wf1` that allows to use a `weak_fairness a` assumption and prove `◇ q` from it.
 |*)
 Definition weak_fairness {Σ} (a: action Σ) : predicate Σ :=
   □ (□ (tla_enabled a) → (◇ ⟨a⟩)).
+
+Definition strong_fairness {Σ} (a: action Σ) : predicate Σ :=
+  □ (□◇ (tla_enabled a) → (◇ ⟨a⟩)).
 
 (*|
 Leads to, written `p ~~> q`, is a useful definition for expressing something that is eventually true under some assumption. The □ in front is important to make this definition transitive (proven later), in the sense that `⊢ (p ~~> q) → (q ~~> r) → (p ~~> r)`. (Without it, the second leads_to couldn't be used at the time when the first leads_to says q holds).

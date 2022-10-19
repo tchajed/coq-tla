@@ -52,6 +52,15 @@ Proof.
   tla_simp.
 Qed.
 
+Theorem weak_fairness_alt3 a :
+  weak_fairness a == (□◇ ⟨a⟩ ∨ □◇ !(tla_enabled a)).
+Proof.
+  rewrite weak_fairness_alt2.
+  rewrite implies_to_or.
+  tla_simp.
+  rewrite tla_or_comm //.
+Qed.
+
 (** This lemma is used to prove rule WF1. Loosely speaking it takes an
   assumption of the form [p ∧ ⟨next⟩ → later p ∨ later q] and turns it into a
   proof that either [p] always holds or eventually [q] holds. *)
@@ -333,6 +342,26 @@ Proof.
   tla_split.
   - apply wf_combine_impl; auto.
   - apply wf_split_impl; auto.
+Qed.
+
+Theorem strong_fairness_alt2 a :
+  strong_fairness a == (□◇ (tla_enabled a) → □ ◇ ⟨a⟩).
+Proof.
+  rewrite /strong_fairness.
+  rewrite !implies_to_or.
+  tla_simp.
+  rewrite -!eventually_or.
+  rewrite always_eventually_distrib.
+  tla_simp.
+Qed.
+
+Lemma strong_fairness_alt3 a :
+  strong_fairness a == (□◇⟨a⟩ ∨ ◇□(! tla_enabled a)).
+Proof.
+  rewrite strong_fairness_alt2.
+  rewrite !implies_to_or.
+  tla_simp.
+  rewrite tla_or_comm //.
 Qed.
 
 End TLA.

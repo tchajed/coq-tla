@@ -391,7 +391,7 @@ Hint Unfold state_pred action_pred : tla.
 Hint Unfold tla_true tla_false : tla.
 
 #[export]
-Hint Unfold enabled weak_fairness : tla.
+Hint Unfold enabled weak_fairness strong_fairness : tla.
 
 #[export]
 Hint Unfold leads_to : tla.
