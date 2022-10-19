@@ -964,6 +964,7 @@ Lemma kernel_wait_locked_progress W U :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
         (∃ t, wait_set s.(tp) = W ∧
+              wake_set s.(tp) = U ∧
               s.(tp) !! t = Some pc.lock_cas ∧
               s.(state).(lock) = false)⌝.
 Proof.
@@ -1080,7 +1081,7 @@ Proof.
     rewrite not_false_iff_true. naive_solver.
 Qed.
 
-Lemma kernel_wait_locked_queue_empty_progress' W U t :
+Lemma kernel_wait_locked_queue_empty_progress W U t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
@@ -1090,6 +1091,7 @@ Lemma kernel_wait_locked_queue_empty_progress' W U t :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
         wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
         ∃ t', s.(tp) !! t' = Some pc.lock_cas⌝.
 Proof.
   apply (leads_to_detour ⌜λ s,
@@ -1118,24 +1120,78 @@ Proof.
       lt_auto naive_solver.
 Qed.
 
+Lemma kernel_wait_progress W U t :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        wake_set s.(tp) = U ∧
+        s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
+Proof.
+  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝); lt_simp.
+  2: {
+    lt_apply kernel_wait_unlocked_progress.
+    lt_unfold. rewrite not_true_iff_false. naive_solver.
+  }
+  apply (leads_to_if ⌜λ s, s.(state).(queue) = []⌝); lt_simp.
+  - lt_apply kernel_wait_locked_queue_empty_progress.
+    rewrite -!combine_or_preds.
+    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+    rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
+    lt_simp.
+    leads_to_trans (∃ t',
+                       ⌜λ s, wait_set s.(tp) = W ∧
+                             wake_set s.(tp) = U ∧
+                             s.(tp) !! t' = Some pc.lock_cas⌝)%L.
+    { lt_auto naive_solver. }
+    lt_intros.
+    lt_apply lock_cas_progress.
+  - lt_apply kernel_wait_locked_progress'.
+Qed.
+
+Lemma empty_wait_wake_to_unlock :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        wake_set s.(tp) = ∅⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        wake_set s.(tp) = ∅ ∧
+        s.(state).(lock) = false⌝.
+Proof.
+  lt_apply wake_threads_empty.
+Qed.
+
+Lemma empty_wait_wake_to_terminated :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        wake_set s.(tp) = ∅ ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜terminated⌝.
+Proof.
+  rewrite /terminated.
+  apply (leads_to_assume _ all_invs_ok).
+  lt_unfold.
+  intros [[Hempty Hunlocked] Hinv] t pc.
+  intuition eauto.
+  destruct (decide (wait_pc pc)) as [|Hnot_wait].
+  + assert (t ∈ wait_set s.(tp)) by eauto.
+    exfalso; set_solver.
+  + apply not_wait_pc in Hnot_wait; intuition (subst; auto).
+    * destruct Hinv as [[Hexcl _] _ _ _ _].
+      apply Hexcl in H.
+      exfalso; congruence.
+    * assert (t ∈ wake_set s.(tp)) by eauto.
+      exfalso; set_solver.
+Qed.
+
 Hint Constructors slexprod : core.
 
-Lemma eventually_no_waiters :
-  spec ⊢
-  ⌜λ s, s.(state).(lock) = false⌝ ~~>
-  ⌜λ s, s.(state).(lock) = false ∧
-        ∀ t pc, s.(tp) !! t = Some pc →
-                pc = pc.finished⌝.
+Lemma eventually_terminated :
+  spec ⊢ ◇⌜terminated⌝.
 Proof.
-  (* TODO: h need not have the lock being free
-
-  we need to handle kernel_wait ∧ l = true anyway, we're already handling
-  futex_wait with any lock state, and finally lock_cas ∧ l = true will go to one
-  of those
-   *)
+  apply (leads_to_apply ⌜λ s, True⌝).
+  { unseal. }
   set (h := λ '(W, U) s, wait_set s.(tp) = W ∧
-                         wake_set s.(tp) = U ∧
-                         s.(state).(lock) = false).
+                         wake_set s.(tp) = U).
   lt_apply (lattice_leads_to_ex
               (wf_slexprod _ _ _ _ gset_subset_wf gset_subset_wf)
               h (∅, ∅)).
@@ -1146,10 +1202,11 @@ Proof.
     assert (U ≠ ∅ ∧ W = ∅ ∨ W ≠ ∅) as [[Hnonempty ->]|Hnonempty].
     { destruct (decide (W = ∅)); destruct (decide (U = ∅)); subst; eauto. }
     { rewrite /h. lt_apply wake_threads_empty.
-      lt_auto. }
+      lt_auto naive_solver. }
 
     assert (∃ t, t ∈ W) as [t Hel].
     { apply set_choose_L in Hnonempty; naive_solver. }
+
     leads_to_trans (⌜h (W, U)⌝ ∧
                     (⌜λ s, s.(tp) !! t = Some pc.lock_cas⌝ ∨
                     ⌜λ s, s.(tp) !! t = Some pc.futex_wait⌝ ∨
@@ -1157,49 +1214,20 @@ Proof.
     { rewrite /h. lt_auto intuition auto. subst.
       apply elem_of_wait_set in Hel as (pc & Hlookup & Hwait).
       rewrite /wait_pc in Hwait; naive_solver. }
-    leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W ∨ (wait_set s.(tp) = W ∧
-                                                 wake_set s.(tp) ⊂ U ∧
-                                                 s.(state).(lock) = false)⌝).
-    2: {
-      leads_to_trans ((∃ W' (Hsub: W' ⊂ W), ⌜λ s, wait_set s.(tp) = W'⌝) ∨
-                     ⌜λ s, wait_set s.(tp) = W ∧
-                           wake_set s.(tp) ⊂ U ∧
-                           s.(state).(lock) = false⌝)%L.
-      { lt_simp.
-        lt_auto naive_solver. }
-      rewrite leads_to_or_split; tla_split.
-      + lt_intros.
-        lt_apply eventually_unlock.
-        rewrite /h /waiters_are; lt_auto.
-        intros (?&?).
-        exists (W', wake_set s.(tp)); intuition eauto.
-      + rewrite /h; lt_unfold. intros (?&?&?); subst.
-        exists (wait_set s.(tp), wake_set s.(tp)); intuition eauto.
-    }
+    leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W ∨
+                          (wait_set s.(tp) = W ∧
+                           wake_set s.(tp) ⊂ U)⌝).
+    2: by lt_auto naive_solver.
     rewrite !tla_and_distr_l.
     rewrite leads_to_or_split; tla_split;
       [ | rewrite leads_to_or_split; tla_split ];
       rewrite /h; tla_simp.
-    + lt_apply lock_cas_unlocked_progress.
+    + lt_apply lock_cas_progress.
     + lt_apply futex_wait_progress''.
-      { lt_auto intuition auto.
-        admit. (* need to remove requirement that lock = false *)
-      }
-    + lt_apply kernel_wait_unlocked_progress.
-  - apply (leads_to_assume _ all_invs_ok).
-    rewrite /h.
-    lt_auto.
-    intros [[Hempty Hunlocked] Hinv].
-    intuition eauto.
-    destruct (decide (wait_pc pc)) as [|Hnot_wait].
-    + assert (t ∈ wait_set s.(tp)) by eauto.
-      exfalso; set_solver.
-    + apply not_wait_pc in Hnot_wait; intuition (subst; auto).
-      * destruct Hinv as [[Hexcl _] _ _ _ _].
-        apply Hexcl in H1.
-        exfalso; congruence.
-      * assert (t ∈ wake_set s.(tp)) by eauto.
-        exfalso; set_solver.
-Abort.
+    + lt_apply kernel_wait_progress.
+  - lt_apply empty_wait_wake_to_unlock.
+    { rewrite /h. lt_auto. }
+    lt_apply empty_wait_wake_to_terminated.
+Qed.
 
 End example.
