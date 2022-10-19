@@ -131,7 +131,8 @@ Proof.
 Qed.
 
 (* if there is a thread t in pc.kernel_wait, then either the queue is empty, in
-which case weak_fairness (step t) easily gets t to pc.lock_cas, or it has a head element t', in which case that thread will get to cas *)
+which case weak_fairness (step t) easily gets t to pc.lock_cas, or it has a head
+element t', in which case that thread will get to cas *)
 
 Lemma queue_gets_popped_unlocked W t ts :
   spec ⊢
@@ -248,63 +249,6 @@ Proof.
       lt_apply kernel_wait_not_queued_unlocked_progress.
   - tla_simp.
     lt_apply kernel_wait_not_queued_unlocked_progress.
-Qed.
-
-Lemma gset_subset_wf :
-  well_founded  ((⊂) : gset Tid → gset Tid → Prop).
-Proof. apply set_wf. Qed.
-
-Lemma signal_threads_decrease_unlocked S :
-  S ≠ ∅ →
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = ∅ ∧
-        signal_set s.(tp) = S ∧
-        s.(state).(lock) = false⌝ ~~>
-  ⌜λ s, wait_set s.(tp) = ∅ ∧
-        signal_set s.(tp) ⊂ S ∧
-        s.(state).(lock) = false⌝.
-Proof.
-  intros Hnotempty.
-  assert (∃ t, t ∈ S) as [t Hel].
-  { apply set_choose_L in Hnotempty; naive_solver. }
-  apply (mutex_wf1 t); simpl; intros.
-  - stm_simp.
-    assert (¬wait_pc pc) as Hnotwait%not_wait_pc.
-    { intros Hwait.
-      assert (t' ∈ wait_set tp) by eauto.
-      set_solver. }
-    (intuition idtac); stm.
-    + destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in Hexcl.
-      apply Hexcl in Hlookup; congruence.
-  - stm_simp.
-    apply elem_signal_set in Hel.
-    stm_simp.
-    intuition eauto.
-  - stm_simp.
-    apply elem_signal_set in Hel.
-    naive_solver.
-Qed.
-
-Lemma signal_threads_empty :
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = ∅⌝ ~~>
-  ⌜λ s, wait_set s.(tp) = ∅ ∧
-        signal_set s.(tp) = ∅ ∧
-        s.(state).(lock) = false⌝.
-Proof.
-  leads_to_trans ⌜λ s, wait_set s.(tp) = ∅ ∧
-                       s.(state).(lock) = false⌝.
-  { apply eventually_unlock. }
-  set (h S s := wait_set s.(tp) = ∅ ∧
-                s.(state).(lock) = false ∧
-                signal_set s.(tp) = S).
-  lt_apply (lattice_leads_to_ex gset_subset_wf h ∅);
-    rewrite /h.
-  - lt_auto naive_solver.
-  - intros S Hnonempty.
-    lt_apply signal_threads_decrease_unlocked; auto.
-    lt_auto intuition eauto 10.
-  - lt_auto naive_solver.
 Qed.
 
 Lemma futex_wait_unlocked_progress t W :
@@ -612,6 +556,77 @@ Proof.
   - lt_apply kernel_wait_locked_progress.
 Qed.
 
+Lemma gset_subset_wf :
+  well_founded  ((⊂) : gset Tid → gset Tid → Prop).
+Proof. apply set_wf. Qed.
+
+(*|
+We need a subproof for when `W = ∅` to show that `S` decreases. It's easiest to
+first show it decreases if the lock is free, then show that the lock is released
+and then it goes all the way to ∅ with another lattice proof.
+|*)
+
+Lemma signal_threads_decrease_unlocked S :
+  S ≠ ∅ →
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        signal_set s.(tp) = S ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        signal_set s.(tp) ⊂ S ∧
+        s.(state).(lock) = false⌝.
+Proof.
+  intros Hnotempty.
+  assert (∃ t, t ∈ S) as [t Hel].
+  { apply set_choose_L in Hnotempty; naive_solver. }
+  apply (mutex_wf1 t); simpl; intros.
+  - stm_simp.
+    assert (¬wait_pc pc) as Hnotwait%not_wait_pc.
+    { intros Hwait.
+      assert (t' ∈ wait_set tp) by eauto.
+      set_solver. }
+    (intuition idtac); stm.
+    + destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in Hexcl.
+      apply Hexcl in Hlookup; congruence.
+  - stm_simp.
+    apply elem_signal_set in Hel.
+    stm_simp.
+    intuition eauto.
+  - stm_simp.
+    apply elem_signal_set in Hel.
+    naive_solver.
+Qed.
+
+(*|
+As a consequence of our proof strategy this proof also shows the lock is free,
+which we need anyway at the end.
+|*)
+Lemma signal_threads_empty :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = ∅⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = ∅ ∧
+        signal_set s.(tp) = ∅ ∧
+        s.(state).(lock) = false⌝.
+Proof.
+  leads_to_trans ⌜λ s, wait_set s.(tp) = ∅ ∧
+                       s.(state).(lock) = false⌝.
+  { apply eventually_unlock. }
+  set (h S s := wait_set s.(tp) = ∅ ∧
+                s.(state).(lock) = false ∧
+                signal_set s.(tp) = S).
+  lt_apply (lattice_leads_to_ex gset_subset_wf h ∅);
+    rewrite /h.
+  - lt_auto naive_solver.
+  - intros S Hnonempty.
+    lt_apply signal_threads_decrease_unlocked; auto.
+    lt_auto intuition eauto 10.
+  - lt_auto naive_solver.
+Qed.
+
+(*|
+At the end of the lattice proof below, we need to finally establish that the
+lock is also free. The proof above doubles for this purpose.
+|*)
 Lemma empty_wait_signal_to_unlock :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = ∅ ∧
@@ -623,6 +638,13 @@ Proof.
   lt_apply signal_threads_empty.
 Qed.
 
+(*|
+Finally, we need to show that this characterization in terms of wait and signal
+sets implies termination.  This isn't a completely straightforward implication
+since it requires an invariant to go from the lock being free to no thread being
+in `pc.unlock_store`, which is the only state we haven't ruled out with the empty
+sets.
+|*)
 Lemma empty_wait_signal_to_terminated :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = ∅ ∧
@@ -646,13 +668,20 @@ Proof.
       exfalso; set_solver.
 Qed.
 
+(*|
+The key lemma that shows progress. [t ∈ W] is at one of [pc.lock_cas],
+[pc.futex_wait], or [pc.kernel_wait], and we show in each case that we make
+progress on the lexicographic tuple (W, S).
+|*)
 Lemma any_wait_progress W S t :
   spec ⊢
   (⌜ λ s, wait_set s.(tp) = W ∧ signal_set s.(tp) = S ⌝ ∧
    (⌜ λ s, s.(tp) !! t = Some pc.lock_cas ⌝ ∨
     ⌜ λ s, s.(tp) !! t = Some pc.futex_wait ⌝ ∨
     ⌜ λ s, s.(tp) !! t = Some pc.kernel_wait ⌝)) ~~>
-  ⌜ λ s, wait_set s.(tp) ⊂ W ∨ wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S ⌝.
+  ⌜ λ s, wait_set s.(tp) ⊂ W ∨
+          wait_set s.(tp) = W ∧
+          signal_set s.(tp) ⊂ S ⌝.
 Proof.
   lt_split; [ | lt_split ]; tla_simp.
   - lt_apply lock_cas_progress.
@@ -678,12 +707,12 @@ Proof.
 
   - rewrite /h. lt_unfold.
     intros.
-    eexists (_, _); intuition eauto.
+    eexists (_, _); eauto.
 
   - intros [W S] Hnot_bothempty.
 
 (*|
-Handle the case where W = ∅ separately.
+Handle the case where `W = ∅` separately using `signal_threads_empty`.
   |*)
     assert ((W = ∅ ∧ S ≠ ∅) ∨ W ≠ ∅) as [[-> Hnonempty]|Hnonempty].
     { destruct (decide (W = ∅)); destruct (decide (S = ∅)); subst; eauto. }
@@ -693,6 +722,10 @@ Handle the case where W = ∅ separately.
     assert (∃ t, t ∈ W) as [t Hel].
     { apply set_choose_L in Hnonempty; naive_solver. }
 
+(*|
+Use the definition of `wait_set` to extract what the state of `s.(tp) !! t` must
+be.
+|*)
     leads_to_trans (⌜h (W, S)⌝ ∧
                     (⌜λ s, s.(tp) !! t = Some pc.lock_cas⌝ ∨
                     ⌜λ s, s.(tp) !! t = Some pc.futex_wait⌝ ∨
@@ -700,6 +733,7 @@ Handle the case where W = ∅ separately.
     { rewrite /h. lt_auto intuition auto. subst.
       apply elem_of_wait_set in Hel as (pc & Hlookup & Hwait).
       rewrite /wait_pc in Hwait; naive_solver. }
+
     rewrite /h.
     lt_apply any_wait_progress.
     lt_auto naive_solver.
