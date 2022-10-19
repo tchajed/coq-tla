@@ -243,7 +243,7 @@ Proof.
     + lt_auto intuition idtac.
       destruct s.(state).(queue) eqn:Hq; [ exfalso; set_solver | ].
       naive_solver.
-    + lt_intro t0. lt_intro ts0.
+    + lt_intros.
       lt_apply queue_gets_popped_unlocked.
       lt_split; first by lt_auto.
       lt_apply kernel_wait_not_queued_unlocked_progress.
@@ -452,10 +452,29 @@ Proof.
   lt_apply kernel_wait_locked_progress.
 Qed.
 
+Lemma lock_cas_locked_progress1 t W S :
+  spec
+  ⊢ ⌜ λ s,
+      wait_set s.(tp) = W ∧
+      signal_set s.(tp) = S ∧
+      s.(state).(lock) = true ∧
+      s.(tp) !! t = Some pc.lock_cas ⌝ ~~>
+    ⌜ λ s, wait_set s.(tp) = W ∧
+           (signal_set s.(tp) ⊂ S ∨
+           s.(tp) !! t = Some pc.lock_cas ∧
+           s.(state).(lock) = false ∨
+              signal_set s.(tp) = S ∧
+               s.(tp) !! t = Some pc.futex_wait)⌝.
+Proof.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct_step; stm.
+  - stm.
+  - naive_solver.
+Qed.
+
 Lemma lock_cas_locked_progress t W S :
   spec
-  ⊢ ⌜
-      λ s,
+  ⊢ ⌜ λ s,
       wait_set s.(tp) = W ∧
       signal_set s.(tp) = S ∧
       s.(state).(lock) = true ∧
@@ -463,22 +482,12 @@ Lemma lock_cas_locked_progress t W S :
     ⌜ λ s, wait_set s.(tp) ⊂ W ∨
           (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S) ⌝.
 Proof.
-  apply (leads_to_detour ⌜λ s, wait_set s.(tp) = W ∧
-                               (signal_set s.(tp) ⊂ S ∨
-                               s.(tp) !! t = Some pc.lock_cas ∧
-                                 s.(state).(lock) = false ∨
-                               signal_set s.(tp) = S ∧
-                                 s.(tp) !! t = Some pc.futex_wait)⌝);
-    lt_simp.
-  - apply (mutex_wf1 t); simpl; intros.
-    + destruct_step; stm.
-    + stm.
-    + naive_solver.
-  - rewrite -combine_state_preds.
-    lt_split; first by lt_auto.
-    lt_split.
-    { lt_apply lock_cas_unlocked_progress. }
-    lt_apply (futex_wait_progress t W S).
+  lt_apply lock_cas_locked_progress1.
+  rewrite -combine_state_preds.
+  lt_split; first by lt_auto.
+  lt_split.
+  - lt_apply lock_cas_unlocked_progress.
+  - lt_apply (futex_wait_progress t W S).
 Qed.
 
 Lemma lock_cas_progress t W S :
