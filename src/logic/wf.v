@@ -225,6 +225,16 @@ Proof.
   auto.
 Qed.
 
+Lemma eventually_always_weaken p :
+  (◇□ p ⊢ □◇ p).
+Proof.
+  unseal.
+  repeat deex.
+  exists k0; eauto.
+  replace (k0 + k) with (k + k0) by lia.
+  auto.
+Qed.
+
 Lemma action_to_enabled a :
   ⟨a⟩ ⊢ tla_enabled a.
 Proof.
@@ -362,6 +372,39 @@ Proof.
   rewrite !implies_to_or.
   tla_simp.
   rewrite tla_or_comm //.
+Qed.
+
+Lemma strong_to_weak_fairness a :
+  strong_fairness a ⊢ weak_fairness a.
+Proof.
+  rewrite weak_fairness_alt3 strong_fairness_alt3.
+  rewrite eventually_always_weaken //.
+Qed.
+
+Lemma tla_sf1 (p q F: predicate) (next a: action Σ) :
+  ∀ (Hpuntilq: ⊢ p ∧ ⟨next⟩ → later p ∨ later q)
+    (Haq: ⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q)
+    (Henable: ⊢ □p ∧ □⟨next⟩ ∧ □F → tla_enabled a),
+  (⊢ □ ⟨next⟩ ∧ strong_fairness a ∧ □F → p ~~> q).
+Proof.
+  rewrite strong_fairness_alt3.
+  unseal.
+  destruct H as (Hnext & Hsf_alt & HF).
+
+  edestruct (until_next p q next e Hpuntilq Hnext);
+    [ eassumption | | by auto ].
+
+  destruct Hsf_alt as [Ha | [k' Hnotenabled]].
+  - destruct (Ha k) as [k' Ha'].
+    exists (S k').
+    change (S k' + k) with (1 + (k' + k)). rewrite -drop_drop.
+    apply Haq; eauto.
+  - contradiction (Hnotenabled k).
+    eapply Henable; intuition eauto.
+    + rewrite ?drop_drop.
+      replace (k0 + (k + k')) with ((k0 + k') + k) by lia.
+      eauto.
+    + rewrite ?drop_drop; eauto.
 Qed.
 
 End TLA.
