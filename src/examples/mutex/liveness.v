@@ -152,7 +152,7 @@ Proof.
                     wait_set s.(tp) = W ∧
                     s.(state).(queue) = t :: ts ∧
                     s.(state).(lock) = false ∧
-                    thread_can_lock t' s
+                    thread_can_signal t' s
                    ⌝)%L.
   { lt_unfold.
     intros [? Hinv]. stm_simp.
@@ -171,7 +171,7 @@ Proof.
     - intros t'' **.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *.
-      rewrite /thread_can_lock.
+      rewrite /thread_can_signal.
       destruct_step; stm_simp; simp_props; auto.
       + right; right; left. eauto.
       + assert (t ∉ ts) by (inversion Hnodup; auto).
@@ -185,8 +185,8 @@ Proof.
       assert (t ∉ ts) by (inversion Hnodup; auto).
       assert (tp !! t = Some pc.kernel_wait) by (eapply Hwaiting; eauto).
       rewrite thread_step_eq /thread_step_def in Hstep.
-      unfold thread_can_lock in *; stm.
-    - intros. rewrite /thread_can_lock /= in H.
+      unfold thread_can_signal in *; stm.
+    - intros. rewrite /thread_can_signal /= in H.
       naive_solver. }
 
   lt_apply lock_cas_unlocked_progress.

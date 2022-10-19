@@ -165,25 +165,25 @@ Proof.
   rewrite -always_and; tla_simp.
 Qed.
 
-Definition thread_can_lock t' s :=
+Definition thread_can_signal t' s :=
   s.(tp) !! t' = Some pc.unlock_wake ∨
   (s.(tp) !! t' = Some pc.kernel_wait ∧
   t' ∉ s.(state).(queue)) ∨
   s.(tp) !! t' = Some pc.lock_cas.
 
 (* if the queue has a head element [t] but the lock is free, there's some thread
-that can acquire the lock and send a signal to [t] *)
+that can send a signal to [t] (possibly first acquiring the lock) *)
 Definition lock_free_queue_inv s :=
   ∀ t ts,
     s.(state).(queue) = t::ts →
     s.(state).(lock) = false →
-    ∃ t', thread_can_lock t' s.
+    ∃ t', thread_can_signal t' s.
 
 Lemma lock_free_queue_inv_ok :
   spec ⊢ □⌜lock_free_queue_inv⌝.
 Proof.
   tla_pose nodup_helper_inv_ok.
-  rewrite /lock_free_queue_inv /thread_can_lock.
+  rewrite /lock_free_queue_inv /thread_can_signal.
   unfold spec. tla_clear fair.
   rewrite combine_preds.
   apply init_invariant.
