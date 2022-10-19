@@ -427,8 +427,7 @@ Lemma queue_gets_popped W t ts :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) ⊆ W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
-        t ∉ s.(state).(queue)
-        (* ∧ s.(state).(lock) = false *))⌝.
+        t ∉ s.(state).(queue))⌝.
 Proof.
   apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝);
     tla_simp.
@@ -618,31 +617,6 @@ Proof.
   rewrite elem_of_singleton.
   destruct (decide (t = t')); lookup_simp; naive_solver.
 Qed.
-
-Lemma wake_set_add_present tp t :
-  t ∈ wake_set tp →
-  wake_set (<[t := pc.unlock_wake]> tp) = wake_set tp.
-Proof.
-  intros.
-  rewrite wake_set_add.
-  set_solver.
-Qed.
-
-Hint Rewrite wake_set_add_present using (by eauto) : pc.
-Hint Rewrite wake_set_add using (by eauto) : pc.
-
-Lemma wake_set_subset tp t pc' :
-  tp !! t = Some pc.unlock_wake →
-  pc' ≠ pc.unlock_wake →
-  wake_set (<[t := pc']> tp) ⊂ wake_set tp.
-Proof.
-  intros.
-  rewrite -> wake_set_remove by auto.
-  assert (t ∈ wake_set tp) by auto.
-  set_solver.
-Qed.
-
-Hint Resolve wake_set_insert_same wake_set_subset : core.
 
 Lemma eventually_no_wake_threads W :
   spec ⊢
