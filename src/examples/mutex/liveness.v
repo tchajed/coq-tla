@@ -424,17 +424,16 @@ Proof.
   - lt_apply futex_wait_unlocked_progress.
 Qed.
 
-Lemma queue_gets_popped_locked W U t ts :
+Lemma queue_gets_popped_locked W U t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
-        s.(state).(queue) = t :: ts ∧
+        (∃ ts, s.(state).(queue) = t :: ts) ∧
         s.(state).(lock) = true⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧
-        wake_set s.(tp) ⊂ U (* this is when s.(state).(lock) = true *)) ∨
+       (wait_set s.(tp) = W ∧
+        wake_set s.(tp) ⊂ U) ∨
       (wait_set s.(tp) = W ∧
-       (∃ ts', s.(state).(queue) = ts ++ ts') ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         t ∉ s.(state).(queue) ∧
        s.(state).(lock) = false) ⌝.
@@ -442,8 +441,8 @@ Proof.
   leads_to_trans (∃ t', ⌜λ s,
         wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
-        (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧
-                t ∉ ts ++ ts') ∧
+        (∃ ts, s.(state).(queue) = t :: ts ∧
+                t ∉ ts) ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(lock) = true ∧
         lock_held s t'⌝)%L.
@@ -452,11 +451,10 @@ Proof.
     intros [(?&?&?&?) Hinv].
     destruct Hinv as [_ Hlocked Hnodup Hwaiting _];
       autounfold with inv in *.
-    destruct s as [[l q] ?]; simpl in *; subst.
-    destruct Hlocked as [t' ?]; eauto.
-    exists t'; intuition eauto.
-    { exists nil; rewrite app_nil_r. split; first by eauto.
-      apply NoDup_cons_inv in Hnodup; intuition auto. }
+    stm.
+    exists t0; intuition eauto.
+    eexists; intuition eauto.
+    apply NoDup_head_not_in in Hnodup; auto.
   - lt_intros.
     unfold lock_held.
 
@@ -465,7 +463,7 @@ This "detour" is actually really interesting: you might think that simple transi
 |*)
     apply (leads_to_detour ⌜λ s,
       wait_set s.(tp) = W ∧
-      (∃ ts' : list Tid, s.(state).(queue) = t :: ts ++ ts') ∧
+      (∃ ts' : list Tid, s.(state).(queue) = t :: ts') ∧
       s.(tp) !! t = Some pc.kernel_wait ∧
        s.(tp) !! t' = Some pc.unlock_wake ∧
       s.(state).(lock) = false⌝).
@@ -484,11 +482,8 @@ This "detour" is actually really interesting: you might think that simple transi
         + left; intuition eauto.
         + left; intuition eauto.
           eexists (_ ++ [t'']).
-          rewrite !app_assoc; split; first by eauto.
-          rewrite NoDup_cons_inv in Hnodup Hnodup'.
-          rewrite elem_of_app elem_of_list_singleton; intuition subst.
-          rewrite NoDup_cons_inv NoDup_app1 in Hnodup'.
-          set_solver+ Hnodup'.
+          intuition eauto.
+          apply NoDup_head_not_in in Hnodup'; auto.
         + assert (t'' ≠ t) by set_solver.
           stm.
         + assert (t' = t'').
@@ -522,7 +517,7 @@ This "detour" is actually really interesting: you might think that simple transi
         intuition congruence. }
 Qed.
 
-Lemma kernel_wait_locked_progress1 W U :
+Lemma kernel_wait_locked_progress W U :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
@@ -531,11 +526,7 @@ Lemma kernel_wait_locked_progress1 W U :
         s.(state).(lock) = true ∧
         s.(state).(queue) ≠ []⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
-        (∃ t, wait_set s.(tp) = W ∧
-              wake_set s.(tp) = U ∧
-              s.(tp) !! t = Some pc.lock_cas ∧
-              s.(state).(lock) = false)⌝.
+        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ⌝.
 Proof.
   leads_to_trans (∃ t,
                       ⌜λ s, wait_set s.(tp) = W ∧
@@ -557,34 +548,7 @@ Proof.
     lt_simp.
   2: { by lt_apply kernel_wait_unlocked_progress. }
 
-  leads_to_trans (∃ ts, ⌜λ s,
-                   wait_set s.(tp) = W ∧
-                   wake_set s.(tp) = U ∧
-                   s.(state).(queue) = t :: ts ∧
-                   s.(state).(lock) = true⌝)%L.
-  { lt_auto naive_solver. }
-
-  lt_intros.
-  (* TODO: why does this solve the goal? shouldn't we have to use the fact that
-  [t ∉ q]? *)
-  lt_apply (queue_gets_popped_locked W U t ts).
-Qed.
-
-Lemma kernel_wait_locked_progress W U :
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
-        s.(state).(lock) = true ∧
-        s.(state).(queue) ≠ []⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
-Proof.
-  lt_apply kernel_wait_locked_progress1.
-  lt_split; first by lt_auto.
-  lt_split; first by lt_auto.
-  lt_simp.
-  lt_intro t.
-  lt_apply lock_cas_unlocked_progress.
+  lt_apply queue_gets_popped_locked.
 Qed.
 
 Lemma futex_wait_progress t W U :
