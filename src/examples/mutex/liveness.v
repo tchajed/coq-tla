@@ -265,30 +265,8 @@ Proof.
       naive_solver.
     + lt_intro t0. lt_intro ts0.
       lt_apply queue_gets_popped_unlocked.
-
-      leads_to_trans
-        (⌜λ s, wait_set s.(tp) ⊂ W⌝ ∨
-        ⌜λ s, wait_set s.(tp) = W ∧
-                s.(tp) !! t0 = Some pc.kernel_wait ∧
-                t0 ∉ s.(state).(queue) ∧
-                s.(state).(lock) = false⌝
-        )%L.
-      { lt_auto naive_solver. }
       lt_split; first by lt_auto.
-
-      leads_to_trans (∃ W' (_: W' ⊆ W),
-                         ⌜λ s, wait_set s.(tp) = W' ∧
-                                 s.(tp) !! t0 = Some pc.kernel_wait ∧
-                                 t0 ∉ s.(state).(queue) ∧
-                                 s.(state).(lock) = false⌝)%L.
-      { lt_auto naive_solver. }
-
-      lt_intros.
       lt_apply kernel_wait_not_queued_unlocked_progress.
-      lt_auto intuition eauto.
-      { left; set_solver. }
-      { subst. destruct (decide (wait_set s.(tp) = W)); subst; eauto.
-        left; set_solver. }
   - tla_simp.
     lt_apply kernel_wait_not_queued_unlocked_progress.
 Qed.
