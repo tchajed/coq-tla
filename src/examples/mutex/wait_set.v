@@ -27,9 +27,6 @@ Proof. apply _. Defined.
 Definition wait_set (tp: gmap Tid pc.t) : gset _ :=
   dom (filter (λ '(tid, pc), wait_pc pc) tp).
 
-Definition waiters_are (a: gset Tid) : Config → Prop :=
-  λ s, wait_set s.(tp) = a.
-
 (* TODO: remove duplicate from spinlock_many_threads *)
 Lemma gset_ext {A: Type} `{Countable A} (s1 s2: gset A) :
   (∀ x, x ∈ s1 ↔ x ∈ s2) →

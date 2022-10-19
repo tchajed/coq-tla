@@ -34,30 +34,17 @@ Proof.
   destruct_step; stm.
 Qed.
 
-Lemma subseteq_to_subset (W W': gset Tid) :
-  W' ⊆ W → W' = W ∨ W' ⊂ W.
-Proof.
-  intros.
-  destruct (decide (W = W')); eauto.
-  set_solver.
-Qed.
-
-(* this is an implication but leads_tos are more convenient *)
 Lemma waiters_are_monotonic W :
   spec ⊢
-  ⌜waiters_are W⌝ ~~>
-  □⌜λ s, waiters_are W s ∨ ∃ W', W' ⊂ W ∧ waiters_are W' s⌝.
+  ⌜λ s, wait_set s.(tp) = W⌝ ~~>
+  □⌜λ s, wait_set s.(tp) ⊆ W⌝.
 Proof.
   rewrite -leads_to_impl_internal.
   rewrite /spec. tla_clear ⌜init⌝. tla_clear fair.
   apply always_induction_impl_pred.
   - eauto.
-  - rewrite /waiters_are.
-    intros s s' Hwait_set.
+  - intros s s' Hwait_set.
     intros Hsubset%waiters_monotonic_next.
-    apply subseteq_to_subset in Hsubset.
-    (intuition idtac); subst; repeat deex; eauto.
-    right. eexists; split; [ | done ].
     set_solver.
 Qed.
 
@@ -130,7 +117,7 @@ Hint Resolve list_elem_of_head : core.
 (** unused, superceded by queue_gets_popped_locked' *)
 Lemma __queue_gets_popped_locked W t ts :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(state).(queue) = t :: ts ∧
         s.(state).(lock) = true⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊆ W ∧
@@ -138,7 +125,6 @@ Lemma __queue_gets_popped_locked W t ts :
         s.(tp) !! t = Some pc.kernel_wait ∧
         t ∉ s.(state).(queue)⌝.
 Proof.
-  rewrite /waiters_are.
   leads_to_trans (∃ t', ⌜λ s,
         wait_set s.(tp) = W ∧
         (∃ ts', s.(state).(queue) = t :: ts ++ ts' ∧
@@ -224,8 +210,8 @@ Qed.
 
 Lemma eventually_unlock W :
   spec ⊢
-  ⌜waiters_are W⌝ ~~>
-  ⌜λ s, waiters_are W s ∧ s.(state).(lock) = false⌝.
+  ⌜λ s, wait_set s.(tp) = W⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = W ∧ s.(state).(lock) = false⌝.
 Proof.
   apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝); tla_simp.
   2: {
@@ -236,7 +222,7 @@ Proof.
   (* somebody must hold the lock *)
   eapply leads_to_assume; [ apply locked_inv_ok | ].
   tla_simp.
-  leads_to_trans (∃ t, ⌜λ s, waiters_are W s ∧
+  leads_to_trans (∃ t, ⌜λ s, wait_set s.(tp) = W ∧
                              s.(state).(lock) = true ∧
                              lock_held s t⌝)%L.
   { rewrite /locked_inv.
@@ -244,7 +230,7 @@ Proof.
   lt_intro t0.
 
   apply (mutex_wf1 t0); simpl; intros.
-  - rewrite /waiters_are /lock_held /= in Hpre |- *.
+  - rewrite /lock_held /= in Hpre |- *.
     destruct Hpre as (Hwait & Hlock & Ht0); subst.
     destruct_step; stm_simp; simp_props; auto.
     + right.
@@ -253,7 +239,7 @@ Proof.
     + left.
       assert (t' ∉ wait_set tp) by eauto.
       set_solver.
-  - rewrite /waiters_are /lock_held /= in Hpre |- *.
+  - rewrite /lock_held /= in Hpre |- *.
     destruct Hpre as (Hwait & Hlock & Ht0); subst.
     stm.
   - naive_solver.
@@ -261,12 +247,11 @@ Qed.
 
 Lemma lock_cas_unlocked_progress t W :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(state).(lock) = false ∧
         s.(tp) !! t = Some pc.lock_cas⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W⌝.
 Proof.
-  rewrite /waiters_are /=.
   apply (mutex_wf1 t); simpl; intros.
   - destruct_step; stm.
     eauto 10.
@@ -276,14 +261,13 @@ Qed.
 
 Lemma __futex_wait_progress t W :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.futex_wait⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(lock) = true⌝.
 Proof.
-  rewrite /waiters_are /=.
   apply (leads_to_detour
            ⌜λ s, wait_set s.(tp) = W ∧
                  s.(state).(lock) = false ∧
@@ -303,7 +287,7 @@ which case weak_fairness (step t) easily gets t to pc.lock_cas, or it has a head
 
 Lemma queue_gets_popped_unlocked W t ts :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(state).(queue) = t :: ts ∧
         s.(state).(lock) = false⌝ ~~>
   ⌜λ s,
@@ -326,7 +310,6 @@ Proof.
                    ⌝)%L.
   { rewrite exist_state_pred.
     apply pred_leads_to.
-    rewrite /waiters_are.
     move => [[l q] tp] /= [[Hwaiters [? ?]] Hcan_lock]; simpl; subst.
     specialize (Hcan_lock _ _ ltac:(eauto)); stm. }
 
@@ -399,7 +382,7 @@ Qed.
 (** unused *)
 Lemma __queue_gets_popped W t ts :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(state).(queue) = t :: ts⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) ⊆ W ∧
@@ -417,7 +400,7 @@ Hint Resolve elem_of_pop : core.
 
 Lemma kernel_wait_not_queued_unlocked_progress W t :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         t ∉ s.(state).(queue) ∧
         s.(state).(lock) = false⌝ ~~>
@@ -426,7 +409,6 @@ Lemma kernel_wait_not_queued_unlocked_progress W t :
           s.(tp) !! t = Some pc.lock_cas ∧
           s.(state).(lock) = false⌝.
 Proof.
-  rewrite /waiters_are.
   apply (mutex_wf1 t); simpl; intros.
   - destruct Hpre as (Hwait & Ht & Hnotin); subst.
     destruct_step; stm; simp_props.
@@ -439,7 +421,7 @@ Qed.
 
 Lemma kernel_wait_unlocked_progress1 W t :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(lock) = false⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
@@ -448,7 +430,6 @@ Lemma kernel_wait_unlocked_progress1 W t :
                s.(state).(lock) = false
          )⌝.
 Proof.
-  rewrite /waiters_are.
   apply (leads_to_if ⌜λ s, t ∈ s.(state).(queue)⌝).
   - tla_simp.
     leads_to_trans (∃ t0 ts0,
@@ -491,7 +472,7 @@ Qed.
 
 Lemma kernel_wait_unlocked_progress W t :
   spec ⊢
-  ⌜λ s, waiters_are W s ∧
+  ⌜λ s, wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(lock) = false⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W⌝.
@@ -571,7 +552,7 @@ re-arranged and the original kernel_wait threads may now be in lock_cas, for
 example. *)
 Lemma __eventually_no_wake_threads W :
   spec ⊢
-  ⌜λ s, waiters_are W s⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = W⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         s.(state).(lock) = false ∨
         wait_set s.(tp) = W ∧
@@ -769,7 +750,6 @@ Lemma queue_gets_popped_locked' W U t ts :
         t ∉ s.(state).(queue) ∧
        s.(state).(lock) = false) ⌝.
 Proof.
-  rewrite /waiters_are.
   leads_to_trans (∃ t', ⌜λ s,
         wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
