@@ -125,7 +125,7 @@ Proof. set_solver. Qed.
 
 Hint Resolve list_elem_of_head : core.
 
-(** unused, superceded by queue_gets_popped_locked' *)
+(** unused, superceded by queue_gets_popped_locked *)
 Lemma __queue_gets_popped_locked W t ts :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
@@ -660,7 +660,7 @@ Proof.
   - lt_apply futex_wait_unlocked_progress.
 Qed.
 
-Lemma queue_gets_popped_locked' W U t ts :
+Lemma queue_gets_popped_locked W U t ts :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
@@ -803,7 +803,7 @@ Proof.
   lt_intros.
   (* TODO: why does this solve the goal? shouldn't we have to use the fact that
   [t ∉ q]? *)
-  lt_apply (queue_gets_popped_locked' W U t ts).
+  lt_apply (queue_gets_popped_locked W U t ts).
 Qed.
 
 Lemma kernel_wait_locked_progress W U :
