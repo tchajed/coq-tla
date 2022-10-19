@@ -125,11 +125,7 @@ Lemma list_elem_of_head {A} (l: list A) (x: A) :
   x ∈ x::l.
 Proof. set_solver. Qed.
 
-Lemma list_not_elem_of_head {A} (l: list A) (x y: A) :
-  x ∉ y::l → x ≠ y.
-Proof. set_solver. Qed.
-
-Hint Resolve list_elem_of_head list_not_elem_of_head : core.
+Hint Resolve list_elem_of_head : core.
 
 (** unused, superceded by queue_gets_popped_locked' *)
 Lemma __queue_gets_popped_locked W t ts :
@@ -305,27 +301,6 @@ Qed.
 (* if there is a thread t in pc.kernel_wait, then either the queue is empty, in
 which case weak_fairness (step t) easily gets t to pc.lock_cas, or it has a head element t', in which case that thread will get to cas *)
 
-(* this is actually an implication but everything is setup to use leads_to *)
-Lemma kernel_wait_head_queue t W :
-  spec ⊢
-  ⌜λ s, waiters_are W s ∧
-        s.(tp) !! t = Some pc.kernel_wait⌝ ~~>
-  ⌜λ s, waiters_are W s ∧
-        (s.(state).(queue) = [] ∧
-          s.(tp) !! t = Some pc.kernel_wait) ∨
-          (∃ t', ∃ ts, s.(state).(queue) = t' :: ts ∧
-                s.(tp) !! t' = Some pc.kernel_wait)⌝.
-Proof.
-  eapply leads_to_assume.
-  { apply nodup_helper_inv_ok. }
-  tla_simp. apply pred_leads_to.
-  intros [[q l] tp].
-  rewrite /waiters_are /nodup_helper_inv /waiting_inv /=.
-  intros ([? Hlookup] & _ & Hq_wait); subst.
-  destruct l; [ left; by eauto | right ].
-  eexists _, _; intuition eauto.
-Qed.
-
 Lemma queue_gets_popped_unlocked W t ts :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
@@ -440,27 +415,6 @@ Qed.
 
 Hint Resolve elem_of_pop : core.
 
-Lemma kernel_wait_not_queued_progress W t :
-  spec ⊢
-  ⌜λ s, waiters_are W s ∧
-        s.(tp) !! t = Some pc.kernel_wait ∧
-        t ∉ s.(state).(queue)⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        wait_set s.(tp) = W ∧
-          s.(tp) !! t = Some pc.lock_cas⌝.
-Proof.
-  rewrite /waiters_are.
-  apply (mutex_wf1 t); simpl; intros.
-  - destruct Hpre as (Hwait & Ht & Hnotin); subst.
-    destruct_step; stm; simp_props.
-    + left. set_solver.
-    + assert (t ∉ pop q) by auto.
-      assert (t' ∉ wait_set tp) by eauto.
-      left; set_solver.
-  - stm.
-  - naive_solver.
-Qed.
-
 Lemma kernel_wait_not_queued_unlocked_progress W t :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
@@ -556,7 +510,7 @@ Definition no_wake_threads tp :=
 Definition wake_set tp : gset Tid :=
   dom (filter (λ '(_, pc), pc = pc.unlock_wake) tp).
 
-Theorem gset_subset_wf :
+Lemma gset_subset_wf :
   well_founded  ((⊂) : gset Tid → gset Tid → Prop).
 Proof. apply set_wf. Qed.
 
@@ -585,18 +539,6 @@ Qed.
 
 Hint Resolve elem_wake_set_2 not_elem_wake_set : core.
 
-Lemma wake_set_insert_same tp t pc pc' :
-  tp !! t = Some pc →
-  pc ≠ pc.unlock_wake → pc' ≠ pc.unlock_wake →
-  wake_set (<[t := pc']> tp) = wake_set tp.
-Proof.
-  intros.
-  apply gset_ext => t'.
-  rewrite /wake_set.
-  rewrite !elem_of_dom !filter_is_Some.
-  destruct (decide (t = t')); lookup_simp; naive_solver.
-Qed.
-
 Lemma wake_set_remove tp t pc' :
   pc' ≠ pc.unlock_wake →
   wake_set (<[t := pc']> tp) = wake_set tp ∖ {[t]}.
@@ -620,7 +562,14 @@ Proof.
   destruct (decide (t = t')); lookup_simp; naive_solver.
 Qed.
 
-Lemma eventually_no_wake_threads W :
+Hint Rewrite wake_set_add : pc.
+
+(** This is never used, but it's an interesting observation. I was hoping to use
+it to avoid decreasing a lexicographic tuple, but this strategy doesn't really
+work: after waiting for the wake threads to go away, threads may have
+re-arranged and the original kernel_wait threads may now be in lock_cas, for
+example. *)
+Lemma __eventually_no_wake_threads W :
   spec ⊢
   ⌜λ s, waiters_are W s⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
@@ -904,31 +853,6 @@ This "detour" is actually really interesting: you might think that simple transi
         intuition congruence. }
 Qed.
 
-Lemma kernel_wait_not_queued_progress' W U t :
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = W ∧
-        wake_set s.(tp) = U ∧
-        s.(tp) !! t = Some pc.kernel_wait ∧
-        t ∉ s.(state).(queue) ∧
-        s.(state).(lock) = false
-  ⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U) ∨
-        wait_set s.(tp) = W ∧
-          s.(tp) !! t = Some pc.lock_cas ∧
-          s.(state).(lock) = false
-  ⌝.
-Proof.
-  apply (mutex_wf1 t); simpl; intros.
-  - destruct Hpre as (Hwait & Ht & Hnotin); subst.
-    destruct_step; stm; simp_props.
-    + exfalso.
-      destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in *.
-      apply Hexcl in Hlookup; congruence.
-  - stm.
-  - naive_solver.
-Qed.
-
 Lemma kernel_wait_locked_progress W U :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
@@ -1161,7 +1085,7 @@ Qed.
 
 Hint Constructors slexprod : core.
 
-Lemma eventually_terminated :
+Theorem eventually_terminated :
   spec ⊢ ◇⌜terminated⌝.
 Proof.
   apply (leads_to_apply ⌜λ s, True⌝).
