@@ -34,7 +34,7 @@ Proof.
   destruct_step; stm.
 Qed.
 
-Lemma waiters_are_monotonic W :
+Lemma waiters_monotonic W :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W⌝ ~~>
   □⌜λ s, wait_set s.(tp) ⊆ W⌝.
@@ -755,7 +755,7 @@ This "detour" is actually really interesting: you might think that simple transi
         intuition congruence. }
 Qed.
 
-Lemma kernel_wait_locked_progress W U :
+Lemma kernel_wait_locked_progress1 W U :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
@@ -803,7 +803,7 @@ Proof.
   lt_apply (queue_gets_popped_locked' W U t ts).
 Qed.
 
-Lemma kernel_wait_locked_progress' W U :
+Lemma kernel_wait_locked_progress W U :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
@@ -812,7 +812,7 @@ Lemma kernel_wait_locked_progress' W U :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
 Proof.
-  lt_apply kernel_wait_locked_progress.
+  lt_apply kernel_wait_locked_progress1.
   rewrite -!combine_or_preds.
   rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
   rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
@@ -832,7 +832,7 @@ Proof.
   rewrite -!combine_or_preds.
   rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
   rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
-  lt_apply kernel_wait_locked_progress'.
+  lt_apply kernel_wait_locked_progress.
 Qed.
 
 Lemma lock_cas_locked_progress t W U :
@@ -919,7 +919,6 @@ Proof.
     rewrite leads_to_or_split; tla_split.
     + lt_apply kernel_wait_unlocked_progress.
     + lt_apply kernel_wait_locked_progress.
-      lt_auto naive_solver.
 Qed.
 
 Lemma kernel_wait_progress W U t :
