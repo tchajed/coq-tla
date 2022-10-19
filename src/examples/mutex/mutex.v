@@ -947,7 +947,7 @@ Proof.
     { lt_auto naive_solver. }
     lt_intros.
     lt_apply lock_cas_progress.
-  - lt_apply kernel_wait_locked_progress'.
+  - lt_apply kernel_wait_locked_progress.
 Qed.
 
 Lemma empty_wait_wake_to_unlock :
