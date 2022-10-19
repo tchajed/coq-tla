@@ -157,6 +157,15 @@ Proof.
   unseal.
 Qed.
 
+Lemma tla_contra p q :
+  (p ∧ !q ⊢ tla_false) →
+  p ⊢ q.
+Proof.
+  unseal.
+  destruct (classical.excluded_middle (q e)); eauto.
+  exfalso; eauto.
+Qed.
+
 Lemma tla_and_distr_l p q r :
   (p ∧ (q ∨ r)) == (p ∧ q ∨ p ∧ r).
 Proof.

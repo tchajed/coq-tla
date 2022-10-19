@@ -354,6 +354,29 @@ Proof.
   - apply wf_split_impl; auto.
 Qed.
 
+Lemma impl_intro' p q r :
+  (p ∧ q ⊢ r) →
+  (p ⊢ q → r).
+Proof. unseal. Qed.
+
+Theorem tla_wf2 (n m a b: action Σ) (p f: predicate) :
+  (⟨n⟩ ∧ ⟨b⟩ ⊢ ⟨m⟩) →
+  (p ∧ later p ∧ ⟨n⟩ ∧ ⟨a⟩ ∧ tla_enabled m ⊢ ⟨b⟩) →
+  (p ∧ tla_enabled m ⊢ tla_enabled a) →
+  (□⟨λ s s', n s s' ∧ ¬b s s'⟩ ∧
+     weak_fairness a ∧ □f ∧
+     ◇□ (tla_enabled m) ⊢ ◇□p) →
+  (□⟨n⟩ ∧ weak_fairness a ∧ □f ⊢ weak_fairness m).
+Proof.
+  intros Hn_to_m Ha_to_b Hm_to_a_enabled Hp_while_not_b.
+  rewrite (weak_fairness_alt2 m).
+  apply impl_intro'; tla_simp.
+  apply tla_contra.
+  tla_simp.
+  intros e (Hn & Hwf & Hf & Hmenabled & Heventually_notm).
+  rewrite /tla_false /=.
+Abort.
+
 Theorem strong_fairness_alt2 a :
   strong_fairness a == (□◇ (tla_enabled a) → □ ◇ ⟨a⟩).
 Proof.
