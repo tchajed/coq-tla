@@ -304,11 +304,12 @@ Qed.
 
 Hint Resolve append_non_empty : core.
 
-Lemma futex_wait_progress1 t W S :
+Lemma futex_wait_locked_progress1 t W S :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         signal_set s.(tp) = S ∧
-        s.(tp) !! t = Some pc.futex_wait⌝ ~~>
+        s.(tp) !! t = Some pc.futex_wait ∧
+        s.(state).(lock) = true ⌝ ~~>
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧
          signal_set s.(tp) ⊂ S) ∨
@@ -319,22 +320,16 @@ Lemma futex_wait_progress1 t W S :
          s.(state).(queue) ≠ [])⌝.
 Proof.
   apply (leads_to_detour
-           (⌜λ s, wait_set s.(tp) = W ∧
-                 s.(state).(lock) = false ∧
-                 s.(tp) !! t = Some pc.lock_cas⌝ ∨
            ⌜λ s, wait_set s.(tp) = W ∧
                   s.(state).(lock) = false ∧
-                  s.(tp) !! t = Some pc.futex_wait⌝)%L).
+                  s.(tp) !! t = Some pc.futex_wait⌝).
   { tla_simp.
     apply (mutex_wf1 t); simpl; intros.
     - destruct_step; stm.
     - stm.
-      destruct l0; stm.
       eauto 10.
     - naive_solver. }
-  lt_split.
-  - lt_apply lock_cas_unlocked_progress.
-  - lt_apply futex_wait_unlocked_progress.
+  lt_apply futex_wait_unlocked_progress.
 Qed.
 
 Lemma queue_gets_popped_locked W S t :
@@ -472,7 +467,9 @@ Lemma futex_wait_progress t W S :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ signal_set s.(tp) ⊂ S)⌝.
 Proof.
-  lt_apply futex_wait_progress1.
+  apply leads_to_if_lock.
+  { lt_apply futex_wait_unlocked_progress. }
+  lt_apply futex_wait_locked_progress1.
   lt_split; first by lt_auto.
   lt_split; first by lt_auto.
   lt_apply kernel_wait_locked_progress.
