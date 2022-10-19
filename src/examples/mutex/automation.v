@@ -1,7 +1,7 @@
 From Coq.Relations Require Import Relation_Operators.
 
-From TLA Require Import logic.
-From TLA.examples.mutex Require Import spec wait_set.
+From TLA Require Export logic.
+From TLA.examples.mutex Require Export spec wait_set.
 
 Lemma state_inv l1 q1 l2 q2 :
   mkState l1 q1 = mkState l2 q2 ↔ l1 = l2 ∧ q1 = q2.
@@ -163,3 +163,6 @@ Ltac stm :=
       (split; [ solve [ intuition eauto ] | ])
     | (split; [ | solve [ intuition eauto ] ])
     ].
+
+#[export]
+Hint Extern 2 (_ ⊆ _) => set_solver : core.
