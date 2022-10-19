@@ -111,38 +111,6 @@ Proof. set_solver. Qed.
 
 Hint Resolve list_elem_of_head : core.
 
-Lemma unlock_store_progress W t :
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = W ∧ s.(tp) !! t = Some pc.unlock_store⌝ ~~>
-  ⌜λ s, wait_set s.(tp) = W ∧ s.(state).(lock) = false⌝.
-Proof.
-  apply (mutex_wf1 t); simpl; intros.
-  - destruct_step; stm.
-    exfalso; eauto using all_invs_unlock_store.
-  - stm.
-  - naive_solver.
-Qed.
-
-Lemma eventually_unlock W :
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = W⌝ ~~>
-  ⌜λ s, wait_set s.(tp) = W ∧ s.(state).(lock) = false⌝.
-Proof.
-  apply leads_to_if_lock; first by lt_auto.
-
-  (* somebody must hold the lock *)
-  eapply leads_to_assume; [ apply locked_inv_ok | ].
-  tla_simp.
-  leads_to_trans (∃ t, ⌜λ s, wait_set s.(tp) = W ∧
-                             s.(state).(lock) = true ∧
-                             lock_held s t⌝)%L.
-  { rewrite /locked_inv.
-    lt_auto naive_solver. }
-
-  lt_intros.
-  lt_apply unlock_store_progress.
-Qed.
-
 Lemma lock_cas_unlocked_progress t W :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
@@ -217,6 +185,99 @@ Proof.
       naive_solver. }
 
   lt_apply lock_cas_unlocked_progress.
+Qed.
+
+Lemma queue_gets_popped_locked W S t :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        signal_set s.(tp) = S ∧
+        (∃ ts, s.(state).(queue) = t :: ts) ∧
+        s.(state).(lock) = true⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W ∨
+       (wait_set s.(tp) = W ∧
+        signal_set s.(tp) ⊂ S) ∨
+      (wait_set s.(tp) = W ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        t ∉ s.(state).(queue) ∧
+       s.(state).(lock) = false) ⌝.
+Proof.
+  leads_to_trans (∃ t', ⌜λ s,
+        wait_set s.(tp) = W ∧
+        signal_set s.(tp) = S ∧
+        (∃ ts, s.(state).(queue) = t :: ts ∧
+                t ∉ ts) ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        s.(state).(lock) = true ∧
+        lock_held s t'⌝)%L.
+  - apply (leads_to_assume _ all_invs_ok).
+    lt_unfold.
+    intros [(?&?&?&?) Hinv].
+    destruct Hinv as [_ Hlocked Hnodup Hwaiting _];
+      autounfold with inv in *.
+    stm.
+    exists t0; intuition eauto.
+    eexists; intuition eauto.
+    apply NoDup_head_not_in in Hnodup; auto.
+  - lt_intros.
+    unfold lock_held.
+
+(*|
+This "detour" is actually really interesting: you might think that simple transitivity is enough, because if t' has the lock, it will release the lock, then signal to t (transitivity is needed because this is two steps from thread t'). However, this is _not_ the case. It is possible for t' to release the lock, and then for some other thread to happen to do a CAS, acquire the lock, unlock it, and then send the signal to t; the original t' will now signal some other thread. This is unusual because t' is trying to signal something to t but some unrelated thread swoops in and does it instead, many steps later.
+|*)
+    apply (leads_to_detour ⌜λ s,
+      wait_set s.(tp) = W ∧
+      (∃ ts' : list Tid, s.(state).(queue) = t :: ts') ∧
+      s.(tp) !! t = Some pc.kernel_wait ∧
+       s.(tp) !! t' = Some pc.unlock_wake ∧
+      s.(state).(lock) = false⌝).
+
+    { tla_simp.
+      apply (mutex_wf1 t'); cbn.
+      - intro t''; intros.
+        (* extract the invariants we want to use *)
+        destruct Hinv as [Hexclusion _ Hnodup _ _];
+          destruct Hinv' as [_ _ Hnodup' _ _];
+          autounfold with inv in *; simpl in *.
+        destruct Hexclusion as [_ Hsafe].
+        stm_simp.
+
+        destruct_step; stm_simp; eauto 8.
+        + left; intuition eauto.
+        + left; intuition eauto.
+          eexists (_ ++ [t'']).
+          intuition eauto.
+          apply NoDup_head_not_in in Hnodup'; auto.
+        + assert (t'' ≠ t) by set_solver.
+          stm.
+        + assert (t' = t'').
+          { apply Hsafe; eauto. }
+          exfalso; congruence.
+      - stm.
+      - stm.
+        eexists; split; first by eauto.
+        intuition congruence. }
+
+    { apply (mutex_wf1 t'); cbn.
+      - intro t''; intros.
+        destruct Hinv as [_ _  Hnodup _ _];
+          autounfold with inv in *; simpl in *.
+        stm_simp.
+
+        destruct_step; stm.
+        + assert (t'' ≠ t) by set_solver.
+          stm.
+        + simp_props.
+          right; right; right.
+          apply NoDup_head_not_in in Hnodup; eauto.
+      - intros.
+        stm.
+        destruct Hinv as [_ _ Hnodup _ _];
+          autounfold with inv in *; simpl in *.
+        apply NoDup_head_not_in in Hnodup; eauto 10.
+      - intros.
+        stm.
+        eexists; split; first by eauto.
+        intuition congruence. }
 Qed.
 
 Hint Resolve elem_of_pop : core.
@@ -332,99 +393,6 @@ Proof.
   lt_apply futex_wait_unlocked_progress.
 Qed.
 
-Lemma queue_gets_popped_locked W S t :
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = W ∧
-        signal_set s.(tp) = S ∧
-        (∃ ts, s.(state).(queue) = t :: ts) ∧
-        s.(state).(lock) = true⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊂ W ∨
-       (wait_set s.(tp) = W ∧
-        signal_set s.(tp) ⊂ S) ∨
-      (wait_set s.(tp) = W ∧
-        s.(tp) !! t = Some pc.kernel_wait ∧
-        t ∉ s.(state).(queue) ∧
-       s.(state).(lock) = false) ⌝.
-Proof.
-  leads_to_trans (∃ t', ⌜λ s,
-        wait_set s.(tp) = W ∧
-        signal_set s.(tp) = S ∧
-        (∃ ts, s.(state).(queue) = t :: ts ∧
-                t ∉ ts) ∧
-        s.(tp) !! t = Some pc.kernel_wait ∧
-        s.(state).(lock) = true ∧
-        lock_held s t'⌝)%L.
-  - apply (leads_to_assume _ all_invs_ok).
-    lt_unfold.
-    intros [(?&?&?&?) Hinv].
-    destruct Hinv as [_ Hlocked Hnodup Hwaiting _];
-      autounfold with inv in *.
-    stm.
-    exists t0; intuition eauto.
-    eexists; intuition eauto.
-    apply NoDup_head_not_in in Hnodup; auto.
-  - lt_intros.
-    unfold lock_held.
-
-(*|
-This "detour" is actually really interesting: you might think that simple transitivity is enough, because if t' has the lock, it will release the lock, then signal to t (transitivity is needed because this is two steps from thread t'). However, this is _not_ the case. It is possible for t' to release the lock, and then for some other thread to happen to do a CAS, acquire the lock, unlock it, and then send the signal to t; the original t' will now signal some other thread. This is unusual because t' is trying to signal something to t but some unrelated thread swoops in and does it instead, many steps later.
-|*)
-    apply (leads_to_detour ⌜λ s,
-      wait_set s.(tp) = W ∧
-      (∃ ts' : list Tid, s.(state).(queue) = t :: ts') ∧
-      s.(tp) !! t = Some pc.kernel_wait ∧
-       s.(tp) !! t' = Some pc.unlock_wake ∧
-      s.(state).(lock) = false⌝).
-
-    { tla_simp.
-      apply (mutex_wf1 t'); cbn.
-      - intro t''; intros.
-        (* extract the invariants we want to use *)
-        destruct Hinv as [Hexclusion _ Hnodup _ _];
-          destruct Hinv' as [_ _ Hnodup' _ _];
-          autounfold with inv in *; simpl in *.
-        destruct Hexclusion as [_ Hsafe].
-        stm_simp.
-
-        destruct_step; stm_simp; eauto 8.
-        + left; intuition eauto.
-        + left; intuition eauto.
-          eexists (_ ++ [t'']).
-          intuition eauto.
-          apply NoDup_head_not_in in Hnodup'; auto.
-        + assert (t'' ≠ t) by set_solver.
-          stm.
-        + assert (t' = t'').
-          { apply Hsafe; eauto. }
-          exfalso; congruence.
-      - stm.
-      - stm.
-        eexists; split; first by eauto.
-        intuition congruence. }
-
-    { apply (mutex_wf1 t'); cbn.
-      - intro t''; intros.
-        destruct Hinv as [_ _  Hnodup _ _];
-          autounfold with inv in *; simpl in *.
-        stm_simp.
-
-        destruct_step; stm.
-        + assert (t'' ≠ t) by set_solver.
-          stm.
-        + simp_props.
-          right; right; right.
-          apply NoDup_head_not_in in Hnodup; eauto.
-      - intros.
-        stm.
-        destruct Hinv as [_ _ Hnodup _ _];
-          autounfold with inv in *; simpl in *.
-        apply NoDup_head_not_in in Hnodup; eauto 10.
-      - intros.
-        stm.
-        eexists; split; first by eauto.
-        intuition congruence. }
-Qed.
-
 Lemma kernel_wait_locked_progress W S :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
@@ -454,9 +422,8 @@ Proof.
                                 s.(tp) !! t = Some pc.kernel_wait ∧
                                 s.(state).(lock) = false⌝);
     lt_simp.
-  2: { by lt_apply kernel_wait_unlocked_progress. }
-
-  lt_apply queue_gets_popped_locked.
+  - lt_apply queue_gets_popped_locked.
+  - lt_apply kernel_wait_unlocked_progress.
 Qed.
 
 Lemma futex_wait_progress t W S :
@@ -626,6 +593,38 @@ Proof.
   - stm_simp.
     apply elem_signal_set in Hel.
     naive_solver.
+Qed.
+
+Lemma unlock_store_progress W t :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧ s.(tp) !! t = Some pc.unlock_store⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = W ∧ s.(state).(lock) = false⌝.
+Proof.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct_step; stm.
+    exfalso; eauto using all_invs_unlock_store.
+  - stm.
+  - naive_solver.
+Qed.
+
+Lemma eventually_unlock W :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W⌝ ~~>
+  ⌜λ s, wait_set s.(tp) = W ∧ s.(state).(lock) = false⌝.
+Proof.
+  apply leads_to_if_lock; first by lt_auto.
+
+  (* somebody must hold the lock *)
+  eapply leads_to_assume; [ apply locked_inv_ok | ].
+  tla_simp.
+  leads_to_trans (∃ t, ⌜λ s, wait_set s.(tp) = W ∧
+                             s.(state).(lock) = true ∧
+                             lock_held s t⌝)%L.
+  { rewrite /locked_inv.
+    lt_auto naive_solver. }
+
+  lt_intros.
+  lt_apply unlock_store_progress.
 Qed.
 
 (*|
