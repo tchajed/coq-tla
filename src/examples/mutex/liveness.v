@@ -150,9 +150,7 @@ Lemma queue_gets_popped_unlocked W t ts :
       s.(tp) !! t = Some pc.kernel_wait ∧
       s.(state).(lock) = false⌝.
 Proof.
-  apply (leads_to_assume _ lock_free_queue_inv_ok); tla_simp.
-  rewrite /lock_free_queue_inv.
-
+  apply (leads_to_assume _ all_invs_ok); tla_simp.
   leads_to_trans (∃ t', ⌜ λ s,
                     wait_set s.(tp) = W ∧
                     s.(state).(queue) = t :: ts ∧
@@ -161,14 +159,14 @@ Proof.
                    ⌝)%L.
   { lt_unfold.
     destruct s as [[l q] tp].
-    move => /= [[Hwaiters [? ?]] Hcan_lock]; simpl; subst.
+    move => /= [[Hwaiters [? ?]] Hinv]; simpl; subst.
+    destruct Hinv as [_ _ _ _ Hcan_lock];
+      autounfold with inv in *.
     specialize (Hcan_lock _ _ ltac:(eauto)); stm. }
 
   lt_intro.
   apply (leads_to_detour
     ⌜λ s, wait_set s.(tp) = W ∧
-         s.(state).(queue) = t::ts ∧
-         s.(tp) !! t = Some pc.kernel_wait ∧
          s.(state).(lock) = false ∧
          s.(tp) !! t' = Some pc.lock_cas⌝); tla_simp.
 
@@ -176,17 +174,9 @@ Proof.
     - intros t'' **.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *.
-      destruct_step; stm_simp; simp_props; eauto.
-      + right; right; left. eauto 10.
-      + left.
-        rewrite /thread_can_lock /= in Hcan_lock |- *.
-        lookup_simp; eauto.
-      + left; intuition auto.
-        rewrite /thread_can_lock /= in Hcan_lock |- *.
-        lookup_simp; eauto.
-      + left.
-        rewrite /thread_can_lock /= in Hcan_lock |- *.
-        lookup_simp; eauto 8.
+      rewrite /thread_can_lock.
+      destruct_step; stm_simp; simp_props; auto.
+      + right; right; left. eauto.
       + assert (t ∉ ts) by (inversion Hnodup; auto).
         rewrite /waiting_inv in Hwaiting.
         assert (t'' ≠ t) by set_solver.
@@ -195,31 +185,14 @@ Proof.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *; simpl in *.
       stm_simp.
-      assert (t ∉ ts) by (inversion Hnodup; auto).
-      stm_simp.
+      assert (t ∉ ts) by (eauto using NoDup_head_not_in).
       assert (tp !! t = Some pc.kernel_wait) by (eapply Hwaiting; eauto).
       rewrite thread_step_eq /thread_step_def in Hstep.
       unfold thread_can_lock in *; stm.
-      + assert (t' ∈ wait_set tp) by eauto.
-        assert (t ≠ t') by set_solver.
-        lookup_simp; eauto 10.
     - intros. rewrite /thread_can_lock /= in H.
       naive_solver. }
 
-    apply (mutex_wf1 t'); simpl.
-    - intros t'' **.
-      destruct Hpre as (Hq & Hlock & Hcan_lock).
-      destruct Hinv as [_ _ Hnodup Hwaiting _];
-        autounfold with inv in *; simpl in *.
-      stm_simp.
-      assert (t ∉ ts) by (inversion Hnodup; auto).
-      destruct_step; stm.
-      + assert (t'' ≠ t) by set_solver.
-        stm.
-    - intros *.
-      intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
-      stm.
-    - naive_solver.
+  lt_apply lock_cas_unlocked_progress.
 Qed.
 
 Hint Resolve elem_of_pop : core.
