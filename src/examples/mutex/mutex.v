@@ -232,13 +232,7 @@ Proof.
   apply (mutex_wf1 t0); simpl; intros.
   - rewrite /lock_held /= in Hpre |- *.
     destruct Hpre as (Hwait & Hlock & Ht0); subst.
-    destruct_step; stm_simp; simp_props; auto.
-    + right.
-      assert (t' ∉ wait_set tp) by eauto.
-      set_solver.
-    + left.
-      assert (t' ∉ wait_set tp) by eauto.
-      set_solver.
+    destruct_step; stm.
   - rewrite /lock_held /= in Hpre |- *.
     destruct Hpre as (Hwait & Hlock & Ht0); subst.
     stm.
@@ -254,7 +248,6 @@ Lemma lock_cas_unlocked_progress t W :
 Proof.
   apply (mutex_wf1 t); simpl; intros.
   - destruct_step; stm.
-    eauto 10.
   - stm.
   - naive_solver.
 Qed.
@@ -275,7 +268,6 @@ Proof.
   { tla_simp.
     apply (mutex_wf1 t); simpl; intros.
     - destruct_step; stm.
-      eauto 10.
     - stm.
       destruct l0; stm.
     - naive_solver. }
@@ -341,8 +333,6 @@ Proof.
         rewrite /waiting_inv in Hwaiting.
         assert (t'' ≠ t) by set_solver.
         right; right; right. stm.
-        assert (t'' ∉ wait_set tp) by eauto.
-        set_solver.
     - intros.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *; simpl in *.
@@ -352,9 +342,6 @@ Proof.
       assert (tp !! t = Some pc.kernel_wait) by (eapply Hwaiting; eauto).
       rewrite thread_step_eq /thread_step_def in Hstep.
       unfold thread_can_lock in *; stm.
-      + assert (t ≠ t') by set_solver.
-        assert (t' ∉ wait_set tp) by eauto.
-        stm.
       + assert (t' ∈ wait_set tp) by eauto.
         assert (t ≠ t') by set_solver.
         lookup_simp; eauto 10.
@@ -370,8 +357,6 @@ Proof.
       assert (t ∉ ts) by (inversion Hnodup; auto).
       destruct_step; stm.
       + assert (t'' ≠ t) by set_solver.
-        stm.
-      + assert (t'' ∉ wait_set tp) by eauto.
         stm.
     - intros *.
       intros (Hq & Hlock & Hcan_lock) _ Hstep; subst.
@@ -412,9 +397,6 @@ Proof.
   apply (mutex_wf1 t); simpl; intros.
   - destruct Hpre as (Hwait & Ht & Hnotin); subst.
     destruct_step; stm; simp_props.
-    + assert (t ∉ pop q) by auto.
-      assert (t' ∉ wait_set tp) by eauto.
-      left; set_solver.
   - stm.
   - naive_solver.
 Qed.
@@ -485,65 +467,12 @@ Proof.
   lt_apply lock_cas_unlocked_progress.
 Qed.
 
-Definition no_wake_threads tp :=
-  ∀ t pc, tp !! t = Some pc → pc ≠ pc.unlock_wake.
-
-Definition wake_set tp : gset Tid :=
-  dom (filter (λ '(_, pc), pc = pc.unlock_wake) tp).
-
 Lemma gset_subset_wf :
   well_founded  ((⊂) : gset Tid → gset Tid → Prop).
 Proof. apply set_wf. Qed.
 
-Lemma elem_wake_set tp t :
-  t ∈ wake_set tp ↔ tp !! t = Some pc.unlock_wake.
-Proof.
-  rewrite /wake_set.
-  rewrite elem_of_dom filter_is_Some. naive_solver.
-Qed.
-
-Lemma elem_wake_set_2 tp t :
-  tp !! t = Some pc.unlock_wake →
-  t ∈ wake_set tp.
-Proof.
-  apply elem_wake_set.
-Qed.
-
-Lemma not_elem_wake_set tp t pc :
-  tp !! t = Some pc →
-  pc ≠ pc.unlock_wake →
-  t ∉ wake_set tp.
-Proof.
-  rewrite elem_wake_set.
-  naive_solver.
-Qed.
-
-Hint Resolve elem_wake_set_2 not_elem_wake_set : core.
-
-Lemma wake_set_remove tp t pc' :
-  pc' ≠ pc.unlock_wake →
-  wake_set (<[t := pc']> tp) = wake_set tp ∖ {[t]}.
-Proof.
-  intros.
-  apply gset_ext => t'.
-  rewrite /wake_set. rewrite elem_of_difference !elem_of_dom !filter_is_Some.
-  rewrite elem_of_singleton.
-  destruct (decide (t = t')); lookup_simp; naive_solver.
-Qed.
-
-Hint Rewrite wake_set_remove using (by auto) : pc.
-
-Lemma wake_set_add tp t :
-  wake_set (<[t := pc.unlock_wake]> tp) = wake_set tp ∪ {[t]}.
-Proof.
-  intros.
-  apply gset_ext => t'.
-  rewrite /wake_set. rewrite elem_of_union !elem_of_dom !filter_is_Some.
-  rewrite elem_of_singleton.
-  destruct (decide (t = t')); lookup_simp; naive_solver.
-Qed.
-
-Hint Rewrite wake_set_add : pc.
+Definition no_wake_threads tp :=
+  ∀ t pc, tp !! t = Some pc → pc ≠ pc.unlock_wake.
 
 (** This is never used, but it's an interesting observation. I was hoping to use
 it to avoid decreasing a lexicographic tuple, but this strategy doesn't really
@@ -599,8 +528,6 @@ Proof.
       stm_simp.
       right; right.
       eexists; intuition eauto.
-      assert (t ∉ wait_set tp) by eauto.
-      set_solver.
     + stm_simp.
       apply elem_wake_set in Hel.
       naive_solver.
@@ -639,13 +566,10 @@ Proof.
     (intuition idtac); stm.
     + destruct Hinv as [[Hexcl _] _ _ _ _]; simpl in Hexcl.
       apply Hexcl in Hlookup; congruence.
-    + right. intuition eauto.
-      set_solver.
   - stm_simp.
     apply elem_wake_set in Hel.
     stm_simp.
     intuition eauto.
-    set_solver.
   - stm_simp.
     apply elem_wake_set in Hel.
     naive_solver.
@@ -672,8 +596,6 @@ Proof.
     lt_auto intuition eauto 10.
   - lt_auto naive_solver.
 Qed.
-
-Hint Rewrite wait_set_remove_eq using (by eauto) : pc.
 
 Lemma futex_wait_unlocked_progress t W :
   spec ⊢

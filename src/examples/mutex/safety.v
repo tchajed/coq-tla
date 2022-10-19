@@ -10,7 +10,7 @@ Definition exclusion_inv: Config → Prop :=
                s.(state).(lock) = true) ∧
        safe s.
 
-Theorem exclusion_inv' s :
+Lemma exclusion_inv' s :
   exclusion_inv s ↔
     (∀ t t', s.(tp) !! t = Some pc.critical_sec →
              s.(tp) !! t' = Some pc.critical_sec →
@@ -56,7 +56,7 @@ Proof.
     { split; eauto. }
 Qed.
 
-Theorem safety :
+Lemma safe_ok :
   spec ⊢ □ ⌜safe⌝.
 Proof.
   rewrite exclusion_inv_ok /exclusion_inv.
@@ -223,7 +223,7 @@ Record all_invs s :=
     Hcan_lock: lock_free_queue_inv s;
   }.
 
-Theorem all_invs_ok :
+Lemma all_invs_ok :
   spec ⊢ □⌜all_invs⌝.
 Proof.
   tla_pose exclusion_inv_ok.
