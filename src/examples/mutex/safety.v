@@ -56,7 +56,7 @@ Proof.
     { split; eauto. }
 Qed.
 
-Lemma safe_ok :
+Theorem safety :
   spec ⊢ □ ⌜safe⌝.
 Proof.
   rewrite exclusion_inv_ok /exclusion_inv.

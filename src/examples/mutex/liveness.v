@@ -975,6 +975,20 @@ Proof.
       exfalso; set_solver.
 Qed.
 
+Lemma any_wait_progress W U t :
+  spec ⊢
+  (⌜ λ s, wait_set s.(tp) = W ∧ wake_set s.(tp) = U ⌝ ∧
+   (⌜ λ s, s.(tp) !! t = Some pc.lock_cas ⌝ ∨
+    ⌜ λ s, s.(tp) !! t = Some pc.futex_wait ⌝ ∨
+    ⌜ λ s, s.(tp) !! t = Some pc.kernel_wait ⌝)) ~~>
+  ⌜ λ s, wait_set s.(tp) ⊂ W ∨ wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U ⌝.
+Proof.
+  lt_split; [ | lt_split ]; tla_simp.
+  - lt_apply lock_cas_progress.
+  - lt_apply futex_wait_progress.
+  - lt_apply kernel_wait_progress.
+Qed.
+
 Hint Constructors slexprod : core.
 
 Theorem eventually_terminated :
@@ -982,16 +996,23 @@ Theorem eventually_terminated :
 Proof.
   apply (leads_to_apply ⌜λ s, True⌝).
   { unseal. }
+
   set (h := λ '(W, U) s, wait_set s.(tp) = W ∧
                          wake_set s.(tp) = U).
   lt_apply (lattice_leads_to_ex
               (wf_slexprod _ _ _ _ gset_subset_wf gset_subset_wf)
               h (∅, ∅)).
+
   - rewrite /h. lt_unfold.
     intros.
     eexists (_, _); intuition eauto.
+
   - intros [W U] Hnot_bothempty.
-    assert (U ≠ ∅ ∧ W = ∅ ∨ W ≠ ∅) as [[Hnonempty ->]|Hnonempty].
+
+(*|
+Handle the case where W = ∅ separately.
+  |*)
+    assert ((W = ∅ ∧ U ≠ ∅) ∨ W ≠ ∅) as [[-> Hnonempty]|Hnonempty].
     { destruct (decide (W = ∅)); destruct (decide (U = ∅)); subst; eauto. }
     { rewrite /h. lt_apply wake_threads_empty.
       lt_auto naive_solver. }
@@ -1006,18 +1027,14 @@ Proof.
     { rewrite /h. lt_auto intuition auto. subst.
       apply elem_of_wait_set in Hel as (pc & Hlookup & Hwait).
       rewrite /wait_pc in Hwait; naive_solver. }
-    leads_to_trans (⌜λ s, wait_set s.(tp) ⊂ W ∨
-                          (wait_set s.(tp) = W ∧
-                           wake_set s.(tp) ⊂ U)⌝).
-    2: by lt_auto naive_solver.
-    lt_split; [ | lt_split ];
-      rewrite /h; tla_simp.
-    + lt_apply lock_cas_progress.
-    + lt_apply futex_wait_progress.
-    + lt_apply kernel_wait_progress.
-  - lt_apply empty_wait_wake_to_unlock.
-    { rewrite /h. lt_auto. }
+    rewrite /h.
+    lt_apply any_wait_progress.
+    lt_auto naive_solver.
+
+  - rewrite /h.
+    lt_apply empty_wait_wake_to_unlock.
     lt_apply empty_wait_wake_to_terminated.
+
 Qed.
 
 End example.
