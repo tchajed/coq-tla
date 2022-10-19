@@ -194,7 +194,7 @@ Qed.
 
 Hint Resolve elem_of_pop : core.
 
-Lemma kernel_wait_not_queued_unlocked_progress W t :
+Lemma kernel_wait_not_queued_unlocked_progress1 W t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
@@ -212,16 +212,25 @@ Proof.
   - naive_solver.
 Qed.
 
-Lemma kernel_wait_unlocked_progress1 W t :
+Lemma kernel_wait_not_queued_unlocked_progress W t :
+  spec ⊢
+  ⌜λ s, wait_set s.(tp) = W ∧
+        s.(tp) !! t = Some pc.kernel_wait ∧
+        t ∉ s.(state).(queue) ∧
+        s.(state).(lock) = false⌝ ~~>
+  ⌜λ s, wait_set s.(tp) ⊂ W⌝.
+Proof.
+  lt_apply kernel_wait_not_queued_unlocked_progress1.
+  lt_split; first by lt_auto.
+  lt_apply lock_cas_unlocked_progress.
+Qed.
+
+Lemma kernel_wait_unlocked_progress W t :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         s.(tp) !! t = Some pc.kernel_wait ∧
         s.(state).(lock) = false⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊂ W ∨
-        (∃ t', wait_set s.(tp) = W ∧
-               s.(tp) !! t' = Some pc.lock_cas ∧
-               s.(state).(lock) = false
-         )⌝.
+  ⌜λ s, wait_set s.(tp) ⊂ W⌝.
 Proof.
   apply (leads_to_if ⌜λ s, t ∈ s.(state).(queue)⌝).
   - tla_simp.
@@ -239,20 +248,6 @@ Proof.
       lt_apply kernel_wait_not_queued_unlocked_progress.
   - tla_simp.
     lt_apply kernel_wait_not_queued_unlocked_progress.
-Qed.
-
-Lemma kernel_wait_unlocked_progress W t :
-  spec ⊢
-  ⌜λ s, wait_set s.(tp) = W ∧
-        s.(tp) !! t = Some pc.kernel_wait ∧
-        s.(state).(lock) = false⌝ ~~>
-  ⌜λ s, wait_set s.(tp) ⊂ W⌝.
-Proof.
-  leads_to_etrans.
-  { apply kernel_wait_unlocked_progress1. }
-  lt_split; first by lt_auto.
-  lt_intro t'.
-  lt_apply lock_cas_unlocked_progress.
 Qed.
 
 Lemma gset_subset_wf :
