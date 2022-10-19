@@ -110,13 +110,10 @@ Proof.
     lt_auto naive_solver. }
   lt_intro t0.
 
+  rewrite /lock_held.
   apply (mutex_wf1 t0); simpl; intros.
-  - rewrite /lock_held /= in Hpre |- *.
-    destruct Hpre as (Hwait & Hlock & Ht0); subst.
-    destruct_step; stm.
-  - rewrite /lock_held /= in Hpre |- *.
-    destruct Hpre as (Hwait & Hlock & Ht0); subst.
-    stm.
+  - destruct_step; stm.
+  - stm.
   - naive_solver.
 Qed.
 
@@ -158,11 +155,11 @@ Proof.
                     thread_can_lock t' s
                    ⌝)%L.
   { lt_unfold.
-    destruct s as [[l q] tp].
-    move => /= [[Hwaiters [? ?]] Hinv]; simpl; subst.
+    intros [? Hinv]. stm_simp.
     destruct Hinv as [_ _ _ _ Hcan_lock];
-      autounfold with inv in *.
-    specialize (Hcan_lock _ _ ltac:(eauto)); stm. }
+      autounfold with inv in *;
+      simpl in *.
+    destruct (Hcan_lock _ _ ltac:(eauto)); stm. }
 
   lt_intro.
   apply (leads_to_detour
@@ -185,7 +182,7 @@ Proof.
       destruct Hinv as [_ _ Hnodup Hwaiting Hcan_lock];
         autounfold with inv in *; simpl in *.
       stm_simp.
-      assert (t ∉ ts) by (eauto using NoDup_head_not_in).
+      assert (t ∉ ts) by (inversion Hnodup; auto).
       assert (tp !! t = Some pc.kernel_wait) by (eapply Hwaiting; eauto).
       rewrite thread_step_eq /thread_step_def in Hstep.
       unfold thread_can_lock in *; stm.
