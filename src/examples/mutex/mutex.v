@@ -108,6 +108,17 @@ Proof.
     eauto.
 Qed.
 
+Lemma leads_to_if_lock Γ (P: Config → Prop) φ :
+  (Γ ⊢ ⌜λ s, P s ∧ s.(state).(lock) = false⌝ ~~> φ) →
+  (Γ ⊢ ⌜λ s, P s ∧ s.(state).(lock) = true⌝ ~~> φ) →
+  Γ ⊢ ⌜P⌝ ~~> φ.
+Proof.
+  intros Hfalse Htrue.
+  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝); tla_simp; auto.
+  leads_to_etrans; [ | apply Hfalse ].
+  lt_unfold. rewrite not_true_iff_false //.
+Qed.
+
 Lemma list_elem_of_head {A} (l: list A) (x: A) :
   x ∈ x::l.
 Proof. set_solver. Qed.
@@ -213,11 +224,7 @@ Lemma eventually_unlock W :
   ⌜λ s, wait_set s.(tp) = W⌝ ~~>
   ⌜λ s, wait_set s.(tp) = W ∧ s.(state).(lock) = false⌝.
 Proof.
-  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝); tla_simp.
-  2: {
-    apply pred_leads_to => s.
-    destruct (s.(state).(lock)); intuition auto.
-  }
+  apply leads_to_if_lock; first by lt_auto.
 
   (* somebody must hold the lock *)
   eapply leads_to_assume; [ apply locked_inv_ok | ].
@@ -373,11 +380,9 @@ Lemma __queue_gets_popped W t ts :
         s.(tp) !! t = Some pc.kernel_wait ∧
         t ∉ s.(state).(queue))⌝.
 Proof.
-  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝);
-    tla_simp.
-  - lt_apply __queue_gets_popped_locked.
+  apply leads_to_if_lock.
   - lt_apply queue_gets_popped_unlocked.
-    { lt_unfold. rewrite not_true_iff_false. naive_solver. }
+  - lt_apply __queue_gets_popped_locked.
 Qed.
 
 Hint Resolve elem_of_pop : core.
@@ -869,11 +874,9 @@ Lemma lock_cas_progress t W U :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
 Proof.
-  apply (leads_to_if ⌜λ s, s.(state).(lock) = false⌝).
+  apply leads_to_if_lock.
   - lt_apply lock_cas_unlocked_progress.
   - lt_apply lock_cas_locked_progress.
-    lt_unfold.
-    rewrite not_false_iff_true. naive_solver.
 Qed.
 
 Lemma kernel_wait_locked_queue_empty_progress W U t :
@@ -921,11 +924,8 @@ Lemma kernel_wait_progress W U t :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
 Proof.
-  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝); lt_simp.
-  2: {
-    lt_apply kernel_wait_unlocked_progress.
-    lt_unfold. rewrite not_true_iff_false. naive_solver.
-  }
+  apply leads_to_if_lock.
+  { lt_apply kernel_wait_unlocked_progress. }
   apply (leads_to_if ⌜λ s, s.(state).(queue) = []⌝); lt_simp.
   - lt_apply kernel_wait_locked_queue_empty_progress.
     lt_split; first by lt_auto.
