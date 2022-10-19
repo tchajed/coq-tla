@@ -131,7 +131,8 @@ Proof. set_solver. Qed.
 
 Hint Resolve list_elem_of_head list_not_elem_of_head : core.
 
-Lemma queue_gets_popped_locked W t ts :
+(** unused, superceded by queue_gets_popped_locked' *)
+Lemma __queue_gets_popped_locked W t ts :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(state).(queue) = t :: ts ∧
@@ -277,7 +278,7 @@ Proof.
   - naive_solver.
 Qed.
 
-Lemma futex_wait_progress t W :
+Lemma __futex_wait_progress t W :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(tp) !! t = Some pc.futex_wait⌝ ~~>
@@ -420,7 +421,8 @@ Proof.
     - naive_solver.
 Qed.
 
-Lemma queue_gets_popped W t ts :
+(** unused *)
+Lemma __queue_gets_popped W t ts :
   spec ⊢
   ⌜λ s, waiters_are W s ∧
         s.(state).(queue) = t :: ts⌝ ~~>
@@ -431,7 +433,7 @@ Lemma queue_gets_popped W t ts :
 Proof.
   apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝);
     tla_simp.
-  - lt_apply queue_gets_popped_locked.
+  - lt_apply __queue_gets_popped_locked.
   - lt_apply queue_gets_popped_unlocked.
     { lt_unfold. rewrite not_true_iff_false. naive_solver. }
 Qed.
@@ -770,7 +772,7 @@ Qed.
 
 Hint Resolve append_non_empty : core.
 
-Lemma futex_wait_progress' t W U :
+Lemma futex_wait_progress1 t W U :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
@@ -992,7 +994,7 @@ Proof.
   lt_apply lock_cas_unlocked_progress.
 Qed.
 
-Lemma futex_wait_progress'' t W U :
+Lemma futex_wait_progress t W U :
   spec ⊢
   ⌜λ s, wait_set s.(tp) = W ∧
         wake_set s.(tp) = U ∧
@@ -1000,7 +1002,7 @@ Lemma futex_wait_progress'' t W U :
   ⌜λ s, wait_set s.(tp) ⊂ W ∨
         (wait_set s.(tp) = W ∧ wake_set s.(tp) ⊂ U)⌝.
 Proof.
-  lt_apply futex_wait_progress'.
+  lt_apply futex_wait_progress1.
   rewrite -!combine_or_preds.
   rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
   rewrite leads_to_or_split; tla_split; [ by lt_auto | ].
@@ -1037,7 +1039,7 @@ Proof.
     { lt_auto. }
     rewrite leads_to_or_split; tla_split.
     { lt_apply lock_cas_unlocked_progress. }
-    lt_apply (futex_wait_progress'' t W U).
+    lt_apply (futex_wait_progress t W U).
 Qed.
 
 Lemma lock_cas_progress t W U :
@@ -1197,7 +1199,7 @@ Proof.
       [ | rewrite leads_to_or_split; tla_split ];
       rewrite /h; tla_simp.
     + lt_apply lock_cas_progress.
-    + lt_apply futex_wait_progress''.
+    + lt_apply futex_wait_progress.
     + lt_apply kernel_wait_progress.
   - lt_apply empty_wait_wake_to_unlock.
     { rewrite /h. lt_auto. }
