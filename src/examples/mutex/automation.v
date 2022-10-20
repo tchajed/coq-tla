@@ -33,6 +33,21 @@ Proof.
     try intuition congruence.
 Qed.
 
+Lemma next_inv σ tp σ' tp' :
+  next {| state := σ; tp := tp; |} {| state := σ'; tp := tp'; |} →
+  (σ' = σ ∧ tp' = tp) ∨
+    (∃ t pc pc', tp !! t = Some pc ∧
+                thread_step t (σ, pc) (σ', pc') ∧
+                tp' = <[t := pc']> tp).
+Proof.
+  rewrite /next /step /=.
+  destruct 1; repeat deex.
+  - invc H1.
+    destruct ρ' as [σ' pc']; simpl.
+    right; eauto 8.
+  - invc H. eauto.
+Qed.
+
 Ltac destruct_step :=
   lazymatch goal with
   | H: thread_step _ (?σ, ?pc) (?σ', ?pc') |- _ =>

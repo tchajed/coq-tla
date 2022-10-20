@@ -35,11 +35,9 @@ Proof.
     { pose proof (H1 _ _ H); congruence. }
   - intros [σ tp] [σ' tp']; simpl.
     intros Hinv Hnext.
-    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
-    simpl in *.
-    invc Heq.
-    destruct ρ' as [σ' pc']; simpl.
+    apply next_inv in Hnext as
+        [[[=] ?] |
+          (t & pc & pc' & Hlookup & Hstep & ?)]; subst; eauto.
 
     apply exclusion_inv' => t' t'' /= Ht' Ht''.
     destruct Hinv as [Hlocked Hsafe]; unfold safe in *; simpl in *.
@@ -79,8 +77,9 @@ Proof.
   apply init_invariant.
   - unfold locked_inv; stm.
   - unfold locked_inv; intros [σ tp] [σ' tp'] Hinv Hnext.
-    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    apply next_inv in Hnext as
+        [[[=] ?] |
+          (t & pc & pc' & Hlookup & Hstep & ?)]; subst; eauto.
     unfold lock_held in *; simpl in *.
     destruct_step;
       repeat (stm_simp
@@ -135,15 +134,16 @@ Proof.
   - stm.
     set_solver+.
   - intros [σ tp] [σ' tp'] [Hnodup Hwait] Hnext.
-    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    apply next_inv in Hnext as
+        [[[=] ?] |
+          (t & pc & pc' & Hlookup & Hstep & ?)]; subst; eauto.
     destruct_step; stm; intros;
       try (destruct (decide (t0 = t)); lookup_simp; eauto;
           let n := numgoals in guard n <= 1);
       try match goal with
-          | H: ?t ∈ q0 |- _ => apply Hwait in H; congruence
+          | H: ?t ∈ _ |- _ => apply Hwait in H; congruence
           end.
-    + assert (t ∈ q0) as Hel by auto.
+    + assert (t ∈ q) as Hel by auto.
       apply Hwait in Hel; congruence.
 Qed.
 
@@ -200,8 +200,9 @@ Proof.
     intros Hinv [Hnext [Hinvs _]] t0 ts0 -> ->; simpl in *.
     destruct Hinvs as ([Hnodup Hwait] & [Hexcl _]); simpl in *.
     rewrite /nodup_inv /= in Hnodup.
-    destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
-    destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
+    apply next_inv in Hnext as
+        [[[=] ?] |
+          (t & pc & pc' & Hlookup & Hstep & ?)]; subst; eauto.
 
 (*|
 This proof is done carefully to illustrate all the cases above.

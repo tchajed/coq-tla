@@ -57,16 +57,14 @@ Proof.
   - intros [σ tp] [σ' tp'].
     intros Hp Hnext.
     destruct Hnext as [Hnext [Hinvs Hinvs']].
-    destruct Hnext as [ [t' Hstep] | Heq].
-    + destruct Hstep as [pc [Hlookup [ρ' [Hstep Heq]]]].
-      invc Heq.
-      destruct ρ' as [σ' pc']; simpl in *.
-      (* in one branch we use the proof that P ∨ Q is preserved, in the other we
-      use the proof that [step t] leads to Q *)
-      destruct (decide (t = t')); subst; eauto.
-    + invc Heq; eauto.
+    apply next_inv in Hnext as
+        [[[=] ?] |
+          (t' & pc & pc' & Hlookup & Hstep & ?)]; subst; eauto.
+    (* in one branch we use the proof that P ∨ Q is preserved, in the other we
+    use the proof that [step t] leads to Q *)
+    destruct (decide (t = t')); subst; eauto.
   - intros [σ tp] [σ' tp'].
-    intros Hp [Hnext [Hinvs Hinvs']] Hstep.
+    intros Hp [_ [Hinvs Hinvs']] Hstep.
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]].
     invc Heq.
     destruct ρ' as [σ' tp']; simpl in *.
