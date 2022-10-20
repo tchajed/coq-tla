@@ -354,10 +354,15 @@ Proof.
   - apply wf_split_impl; auto.
 Qed.
 
-Lemma impl_intro' p q r :
-  (p ∧ q ⊢ r) →
-  (p ⊢ q → r).
-Proof. unseal. Qed.
+Lemma always_drop_ge (p: predicate) k e :
+  (□p)%L (drop k e) →
+  (∀ k', k ≤ k' → p (drop k' e)).
+Proof.
+  intros Hp k' Hle.
+  replace k' with ((k' - k) + k) by lia.
+  rewrite -drop_drop.
+  apply Hp.
+Qed.
 
 Theorem tla_wf2 (n m a b: action Σ) (p f: predicate) :
   (⟨n⟩ ∧ ⟨b⟩ ⊢ ⟨m⟩) →
@@ -369,13 +374,65 @@ Theorem tla_wf2 (n m a b: action Σ) (p f: predicate) :
   (□⟨n⟩ ∧ weak_fairness a ∧ □f ⊢ weak_fairness m).
 Proof.
   intros Hn_to_m Ha_to_b Hm_to_a_enabled Hp_while_not_b.
-  rewrite (weak_fairness_alt2 m).
-  apply impl_intro'; tla_simp.
   apply tla_contra.
+  rewrite (weak_fairness_alt3 m). tla_simp.
+  do 2 rewrite -tla_and_assoc.
+  rewrite -eventually_always_distrib.
+  rewrite always_and.
   tla_simp.
-  intros e (Hn & Hwf & Hf & Hmenabled & Heventually_notm).
+  intros e (Hn & Hwf & Hf & Heventually).
   rewrite /tla_false /=.
-Abort.
+  destruct Heventually as [k [Hnot_m Henabled_m]].
+  assert ((□⟨λ s s', n s s' ∧ ¬ b s s'⟩)%L (drop k e)).
+  { unseal. split.
+    - apply Hn.
+    - intros Hb.
+      contradiction (Hnot_m k0).
+      apply Hn_to_m.
+      rewrite drop_drop.
+      split; eauto.
+  }
+  (* this means it also holds in e, at a higher index *)
+  assert ((◇□ p)%L (drop k e)) as Hpk.
+  { apply Hp_while_not_b.
+    split; eauto.
+    split.
+    { rewrite /weak_fairness. rewrite {1}/always; intros.
+      rewrite drop_drop.
+      apply Hwf. }
+    split.
+    { rewrite /always => k'. rewrite drop_drop. apply Hf. }
+    exists 0. rewrite drop_0.
+    apply Henabled_m. }
+  assert ((◇□p)%L e) as [k' Hp].
+  { destruct Hpk as [k' Hp].
+    rewrite drop_drop in Hp.
+    eexists; eauto. }
+  clear Hpk.
+  assert ((□◇⟨a⟩)%L (drop (k' + k) e)) as Heventually_a.
+  { intros k''. rewrite drop_drop.
+    pose proof (Hwf (k'' + k' + k)).
+    replace (k'' + (k' + k)) with (k'' + k' + k) by lia.
+    apply H0.
+    intros k'''.
+    apply Hm_to_a_enabled.
+    split.
+    - rewrite drop_drop.
+      eapply always_drop_ge; [ eassumption | lia ].
+    - rewrite drop_drop.
+      eapply always_drop_ge; [ eassumption | lia ]. }
+  rewrite always_and in H; destruct H as [_ Hnotb].
+  destruct (Heventually_a 0) as [k'' Ha].
+  rewrite ?drop_0 !drop_drop in Ha.
+  apply (Hnotb (k'' + k')).
+  rewrite !drop_drop.
+  apply Ha_to_b.
+  repeat split; eauto.
+  - eapply always_drop_ge; [ apply Hp | lia ].
+  - rewrite /later drop_drop.
+    eapply always_drop_ge; [ apply Hp | lia ].
+  - replace (k'' + k' + k) with (k'' + (k' + k)) by lia; assumption.
+Qed.
 
 Theorem strong_fairness_alt2 a :
   strong_fairness a == (□◇ (tla_enabled a) → □ ◇ ⟨a⟩).
