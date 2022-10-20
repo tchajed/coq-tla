@@ -165,6 +165,12 @@ Proof.
   rewrite -always_and; tla_simp.
 Qed.
 
+(*|
+We'll now prove an invariant `lock_free_queue_inv` to cover the situation where the queue has some head thread `t` (which must be in `kernel_wait`, a simple inductive invariant) but the lock is free. It'll show the existence of some other thread `t'` that will help make progress. We don't need to worry about the case where the lock is held, because then the lock holder will release the lock and signal, so progress is relatively easy in that case.
+
+If the queue has a head element `t` but the lock is free, then some thread `t'` must have acquired the lock, then released it (because the code only starts waiting if the lock is still held, according to the semantics of `futex_wait()`). To make this an inductive invariant, we need to also consider that `t'` next signalled to some thread `t''`, in which case `t''` is in `kernel_wait` and enabled. Finally, `t''` in turn may have already run and is now back in `lock_cas`, so this third case is also needed to make the invariant inductive. These three cover all the cases because the lock is free, so `t''` couldn't have acquired the lock yet.
+|*)
+
 (* NOTE: this is incorrectly named, it's just a thread that can help make
 progress in general *)
 Definition thread_can_signal t' s :=
@@ -173,11 +179,6 @@ Definition thread_can_signal t' s :=
   t' ∉ s.(state).(queue)) ∨
   s.(tp) !! t' = Some pc.lock_cas.
 
-(*|
-We want an invariant to cover the situation where the queue has some head thread `t` (which must be in `kernel_wait`, a simple inductive invariant) but the lock is free. (If the lock is held that thread will straightforwardly signal as soon as it unlocks.)
-
-If the queue has a head element `t` but the lock is free, then some thread `t'` must have acquired the lock, then released it (because the code only starts waiting if the lock is still held, according to the semantics of `futex_wait()`). To make this an inductive invariant, we need to also consider that `t'` next signalled to some thread `t''`, in which case `t''` is in `kernel_wait` and enabled. Finally, `t''` in turn may have already run and is now back in `lock_cas`, so this third case is also needed to make the invariant inductive. These three cover all the cases because the lock is free, so `t''` couldn't have acquired the lock yet.
-|*)
 Definition lock_free_queue_inv s :=
   ∀ t ts,
     s.(state).(queue) = t::ts →
