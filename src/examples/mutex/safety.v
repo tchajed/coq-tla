@@ -165,14 +165,19 @@ Proof.
   rewrite -always_and; tla_simp.
 Qed.
 
+(* NOTE: this is incorrectly named, it's just a thread that can help make
+progress in general *)
 Definition thread_can_signal t' s :=
   s.(tp) !! t' = Some pc.unlock_wake ∨
   (s.(tp) !! t' = Some pc.kernel_wait ∧
   t' ∉ s.(state).(queue)) ∨
   s.(tp) !! t' = Some pc.lock_cas.
 
-(* if the queue has a head element [t] but the lock is free, there's some thread
-that can send a signal to [t] (possibly first acquiring the lock) *)
+(*|
+We want an invariant to cover the situation where the queue has some head thread `t` (which must be in `kernel_wait`, a simple inductive invariant) but the lock is free. (If the lock is held that thread will straightforwardly signal as soon as it unlocks.)
+
+If the queue has a head element `t` but the lock is free, then some thread `t'` must have acquired the lock, then released it (because the code only starts waiting if the lock is still held, according to the semantics of `futex_wait()`). To make this an inductive invariant, we need to also consider that `t'` next signalled to some thread `t''`, in which case `t''` is in `kernel_wait` and enabled. Finally, `t''` in turn may have already run and is now back in `lock_cas`, so this third case is also needed to make the invariant inductive. These three cover all the cases because the lock is free, so `t''` couldn't have acquired the lock yet.
+|*)
 Definition lock_free_queue_inv s :=
   ∀ t ts,
     s.(state).(queue) = t::ts →
@@ -183,36 +188,58 @@ Lemma lock_free_queue_inv_ok :
   spec ⊢ □⌜lock_free_queue_inv⌝.
 Proof.
   tla_pose nodup_helper_inv_ok.
+  tla_pose exclusion_inv_ok.
   rewrite /lock_free_queue_inv /thread_can_signal.
   unfold spec. tla_clear fair.
+  rewrite -always_and combine_state_preds.
   rewrite combine_preds.
   apply init_invariant.
   - intros s. stm.
-  - move => [[q l] tp] [[q' l'] tp'] /=.
-    intros Hinv [Hnext [[Hnodup Hwait] _]] t0 ts0 -> ->; simpl in *.
+  - move => [[l q] tp] [[l' q'] tp'] /=.
+    intros Hinv [Hnext [Hinvs _]] t0 ts0 -> ->; simpl in *.
+    destruct Hinvs as ([Hnodup Hwait] & [Hexcl _]); simpl in *.
     rewrite /nodup_inv /= in Hnodup.
     destruct Hnext as [ [t Hstep] | Heq]; [ | stm_simp; by eauto ].
     destruct Hstep as [pc'' [Hlookup [ρ' [Hstep Heq]]]]; stm_simp.
-    destruct_step;
-      repeat (stm_simp
-              || solve [
-                     specialize (Hinv _ _ ltac:(eauto));
-                     stm_simp;
-                     match goal with
-                     | t: Tid |- _ =>
-                         exists t; lookup_simp; eauto
-                     end
-        ]).
-    + destruct l.
-      { (* pop [] can't produce a non-nil queue *)
-        simpl in *; congruence. }
-      simpl in *; subst.
-      assert (tp !! t1 = Some pc.kernel_wait).
-      { apply Hwait; set_solver. }
-      exists t1. right; left.
-      lookup_simp.
-      split; [ done | ].
-      inversion Hnodup; auto.
+
+(*|
+This proof is done carefully to illustrate all the cases above.
+|*)
+    destruct_step; try solve [ exfalso; stm ].
+    + stm_simp.
+      (* futex_wait -> lock_cas *)
+      destruct (Hinv _ _ ltac:(eauto) ltac:(auto)) as [t' Ht'];
+        destruct_or!; destruct_and?;
+          try solve [ exists t'; lookup_simp; eauto ].
+      (* doesn't affect t', all cases are proven automatically *)
+    + stm_simp.
+      (* kernel_wait -> lock_cas *)
+      destruct (Hinv _ _ ltac:(eauto) ltac:(auto)) as [t' Ht'];
+        destruct_or!; destruct_and?;
+          try solve [ exists t'; lookup_simp; eauto ].
+      (* t' was in kernel_wait but now it's in lock_cas *)
+      assert (tp !! t' = Some pc.kernel_wait) as _ by assumption.
+      exists t; lookup_simp; eauto.
+    + stm_simp.
+      (* unlock_store -> unlock_wake *)
+      assert (l = true) by eauto; subst.
+      (* this is the easy case where we got here because a thread just released
+      the lock *)
+      exists t; lookup_simp; eauto.
+    + stm_simp.
+      (* unlock_wake -> finished *)
+(*|
+There may no longer be thread still in `unlock_wake`, so we'll instead show
+there's now a `kernel_wait` thread that's enabled.
+|*)
+      (* this invariant only concerns the queue being non-empty, so signalling
+      must have signalled some other thread [t1] just in front of t0 *)
+      destruct q as [|t'' q']; [ by inversion H2 | simpl in H2; subst ].
+      assert (t'' ∉ t0 :: ts0) by (inversion Hnodup; eauto).
+      rewrite /waiting_inv /= in Hwait.
+      (* follows from [t''] being in the queue *)
+      assert (tp !! t'' = Some pc.kernel_wait) by eauto.
+      exists t''; lookup_simp; eauto.
 Qed.
 
 Record all_invs s :=
