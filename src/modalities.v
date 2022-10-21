@@ -275,9 +275,19 @@ Proof.
     rewrite drop_0 //.
 Qed.
 
+Lemma impl_intro'_iff p q r :
+  (p ⊢ q → r) ↔
+  (p ∧ q ⊢ r).
+Proof. unseal. Qed.
+
 Lemma impl_intro' p q r :
   (p ∧ q ⊢ r) →
   (p ⊢ q → r).
+Proof. unseal. Qed.
+
+Lemma impl_intro'_2 p q r :
+  (p ⊢ q → r) →
+  (p ∧ q ⊢ r).
 Proof. unseal. Qed.
 
 Theorem always_induction_impl p q r :

@@ -281,6 +281,35 @@ Proof.
   unseal.
 Qed.
 
+Lemma wf_combine_impl' f (a b: action Σ) :
+  (□f ⊢ tla_enabled a → □ !tla_enabled b ∨ ◇ ⟨a⟩) →
+  (□f ⊢ tla_enabled b → □ !tla_enabled a ∨ ◇ ⟨b⟩) →
+  □f ∧ (◇ □ (tla_enabled a ∧ ! ⟨a⟩) ∨ ◇ □ (tla_enabled b ∧ ! ⟨b⟩)) ⊢
+  ◇ □ ((tla_enabled a ∨ tla_enabled b) ∧ ! ⟨a⟩ ∧ ! ⟨b⟩).
+Proof.
+  intros Hdr1 Hdr2.
+  apply impl_intro'_iff in Hdr1.
+  apply impl_intro'_iff in Hdr2.
+  rewrite tla_and_distr_l.
+  rewrite -(always_idem f).
+  rewrite !always_and_eventually.
+  rewrite always_and.
+  apply or_implies_split; apply eventually_impl_proper.
+  + apply or_apply_not' in Hdr1.
+    rewrite always_and in Hdr1.
+    autorewrite with tla in Hdr1.
+    tla_pose Hdr1.
+    rewrite -> not_enabled_to_action.
+    unseal.
+  + apply or_apply_not' in Hdr2.
+    rewrite always_and in Hdr2.
+    autorewrite with tla in Hdr2.
+    rewrite always_and.
+    tla_pose Hdr2.
+    rewrite -> not_enabled_to_action.
+    unseal.
+Qed.
+
 Lemma wf_combine_impl (a b: action Σ) :
   (tla_enabled a ⊢ □ !tla_enabled b ∨ ◇ ⟨a⟩) →
   (tla_enabled b ⊢ □ !tla_enabled a ∨ ◇ ⟨b⟩) →
@@ -290,12 +319,12 @@ Proof.
   intros Hdr1 Hdr2.
   apply or_implies_split; apply eventually_impl_proper; rewrite always_and.
   + tla_pose (or_apply_not' _ _ _ Hdr1).
-    rewrite -> not_enabled_to_action.
+    rewrite not_enabled_to_action.
 
     (* TODO: why does tla_prop not work here? *)
     unseal.
   + tla_pose (or_apply_not' _ _ _ Hdr2).
-    rewrite -> not_enabled_to_action.
+    rewrite not_enabled_to_action.
 
     unseal.
 Qed.
