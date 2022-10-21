@@ -9,3 +9,5 @@
 # Alectryon
 /docs
 /.alectryon.cache/
+# dependency graph
+*.svg
