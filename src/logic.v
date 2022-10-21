@@ -17,7 +17,7 @@ leads_to_.
 
 From TLA Require Export defs automation.
 From TLA Require Export propositional_ltl modalities.
-From TLA.logic Require Export preds safety wf leads_to.
+From TLA.logic Require Export preds safety wf sf leads_to.
 
 Tactic Notation "tla_clear" :=
   apply impl_drop_hyp.

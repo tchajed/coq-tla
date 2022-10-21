@@ -392,8 +392,7 @@ Proof.
       rewrite drop_drop.
       split; eauto.
   }
-  (* this means it also holds in e, at a higher index *)
-  assert ((◇□ p)%L (drop k e)) as Hpk.
+  assert ((◇□ p)%L (drop k e)) as [k' Hp].
   { apply Hp_while_not_b.
     split; eauto.
     split.
@@ -404,23 +403,16 @@ Proof.
     { rewrite /always => k'. rewrite drop_drop. apply Hf. }
     exists 0. rewrite drop_0.
     apply Henabled_m. }
-  assert ((◇□p)%L e) as [k' Hp].
-  { destruct Hpk as [k' Hp].
-    rewrite drop_drop in Hp.
-    eexists; eauto. }
-  clear Hpk.
+  rewrite drop_drop in Hp.
   assert ((□◇⟨a⟩)%L (drop (k' + k) e)) as Heventually_a.
   { intros k''. rewrite drop_drop.
-    pose proof (Hwf (k'' + k' + k)).
-    replace (k'' + (k' + k)) with (k'' + k' + k) by lia.
-    apply H0.
+    apply Hwf.
     intros k'''.
     apply Hm_to_a_enabled.
+    rewrite drop_drop.
     split.
-    - rewrite drop_drop.
-      eapply always_drop_ge; [ eassumption | lia ].
-    - rewrite drop_drop.
-      eapply always_drop_ge; [ eassumption | lia ]. }
+    - eapply always_drop_ge; [ eassumption | lia ].
+    - eapply always_drop_ge; [ eassumption | lia ]. }
   rewrite always_and in H; destruct H as [_ Hnotb].
   destruct (Heventually_a 0) as [k'' Ha].
   rewrite ?drop_0 !drop_drop in Ha.
@@ -431,60 +423,8 @@ Proof.
   - eapply always_drop_ge; [ apply Hp | lia ].
   - rewrite /later drop_drop.
     eapply always_drop_ge; [ apply Hp | lia ].
-  - replace (k'' + k' + k) with (k'' + (k' + k)) by lia; assumption.
-Qed.
-
-Theorem strong_fairness_alt2 a :
-  strong_fairness a == (□◇ (tla_enabled a) → □ ◇ ⟨a⟩).
-Proof.
-  rewrite /strong_fairness.
-  rewrite !implies_to_or.
-  tla_simp.
-  rewrite -!eventually_or.
-  rewrite always_eventually_distrib.
-  tla_simp.
-Qed.
-
-Lemma strong_fairness_alt3 a :
-  strong_fairness a == (□◇⟨a⟩ ∨ ◇□(! tla_enabled a)).
-Proof.
-  rewrite strong_fairness_alt2.
-  rewrite !implies_to_or.
-  tla_simp.
-  rewrite tla_or_comm //.
-Qed.
-
-Lemma strong_to_weak_fairness a :
-  strong_fairness a ⊢ weak_fairness a.
-Proof.
-  rewrite weak_fairness_alt3 strong_fairness_alt3.
-  rewrite eventually_always_weaken //.
-Qed.
-
-Lemma tla_sf1 (p q F: predicate) (next a: action Σ) :
-  ∀ (Hpuntilq: ⊢ p ∧ ⟨next⟩ → later p ∨ later q)
-    (Haq: ⊢ p ∧ ⟨next⟩ ∧ ⟨a⟩ → later q)
-    (Henable: ⊢ □p ∧ □⟨next⟩ ∧ □F → tla_enabled a),
-  (⊢ □ ⟨next⟩ ∧ strong_fairness a ∧ □F → p ~~> q).
-Proof.
-  rewrite strong_fairness_alt3.
-  unseal.
-  destruct H as (Hnext & Hsf_alt & HF).
-
-  edestruct (until_next p q next e Hpuntilq Hnext);
-    [ eassumption | | by auto ].
-
-  destruct Hsf_alt as [Ha | [k' Hnotenabled]].
-  - destruct (Ha k) as [k' Ha'].
-    exists (S k').
-    change (S k' + k) with (1 + (k' + k)). rewrite -drop_drop.
-    apply Haq; eauto.
-  - contradiction (Hnotenabled k).
-    eapply Henable; intuition eauto.
-    + rewrite ?drop_drop.
-      replace (k0 + (k + k')) with ((k0 + k') + k) by lia.
-      eauto.
-    + rewrite ?drop_drop; eauto.
+  - replace (k'' + k' + k) with (k'' + (k' + k)) by lia;
+      assumption.
 Qed.
 
 End TLA.
