@@ -40,42 +40,32 @@ Qed.
 
 Lemma combine_state_preds (P Q: Σ → Prop) :
   (⌜P⌝ ∧ ⌜Q⌝) == ⌜λ s, P s ∧ Q s⌝.
-Proof.
-  unseal.
-Qed.
+Proof. unseal. Qed.
 
 Lemma combine_or_preds (P Q: Σ → Prop) :
   (⌜P⌝ ∨ ⌜Q⌝) == ⌜λ s, P s ∨ Q s⌝.
-Proof.
-  unseal.
-Qed.
+Proof. unseal. Qed.
 
 Lemma combine_or_actions a1 a2 :
   (⟨a1⟩ ∨ ⟨a2⟩) == ⟨λ s s', a1 s s' ∨ a2 s s'⟩.
-Proof.
-  unseal.
-Qed.
+Proof. unseal. Qed.
 
 Lemma combine_always_preds (P Q: Σ → Prop) :
   (□⌜P⌝ ∧ □⌜Q⌝) == □⌜λ s, P s ∧ Q s⌝.
 Proof.
   rewrite -always_and.
-  rewrite combine_state_preds.
-  reflexivity.
+  rewrite combine_state_preds //.
 Qed.
 
 Lemma not_state_pred (P: Σ → Prop) :
   !⌜λ s, P s⌝ == ⌜λ s, ¬ P s⌝.
-Proof.
-  unseal.
-Qed.
+Proof. unseal. Qed.
 
 Theorem enabled_or a1 a2 :
   ∀ s, enabled (λ s s', a1 s s' ∨ a2 s s') s ↔ (enabled a1 s ∨ enabled a2 s).
 Proof.
-  unfold enabled.
-  intuition (repeat deex; eauto).
-  intuition eauto.
+  rewrite /enabled.
+  naive_solver.
 Qed.
 
 Theorem tla_enabled_or a1 a2 :
@@ -97,32 +87,26 @@ Qed.
 Lemma not_enabled_to_action a :
   !tla_enabled a ⊢ !⟨a⟩.
 Proof.
-  apply not_impl. tla_simp.
-  apply action_to_enabled.
+  dual action_to_enabled.
 Qed.
 
 Lemma state_pred_impl (P Q: Σ -> Prop) :
   (∀ s, P s → Q s) →
   state_pred P ⊢ state_pred Q.
-Proof.
-  unseal.
-Qed.
+Proof. unseal. Qed.
 
 Lemma enabled_eq (P: Σ → Prop) (f: Σ → Σ) :
   enabled (λ s s', P s ∧ s' = f s) = P.
 Proof.
   apply pred_ext => s.
   rewrite /enabled.
-  intuition (try deex; eauto).
-  intuition.
+  naive_solver.
 Qed.
 
 Lemma action_preserves_inv (P: Σ → Prop) a :
     (∀ s s', P s → a s s' → P s') →
     state_pred P ∧ ⟨a⟩ ⊢ later (state_pred P).
-Proof.
-  unseal.
-Qed.
+Proof. unseal. Qed.
 
 Lemma exist_state_pred {A} (P: A → Σ → Prop) :
   (∃ x, ⌜P x⌝) == ⌜λ s, ∃ x, P x s⌝.
