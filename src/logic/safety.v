@@ -49,7 +49,6 @@ Proof.
     apply H; eauto.
 Qed.
 
-
 Theorem tla_init_safety (inv init next safe : predicate) :
   (init ⊢ inv) →
   (inv ∧ next ⊢ later inv) →
@@ -57,10 +56,8 @@ Theorem tla_init_safety (inv init next safe : predicate) :
   ⊢ init ∧ □ next → □ safe.
 Proof.
   intros Hinit Hlater Hsafe.
-  rewrite <- Hsafe.
-  rewrite -> Hinit.
-  apply later_induction.
-  auto.
+  rewrite Hinit -Hsafe.
+  by apply later_induction.
 Qed.
 
 Theorem init_safety (inv init: Σ → Prop) (next: action) (safe : Σ → Prop) :
