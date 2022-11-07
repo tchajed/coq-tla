@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-name="liveness"
+name="liveness_simpler"
 
 # shellcheck disable=2046 # need to split into multiple arguments
 coqtop $(grep '^-Q' _CoqProject) 1>/dev/null 2>coqtop.err <<EOF

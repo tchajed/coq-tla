@@ -117,17 +117,6 @@ Proof.
   set_solver.
 Qed.
 
-Lemma leads_to_if_lock Γ (P: Config → Prop) φ :
-  (Γ ⊢ ⌜λ s, P s ∧ s.(state).(lock) = false⌝ ~~> φ) →
-  (Γ ⊢ ⌜λ s, P s ∧ s.(state).(lock) = true⌝ ~~> φ) →
-  Γ ⊢ ⌜P⌝ ~~> φ.
-Proof.
-  intros Hfalse Htrue.
-  apply (leads_to_if ⌜λ s, s.(state).(lock) = true⌝); tla_simp; auto.
-  leads_to_etrans; [ | apply Hfalse ].
-  lt_unfold. rewrite not_true_iff_false //.
-Qed.
-
 Hint Constructors slexprod : core.
 
 Lemma measure_lt_unfold Sₗ Sᵤ S__w Sₗ' Sᵤ' S__w' :
