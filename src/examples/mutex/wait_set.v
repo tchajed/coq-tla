@@ -242,3 +242,65 @@ Qed.
 
 #[export]
 Hint Rewrite signal_set_add : pc.
+
+Section pc_set.
+
+  Context (pc0: pc.t).
+
+  Definition pc_set (tp: gmap Tid pc.t) : gset Tid :=
+    dom (filter (λ '(_, pc), pc = pc0) tp).
+
+  Lemma elem_pc_set tp t :
+    t ∈ pc_set tp ↔ tp !! t = Some pc0.
+  Proof.
+    rewrite /pc_set.
+    rewrite elem_of_dom filter_is_Some. naive_solver.
+  Qed.
+
+  Lemma elem_pc_set_2 tp t :
+    tp !! t = Some pc0 →
+    t ∈ pc_set tp.
+  Proof.
+    apply elem_pc_set.
+  Qed.
+
+  Lemma not_elem_pc_set tp t pc :
+    tp !! t = Some pc →
+    pc ≠ pc0 →
+    t ∉ pc_set tp.
+  Proof.
+    rewrite elem_pc_set.
+    naive_solver.
+  Qed.
+
+  Lemma pc_set_remove tp t pc' :
+    pc' ≠ pc0 →
+    pc_set (<[t := pc']> tp) = pc_set tp ∖ {[t]}.
+  Proof.
+    intros.
+    apply gset_ext => t'.
+    rewrite /pc_set. rewrite elem_of_difference !elem_of_dom !filter_is_Some.
+    rewrite elem_of_singleton.
+    destruct (decide (t = t')); lookup_simp; naive_solver.
+  Qed.
+
+  Lemma pc_set_add tp t :
+    pc_set (<[t := pc0]> tp) = pc_set tp ∪ {[t]}.
+  Proof.
+    intros.
+    apply gset_ext => t'.
+    rewrite /pc_set. rewrite elem_of_union !elem_of_dom !filter_is_Some.
+    rewrite elem_of_singleton.
+    destruct (decide (t = t')); lookup_simp; naive_solver.
+  Qed.
+
+End pc_set.
+
+#[export]
+Hint Resolve elem_pc_set_2 not_elem_pc_set : core.
+
+#[export]
+Hint Rewrite pc_set_remove using (by auto) : pc.
+
+#[export]
+Hint Rewrite pc_set_add : pc.

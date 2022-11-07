@@ -149,6 +149,7 @@ Ltac stm_simp :=
             invc H; cbn in *
         | H: @eq _ (mkConfig _ _) (mkConfig _ _) |- _ =>
             invc H; cbn in *
+        | H: (_, _) = (_, _) |- _ => invc H
         | H: Some _ = Some _ |- _ => invc H
         | pc: pc.t, H: ?x = Some ?pc, H': ?x = Some ?pc' |- _ =>
             assert (pc = pc') by congruence; subst; clear H
