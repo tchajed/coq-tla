@@ -23,5 +23,5 @@ set -e
 dpd2dot -keep-trans -without-defs \
   -graphname "$name" \
   -o graph.dot graph.dpd 1>/dev/null
-dot -Grankdir=BT graph.dot -o"${name}.svg"
+dot -Tsvg -Grankdir=BT graph.dot -o"${name}.svg"
 rm graph.dot graph.dpd
