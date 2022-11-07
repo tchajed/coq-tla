@@ -117,18 +117,6 @@ Proof.
   set_solver.
 Qed.
 
-Lemma unlock_set_unlocked_inv' s :
-  all_invs s →
-  s.(state).(lock) = false →
-  pc_set pc.unlock_store s.(tp) = ∅.
-Proof.
-  destruct 1; intros Hlock.
-  apply elem_of_equiv_empty_L => t.
-  rewrite elem_pc_set => Hlock'.
-  apply Hexcl in Hlock'.
-  congruence.
-Qed.
-
 Lemma leads_to_if_lock Γ (P: Config → Prop) φ :
   (Γ ⊢ ⌜λ s, P s ∧ s.(state).(lock) = false⌝ ~~> φ) →
   (Γ ⊢ ⌜λ s, P s ∧ s.(state).(lock) = true⌝ ~~> φ) →
