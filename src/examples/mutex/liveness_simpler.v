@@ -182,66 +182,41 @@ Proof. naive_solver. Qed.
 
 Hint Rewrite tuple_eq_unfold measure_lt_unfold : pc.
 
-Lemma eventually_unlocked ss :
-  spec ⊢ ⌜λ s, measure s = ss⌝ ~~>
-         ⌜λ s, measure s ≺ ss ∨
-               measure s = ss ∧
-               let '(_, Sᵤ', _) := measure s in
-               Sᵤ' = ∅ ∧ s.(state).(lock) = false⌝.
+Lemma eventually_wake_progress Sₗ Sᵤ S__w :
+  S__w ≠ ∅ →
+  spec ⊢ ⌜λ s, measure s = (Sₗ, Sᵤ, S__w)⌝ ~~>
+         ⌜λ s, measure s ≺ (Sₗ, Sᵤ, S__w)⌝.
 Proof.
-  apply (leads_to_assume _ all_invs_ok). lt_simp.
-  apply leads_to_if_lock.
-  - lt_unfold.
-    intuition subst.
-    simpl.
-    right; intuition auto.
-    apply unlock_set_unlocked_inv' in H1; auto.
-  - leads_to_trans (∃ t, ⌜λ s, measure s = ss ∧
-                   pc_set pc.unlock_store s.(tp) = {[t]} ∧
-                   s.(tp) !! t = Some pc.unlock_store⌝)%L.
-    { lt_unfold. intuition subst.
-      apply unlock_set_lock_inv in H1 as [t ?]; eauto. }
-    lt_intros.
-    rewrite /measure.
-    apply (mutex_wf1 t); simpl; intros.
-    + destruct ss as [[Sₗ Sᵤ] S__w].
-      destruct_step; stm.
-    + destruct ss as [[Sₗ Sᵤ] S__w].
-      stm.
-    + naive_solver.
-Qed.
-
-Lemma eventually_unlocked2 ss :
-  spec ⊢ ⌜λ s, measure s = ss ⌝ ~~>
-         ⌜λ s, measure s ≺ ss ∨
-               measure s = ss ∧
-               let '(_, Sᵤ', S__w') := measure s in
-               Sᵤ' = ∅ ∧ S__w' = ∅ ∧ s.(state).(lock) = false⌝.
-Proof.
-  leads_to_etrans.
-  { apply eventually_unlocked. }
-  lt_split; [ by lt_auto | ].
-  simpl.
-  destruct ss as [[Sₗ Sᵤ] S__w].
-  destruct (decide (S__w = ∅)); subst.
-  { lt_unfold.
-    rewrite /measure; stm. }
-  apply set_choose_L in n as [t Hwake].
+  intros [t Hel]%set_choose_L.
   rewrite /measure.
-  lt_simp.
   apply (mutex_wf1 t); simpl; intros.
   - destruct_step; stm.
-  - intuition subst.
-    assert (tp !! t = Some pc.unlock_wake).
-    { stm. apply elem_pc_set in Hwake; auto. }
+  - assert (pc = pc.unlock_wake); [ | by stm ].
+    { stm.
+      apply elem_pc_set in Hel; congruence. }
+  - assert (tp !! t = Some pc.unlock_wake); [ | naive_solver ].
     stm.
-  - stm.
-    assert (tp !! t = Some pc.unlock_wake).
-    { stm. apply elem_pc_set in Hwake; auto. }
-    naive_solver.
+    apply elem_pc_set in Hel; congruence.
 Qed.
 
-Lemma eventually_progress_atomic_cas Sₗ t :
+Lemma eventually_unlock_progress Sₗ Sᵤ S__w :
+  Sᵤ ≠ ∅ →
+  spec ⊢ ⌜λ s, measure s = (Sₗ, Sᵤ, S__w)⌝ ~~>
+         ⌜λ s, measure s ≺ (Sₗ, Sᵤ, S__w)⌝.
+Proof.
+  intros [t Hel]%set_choose_L.
+  rewrite /measure.
+  apply (mutex_wf1 t); simpl; intros.
+  - destruct_step; stm.
+  - assert (pc = pc.unlock_store); [ | by stm ].
+    { stm.
+      apply elem_pc_set in Hel; congruence. }
+  - assert (tp !! t = Some pc.unlock_store); [ | naive_solver ].
+    stm.
+    apply elem_pc_set in Hel; congruence.
+Qed.
+
+Lemma eventually_atomic_cas_progress Sₗ t :
   spec ⊢ ⌜λ s, measure s = (Sₗ, ∅, ∅) ∧
                s.(tp) !! t = Some pc.lock_cas ⌝ ~~>
          ⌜λ s, measure s ≺ (Sₗ, ∅, ∅)⌝.
@@ -258,12 +233,12 @@ Proof.
   - naive_solver.
 Qed.
 
-Lemma eventually_progress_futex_wait Sₗ t :
+Lemma eventually_futex_wait_progress Sₗ t :
   spec ⊢ ⌜λ s, measure s = (Sₗ, ∅, ∅) ∧
                s.(tp) !! t = Some pc.futex_wait ⌝ ~~>
          ⌜λ s, measure s ≺ (Sₗ, ∅, ∅)⌝.
 Proof.
-  eapply leads_to_detour; [ | apply (eventually_progress_atomic_cas _ t); eauto ].
+  eapply leads_to_detour; [ | apply (eventually_atomic_cas_progress _ t); eauto ].
   lt_simp.
   rewrite /measure.
   apply (mutex_wf1 t); simpl; intros.
@@ -277,7 +252,7 @@ Proof.
   - naive_solver.
 Qed.
 
-Lemma eventually_progress_kernel_wait Sₗ t :
+Lemma eventually_kernel_wait_progress Sₗ t :
   spec ⊢ ⌜λ s, measure s = (Sₗ, ∅, ∅) ∧
                s.(tp) !! t = Some pc.kernel_wait ⌝ ~~>
          ⌜λ s, measure s ≺ (Sₗ, ∅, ∅)⌝.
@@ -306,7 +281,7 @@ Proof.
   lt_intro t'.
   rewrite -combine_state_preds -combine_or_preds. rewrite ?tla_and_distr_l.
   lt_split_or; lt_simp.
-  - eapply leads_to_detour; [ | apply (eventually_progress_atomic_cas _ t'); eauto ].
+  - eapply leads_to_detour; [ | apply (eventually_atomic_cas_progress _ t'); eauto ].
     rewrite /measure /thread_can_signal.
     lt_simp.
     apply (mutex_wf1 t'); simpl; intros.
@@ -315,7 +290,48 @@ Proof.
       left; set_solver.
     + stm.
     + naive_solver.
-  - leads_to_etrans; [ apply eventually_progress_atomic_cas | lt_auto ].
+  - lt_apply eventually_atomic_cas_progress.
+Qed.
+
+Lemma eventually_lock_progress Sₗ t :
+  t ∈ Sₗ →
+  spec ⊢ ⌜λ s, measure s = (Sₗ, ∅, ∅) ⌝ ~~>
+         ⌜λ s, measure s ≺ (Sₗ, ∅, ∅)⌝.
+Proof.
+  intros Hel.
+  leads_to_trans
+    (⌜λ s, measure s = (Sₗ, ∅, ∅)⌝ ∧
+    (⌜λ s, s.(tp) !! t = Some pc.lock_cas⌝ ∨
+     ⌜λ s, s.(tp) !! t = Some pc.futex_wait⌝ ∨
+     ⌜λ s, s.(tp) !! t = Some pc.kernel_wait⌝))%L.
+  { lt_unfold.
+    intros Hmeasure.
+    split; auto.
+    rewrite /measure in Hmeasure; stm_simp.
+    apply elem_of_wait_set in Hel as [pc [Hlookup H]].
+    rewrite /wait_pc in H; naive_solver. }
+  lt_split_or; [ | lt_split_or ]; lt_simp.
+  - apply eventually_atomic_cas_progress.
+  - apply eventually_futex_wait_progress.
+  - apply eventually_kernel_wait_progress.
+Qed.
+
+Lemma eventually_progress Sₗ Sᵤ S__w :
+  (Sₗ, Sᵤ, S__w) ≠ (∅, ∅, ∅) →
+  spec ⊢ ⌜λ s, measure s = (Sₗ, Sᵤ, S__w) ⌝ ~~>
+         ⌜λ s, measure s ≺ (Sₗ, Sᵤ, S__w)⌝.
+Proof.
+  intros.
+  assert (S__w ≠ ∅ ∨ Sᵤ ≠ ∅ ∨ (S__w = ∅ ∧ Sᵤ = ∅ ∧ Sₗ ≠ ∅)).
+  { destruct (decide (S__w = ∅)); subst; auto.
+    destruct (decide (Sᵤ = ∅)); subst; auto.
+    destruct (decide (Sₗ = ∅)); subst; auto.
+  }
+  intuition subst.
+  - apply eventually_wake_progress; auto.
+  - apply eventually_unlock_progress; auto.
+  - apply set_choose_L in H3 as [t Hel].
+    eapply eventually_lock_progress; eauto.
 Qed.
 
 End example.
