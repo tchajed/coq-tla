@@ -273,6 +273,16 @@ Section pc_set.
     naive_solver.
   Qed.
 
+  Lemma not_elem_empty_pc_set tp t :
+    pc_set tp = ∅ →
+    tp !! t = Some pc0 →
+    False.
+  Proof.
+    intros.
+    assert (t ∈ pc_set tp) by auto using elem_pc_set_2.
+    set_solver.
+  Qed.
+
   Lemma pc_set_remove tp t pc' :
     pc' ≠ pc0 →
     pc_set (<[t := pc']> tp) = pc_set tp ∖ {[t]}.
@@ -297,7 +307,7 @@ Section pc_set.
 End pc_set.
 
 #[export]
-Hint Resolve elem_pc_set_2 not_elem_pc_set : core.
+Hint Resolve elem_pc_set_2 not_elem_pc_set not_elem_empty_pc_set : core.
 
 #[export]
 Hint Rewrite pc_set_remove using (by auto) : pc.

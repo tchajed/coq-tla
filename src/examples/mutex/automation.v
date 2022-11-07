@@ -160,6 +160,7 @@ Ltac stm_simp :=
         | H: ?P → _, H': ?P |- _ => lazymatch type of P with
                                     | Prop => specialize (H H')
                                     end
+        | H: _ = ∅ |- _ => rewrite -> H in *
         | H: context[set _ _] |- _ =>
             progress (unfold set in H; simpl in H)
         | H: @eq bool _ _ |- _ => solve [ inversion H ]
@@ -174,6 +175,7 @@ Ltac stm_simp :=
 Ltac stm :=
   stm_simp;
   try solve [ intuition (repeat deex; eauto) ];
+  try solve [ exfalso; eauto ];
   try congruence;
   repeat first [
       (split; [ solve [ intuition eauto ] | ])

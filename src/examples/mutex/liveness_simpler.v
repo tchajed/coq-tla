@@ -163,8 +163,6 @@ Proof.
   rewrite /h_lt. auto.
 Qed.
 
-Hint Resolve measure_lt1 measure_lt2 measure_lt3 : core.
-
 Lemma measure_lt_unfold Sₗ Sᵤ S__w Sₗ' Sᵤ' S__w' :
   (Sₗ', Sᵤ', S__w') ≺ (Sₗ, Sᵤ, S__w) ↔
   Sₗ' ⊂ Sₗ ∨
@@ -174,7 +172,7 @@ Proof.
   split.
   - intros H; invc H; eauto.
     invc H1; eauto.
-  - intuition (subst; eauto).
+  - rewrite /h_lt. intuition (subst; eauto).
 Qed.
 
 Lemma tuple_eq_unfold (S1 S2 S3 S1' S2' S3': gset Tid) :
@@ -227,8 +225,7 @@ Proof.
   destruct ss as [[Sₗ Sᵤ] S__w].
   destruct (decide (S__w = ∅)); subst.
   { lt_unfold.
-    rewrite /measure; stm.
-    rewrite H H4; auto. }
+    rewrite /measure; stm. }
   apply set_choose_L in n as [t Hwake].
   rewrite /measure.
   lt_simp.
@@ -245,18 +242,13 @@ Proof.
 Qed.
 
 Lemma eventually_progress_atomic_cas Sₗ t :
-  t ∈ Sₗ →
   spec ⊢ ⌜λ s, measure s = (Sₗ, ∅, ∅) ∧
                s.(tp) !! t = Some pc.lock_cas ⌝ ~~>
          ⌜λ s, measure s ≺ (Sₗ, ∅, ∅)⌝.
 Proof.
-  intros Hel.
   rewrite /measure.
   apply (mutex_wf1 t); simpl; intros.
   - destruct_step; stm.
-    rewrite H4 H3. simp_props.
-    apply elem_pc_set in Hlookup.
-    set_solver.
   - stm.
     destruct l0; stm.
     exfalso.
@@ -267,20 +259,15 @@ Proof.
 Qed.
 
 Lemma eventually_progress_futex_wait Sₗ t :
-  t ∈ Sₗ →
   spec ⊢ ⌜λ s, measure s = (Sₗ, ∅, ∅) ∧
                s.(tp) !! t = Some pc.futex_wait ⌝ ~~>
          ⌜λ s, measure s ≺ (Sₗ, ∅, ∅)⌝.
 Proof.
-  intros Hel.
-  eapply leads_to_detour; [ | apply eventually_progress_atomic_cas; eauto ].
+  eapply leads_to_detour; [ | apply (eventually_progress_atomic_cas _ t); eauto ].
   lt_simp.
   rewrite /measure.
   apply (mutex_wf1 t); simpl; intros.
   - destruct_step; stm.
-    rewrite H4 H3. simp_props.
-    apply elem_pc_set in Hlookup.
-    set_solver.
   - stm.
     destruct l0; stm.
     exfalso.
@@ -288,6 +275,47 @@ Proof.
     simpl in *.
     set_solver.
   - naive_solver.
+Qed.
+
+Lemma eventually_progress_kernel_wait Sₗ t :
+  spec ⊢ ⌜λ s, measure s = (Sₗ, ∅, ∅) ∧
+               s.(tp) !! t = Some pc.kernel_wait ⌝ ~~>
+         ⌜λ s, measure s ≺ (Sₗ, ∅, ∅)⌝.
+Proof.
+  lt_simp.
+  leads_to_trans (∃ t', ⌜λ s, measure s = (Sₗ, ∅, ∅) ∧
+                              (s.(tp) !! t' = Some pc.kernel_wait ∧ t' ∉ s.(state).(queue) ∨
+                                s.(tp) !! t' = Some pc.lock_cas)⌝)%L.
+  { apply (leads_to_assume _ all_invs_ok).
+    lt_unfold.
+    intros [ [Hmeasure Hlookup] Hinv ].
+    destruct s.(state).(queue) eqn:Hq.
+    - exists t; intuition.
+      rewrite /thread_can_signal.
+      left. intuition.
+      set_solver.
+    - rewrite /measure in Hmeasure |- *; stm.
+      pose proof Hinv as Hinv'.
+      apply unlock_set_unlocked_inv in Hinv'; eauto. stm_simp.
+      destruct Hinv.
+      rewrite /lock_free_queue_inv /= in Hcan_lock.
+      edestruct Hcan_lock; eauto.
+      destruct H; stm.
+  }
+
+  lt_intro t'.
+  rewrite -combine_state_preds -combine_or_preds. rewrite ?tla_and_distr_l.
+  lt_split_or; lt_simp.
+  - eapply leads_to_detour; [ | apply (eventually_progress_atomic_cas _ t'); eauto ].
+    rewrite /measure /thread_can_signal.
+    lt_simp.
+    apply (mutex_wf1 t'); simpl; intros.
+    + destruct_step; stm.
+      simp_props.
+      left; set_solver.
+    + stm.
+    + naive_solver.
+  - leads_to_etrans; [ apply eventually_progress_atomic_cas | lt_auto ].
 Qed.
 
 End example.
