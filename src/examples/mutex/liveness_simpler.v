@@ -130,27 +130,6 @@ Qed.
 
 Hint Constructors slexprod : core.
 
-Lemma measure_lt1 Sₗ Sᵤ S__w Sₗ' Sᵤ' S__w' :
-  Sₗ' ⊂ Sₗ →
-  (Sₗ', Sᵤ', S__w') ≺ (Sₗ, Sᵤ, S__w).
-Proof.
-  rewrite /h_lt. auto.
-Qed.
-
-Lemma measure_lt2 Sₗ Sᵤ S__w Sᵤ' S__w' :
-  Sᵤ' ⊂ Sᵤ →
-  (Sₗ, Sᵤ', S__w') ≺ (Sₗ, Sᵤ, S__w).
-Proof.
-  rewrite /h_lt. auto.
-Qed.
-
-Lemma measure_lt3 Sₗ Sᵤ S__w S__w' :
-  S__w' ⊂ S__w →
-  (Sₗ, Sᵤ, S__w') ≺ (Sₗ, Sᵤ, S__w).
-Proof.
-  rewrite /h_lt. auto.
-Qed.
-
 Lemma measure_lt_unfold Sₗ Sᵤ S__w Sₗ' Sᵤ' S__w' :
   (Sₗ', Sᵤ', S__w') ≺ (Sₗ, Sᵤ, S__w) ↔
   Sₗ' ⊂ Sₗ ∨
