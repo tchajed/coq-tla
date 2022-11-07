@@ -334,4 +334,33 @@ Proof.
     eapply eventually_lock_progress; eauto.
 Qed.
 
+Lemma h_lt_wf :
+  well_founded (h_lt).
+Proof.
+  apply wf_slexprod; [ apply wf_slexprod | ]; apply set_wf.
+Qed.
+
+Theorem eventually_terminated :
+  spec ⊢ ◇⌜terminated⌝.
+Proof.
+  apply (leads_to_apply ⌜λ s, True⌝).
+  { unseal. }
+
+  set (h := λ ss s, measure s = ss).
+  lt_apply (lattice_leads_to_ex h_lt_wf h (∅, ∅, ∅)).
+
+  - lt_unfold; intros _.
+    rewrite /h. eauto.
+  - intros [[Sₗ Sᵤ] S__w] Hnotempty.
+    rewrite /h.
+    lt_apply eventually_progress; auto.
+    lt_auto.
+  - rewrite /h /terminated /measure.
+    lt_unfold; stm.
+    destruct pc; trivial; exfalso; eauto.
+    + assert (tid ∈ wait_set tp) by eauto; set_solver.
+    + assert (tid ∈ wait_set tp) by eauto; set_solver.
+    + assert (tid ∈ wait_set tp) by eauto; set_solver.
+Qed.
+
 End example.
