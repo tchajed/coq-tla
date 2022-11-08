@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 
-name="liveness_simpler"
+set -u
+
+usage() {
+  echo "./etc/depgraph.sh [name]" 1>&2
+}
+
+if [ $# -lt 1 ]; then
+  usage
+  exit 1
+fi
+
+name="$1"
 
 # shellcheck disable=2046 # need to split into multiple arguments
 coqtop $(grep '^-Q' _CoqProject) 1>/dev/null 2>coqtop.err <<EOF
