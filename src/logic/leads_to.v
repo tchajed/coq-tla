@@ -465,6 +465,23 @@ Proof.
   intros x. fold (⌜h x⌝). eauto.
 Qed.
 
+Lemma always_leads_to_as_always_eventually (p q: predicate) :
+  (□p) ~~> q == □◇(p → q).
+Proof.
+  rewrite /leads_to !implies_to_or.
+  tla_simp.
+  rewrite eventually_or //.
+Qed.
+
+Lemma always_leads_to_simp (p q: predicate) :
+  (□p) ~~> q == (◇□p → □◇q).
+Proof.
+  rewrite always_leads_to_as_always_eventually.
+  rewrite !implies_to_or.
+  tla_simp.
+  rewrite always_eventually_distrib //.
+Qed.
+
 End TLA.
 
 Ltac leads_to_trans q :=
