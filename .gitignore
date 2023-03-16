@@ -6,6 +6,7 @@
 *.vos
 /.coqdeps.d
 .lia.cache
+.coq-native/
 # Alectryon
 /docs
 /.alectryon.cache/
