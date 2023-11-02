@@ -180,6 +180,7 @@ Proof.
   rewrite /measure.
   apply (mutex_wf1 t); simpl; intros.
   - destruct_step; stm.
+    set_solver.
   - stm.
     destruct l0; stm.
     exfalso.
@@ -199,6 +200,7 @@ Proof.
   rewrite /measure.
   apply (mutex_wf1 t); simpl; intros.
   - destruct_step; stm.
+    set_solver.
   - stm.
     destruct l0; stm.
     exfalso.
@@ -232,6 +234,7 @@ Proof.
       rewrite /lock_free_queue_inv /= in Hcan_lock.
       edestruct Hcan_lock; eauto.
       destruct H; stm.
+      set_solver.
   }
 
   lt_intro t'.
@@ -242,6 +245,7 @@ Proof.
     lt_simp.
     apply (mutex_wf1 t'); simpl; intros.
     + destruct_step; stm.
+      { set_solver. }
       simp_props.
       left; set_solver.
     + stm.

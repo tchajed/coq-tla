@@ -174,12 +174,11 @@ Ltac stm_simp :=
 
 Ltac stm :=
   stm_simp;
-  try solve [ intuition (repeat deex; eauto) ];
-  try solve [ exfalso; eauto ];
+  try solve [ intuition (repeat deex; eauto with stm) ];
   try congruence;
   repeat first [
-      (split; [ solve [ intuition eauto ] | ])
-    | (split; [ | solve [ intuition eauto ] ])
+      (split; [ solve [ intuition (eauto with stm) ] | ])
+    | (split; [ | solve [ intuition (eauto with stm) ] ])
     ].
 
 #[export]

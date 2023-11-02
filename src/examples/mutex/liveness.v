@@ -762,7 +762,11 @@ be.
 
     rewrite /h.
     lt_apply any_wait_progress.
-    lt_auto naive_solver.
+    lt_auto.
+    intros.
+    destruct_or!; destruct_and?.
+    { eexists (_, _); eauto. }
+    { naive_solver. }
 
   - rewrite /h.
     lt_apply empty_wait_signal_to_unlock.

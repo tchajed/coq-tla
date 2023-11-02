@@ -120,9 +120,17 @@ Qed.
 Hint Resolve NoDup_nil_2 NoDup_pop NoDup_app1_fwd elem_of_pop : core.
 
 #[local]
-Hint Extern 2 (_ ∉ _) => set_solver : core.
+Hint Extern 2 (_ ∉ _) => set_solver : stm.
 #[local]
-Hint Extern 2 (_ ∈ _) => set_solver : core.
+Hint Extern 2 (_ ∈ _) => set_solver : stm.
+
+Ltac learn H :=
+  let P := type of H in
+  lazymatch goal with
+  | H': P |- _ => fail
+  | _ => let name := fresh "_Hlearned" in
+         pose proof H as name
+  end.
 
 Lemma nodup_helper_inv_ok :
   spec ⊢ □⌜nodup_helper_inv⌝.
@@ -138,13 +146,18 @@ Proof.
         [[[=] ?] |
           (t & pc & pc' & Hlookup & Hstep & ?)]; subst; eauto.
     destruct_step; stm; intros;
-      try (destruct (decide (t0 = t)); lookup_simp; eauto;
-          let n := numgoals in guard n <= 1);
-      try match goal with
-          | H: ?t ∈ _ |- _ => apply Hwait in H; congruence
-          end.
-    + assert (t ∈ q) as Hel by auto.
-      apply Hwait in Hel; congruence.
+      repeat match goal with
+        | t: Tid |- _ =>
+            match goal with
+            | Hin: t ∈ _ |- _ => learn (Hwait t Hin)
+            end
+        end;
+      lookup_simp.
+    + destruct (decide (t = t0)); lookup_simp.
+      apply elem_of_app in H. set_solver.
+    + apply elem_of_pop in H; lookup_simp.
+      apply Hwait in H.
+      destruct (decide (t = t0)); lookup_simp.
 Qed.
 
 Lemma nodup_inv_ok :
@@ -207,29 +220,25 @@ Proof.
 (*|
 This proof is done carefully to illustrate all the cases above.
 |*)
-    destruct_step; try solve [ exfalso; stm ].
-    + stm_simp.
-      (* futex_wait -> lock_cas *)
+    destruct_step; stm_simp.
+    + (* futex_wait -> lock_cas *)
       destruct (Hinv _ _ ltac:(eauto) ltac:(auto)) as [t' Ht'];
         destruct_or!; destruct_and?;
           try solve [ exists t'; lookup_simp; eauto ].
       (* doesn't affect t', all cases are proven automatically *)
-    + stm_simp.
-      (* kernel_wait -> lock_cas *)
+    + (* kernel_wait -> lock_cas *)
       destruct (Hinv _ _ ltac:(eauto) ltac:(auto)) as [t' Ht'];
         destruct_or!; destruct_and?;
           try solve [ exists t'; lookup_simp; eauto ].
       (* t' was in kernel_wait but now it's in lock_cas *)
       assert (tp !! t' = Some pc.kernel_wait) as _ by assumption.
       exists t; lookup_simp; eauto.
-    + stm_simp.
-      (* unlock_store -> unlock_wake *)
+    + (* unlock_store -> unlock_wake *)
       assert (l = true) by eauto; subst.
       (* this is the easy case where we got here because a thread just released
       the lock *)
       exists t; lookup_simp; eauto.
-    + stm_simp.
-      (* unlock_wake -> finished *)
+    + (* unlock_wake -> finished *)
 (*|
 There may no longer be thread still in `unlock_wake`, so we'll instead show
 there's now a `kernel_wait` thread that's enabled.
@@ -240,7 +249,7 @@ there's now a `kernel_wait` thread that's enabled.
       assert (t'' ∉ t0 :: ts0) by (inversion Hnodup; eauto).
       rewrite /waiting_inv /= in Hwait.
       (* follows from [t''] being in the queue *)
-      assert (tp !! t'' = Some pc.kernel_wait) by eauto.
+      assert (tp !! t'' = Some pc.kernel_wait) by set_solver.
       exists t''; lookup_simp; eauto.
 Qed.
 
