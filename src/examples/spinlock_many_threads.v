@@ -287,9 +287,9 @@ Lemma filter_is_Some {K: Type} `{Countable K} {V: Type}
 Proof.
   split; (intuition auto); repeat deex.
   - destruct H1 as [v Hlookup].
-    rewrite map_filter_lookup_Some in Hlookup.
+    rewrite map_lookup_filter_Some in Hlookup.
     eauto.
-  - rewrite map_filter_lookup. rewrite /is_Some.
+  - rewrite map_lookup_filter. rewrite /is_Some.
     exists v.
     rewrite H1 /=.
     rewrite option_guard_True //.
@@ -349,7 +349,7 @@ Proof.
     { unfold waiting_set.
       rewrite elem_of_dom.
       exists pc0.
-      rewrite map_filter_lookup_Some //. }
+      rewrite map_lookup_filter_Some //. }
     rewrite waiting_set_remove //.
     rewrite lookup_insert //.
   - unfold h.

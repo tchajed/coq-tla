@@ -113,9 +113,9 @@ Proof. unseal. Qed.
 Lemma exist_or {A} `{Inhabited A} (φ: A → predicate) p :
   ((∃ x, φ x) ∨ p) == (∃ x, φ x ∨ p).
 Proof.
-  unseal; naive_solver.
-  Unshelve.
-  exact inhabitant.
+  unseal. split; [ | naive_solver ].
+  intros [[x Hφ] | Hp]; [ eauto | ].
+  exists inhabitant; eauto.
 Qed.
 
 Lemma forall_and {A} `{Inhabited A} (φ: A → predicate) p :
