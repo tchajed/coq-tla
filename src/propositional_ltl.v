@@ -153,6 +153,10 @@ Proof.
   unseal.
 Qed.
 
+Lemma tla_impl_to_or p q :
+  (p → q) == (!p ∨ q).
+Proof. unseal. Qed.
+
 Lemma tla_contra p q :
   (p ∧ !q ⊢ tla_false) →
   p ⊢ q.
@@ -182,6 +186,12 @@ Lemma impl_intro p q :
   (p ⊢ q) →
   (⊢ p → q).
 Proof. unseal. Qed.
+
+Lemma iff_from_impl p q :
+  (p ⊢ q) →
+  (q ⊢ p) →
+  p == q.
+Proof. intros. unseal. Qed.
 
 Lemma tla_and_curry p q r :
   (p ∧ q ⊢ r) ↔ (p ⊢ q → r).

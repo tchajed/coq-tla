@@ -36,4 +36,26 @@ Proof.
       exact 0.
 Qed.
 
+Lemma eventually_strong_until p q :
+  ◇ (strong_until p q) == ◇ q.
+Proof.
+  unseal.
+  split.
+  - unseal.
+  - intros [k Hq].
+    exists k, 0.
+    change (0 + k) with k.
+    split; [ by auto | ].
+    intros. exfalso; lia.
+Qed.
+
+Lemma eventually_weak_until p q :
+  ◇ (weak_until p q) == ◇ (q ∨ □ p).
+Proof.
+  unfold weak_until.
+  rewrite eventually_or.
+  rewrite eventually_strong_until.
+  rewrite eventually_or //.
+Qed.
+
 End TLA.
