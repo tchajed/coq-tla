@@ -38,7 +38,23 @@ Module classical.
     tauto.
   Qed.
 
+  Lemma not_impl (P Q: Prop) : ~(P → Q) ↔ P ∧ ~Q.
+  Proof.
+    tauto.
+  Qed.
+
   Lemma excluded_middle (P: Prop) : P ∨ ~P.
+  Proof.
+    tauto.
+  Qed.
+
+  Lemma classical_or_introl (P Q: Prop) : (~P → Q) → P ∨ Q.
+  Proof.
+    tauto.
+  Qed.
+
+  Lemma classical_or_intror (P Q: Prop) : (~Q → P) → P ∨ Q.
+  Proof.
     tauto.
   Qed.
 

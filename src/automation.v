@@ -396,6 +396,9 @@ Hint Unfold enabled weak_fairness strong_fairness : tla.
 #[export]
 Hint Unfold leads_to : tla.
 
+#[export]
+Hint Unfold strong_until weak_until : tla.
+
 Ltac tla_simp := autorewrite with tla; try reflexivity.
 
 Ltac dual0 :=

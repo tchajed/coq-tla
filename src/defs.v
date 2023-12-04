@@ -172,6 +172,14 @@ Definition leads_to {Σ} (p q: predicate Σ) : predicate Σ :=
 
 Notation "p ~~> q" := (leads_to p q) (at level 51, right associativity).
 
+Definition strong_until {Σ} (p q: predicate Σ) : predicate Σ :=
+  λ e, ∃ i, q (drop i e) ∧ ∀ j, j < i → p (drop j e).
+
+Definition weak_until {Σ} (p q: predicate Σ) : predicate Σ :=
+  strong_until p q ∨ □ p.
+
 Arguments enabled {Σ}%type_scope a%type_scope.
 Arguments tla_enabled {Σ}%type_scope a%type_scope.
 Arguments weak_fairness {Σ}%type_scope a%type_scope.
+Arguments strong_until {Σ}%type_scope p%tla q%tla.
+Arguments weak_until {Σ}%type_scope p%tla q%tla.
