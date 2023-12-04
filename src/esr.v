@@ -43,4 +43,11 @@ Proof.
   unseal.
 Qed.
 
+Lemma ESR'_same_as_ESR : ESR == ESR'.
+Proof.
+  unfold ESR, ESR'.
+  setoid_rewrite esr_bodies_eq.
+  reflexivity.
+Qed.
+
 End controller.
