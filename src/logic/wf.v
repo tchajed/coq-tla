@@ -23,6 +23,10 @@ Notation predicate := (predicate Σ).
 
 Implicit Types (e: exec) (p q: predicate) (a: action Σ).
 
+Theorem weak_fairness_leads_to a :
+  weak_fairness a == (□ tla_enabled a) ~~> ⟨a⟩.
+Proof. reflexivity. Qed.
+
 Theorem weak_fairness_alt1 a :
   weak_fairness a == □ ◇ ((! (tla_enabled a)) ∨ □ ◇ ⟨a⟩).
 Proof.
